@@ -1,0 +1,693 @@
+// Package db wraps an Oracle connection made through godror.
+package db
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/godror/godror"
+	"github.com/godror/godror/dsn"
+
+	"sqlcli/internal/config"
+)
+
+type Result struct {
+	Columns  []string
+	Types    []string // Oracle type of each column (NUMBER, VARCHAR2, DATE, ...)
+	Rows     [][]string
+	More     bool  // the cursor is still open: Conn.FetchMore returns the next rows
+	Affected int64 // for DML
+	IsQuery  bool
+	Message  string
+	Output   []string // DBMS_OUTPUT lines produced by the statement
+	Duration time.Duration
+}
+
+type Conn struct {
+	Name     string
+	ReadOnly bool
+	db       *sql.DB
+	sc       *sql.Conn // the one Oracle session all statements run in
+	tx       *sql.Tx   // open transaction when AutoCommit is off
+	auto     bool
+	output   bool // DBMS_OUTPUT is enabled and read after each statement
+	closed   bool
+
+	mu  sync.Mutex // serializes all use of the session
+	cur *cursor    // open query cursor with rows not fetched yet
+}
+
+// cursor is an open query whose remaining rows can be fetched later.
+type cursor struct {
+	rows   *sql.Rows
+	cancel context.CancelFunc
+	vals   []any
+	ptrs   []any
+	peeked []string // one row read ahead to learn whether more rows exist
+}
+
+func (k *cursor) close() {
+	k.rows.Close()
+	k.cancel()
+}
+
+// fetch returns up to n rows (n < 0: all). done reports that the cursor is
+// exhausted.
+func (k *cursor) fetch(n int) (out [][]string, done bool, err error) {
+	if k.peeked != nil {
+		out = append(out, k.peeked)
+		k.peeked = nil
+	}
+	next := func() ([]string, bool, error) {
+		if !k.rows.Next() {
+			return nil, false, k.rows.Err()
+		}
+		if err := k.rows.Scan(k.ptrs...); err != nil {
+			return nil, false, err
+		}
+		row := make([]string, len(k.vals))
+		for i, v := range k.vals {
+			row[i] = FormatValue(v)
+		}
+		return row, true, nil
+	}
+	for n < 0 || len(out) < n {
+		row, ok, err := next()
+		if err != nil {
+			return out, true, err
+		}
+		if !ok {
+			return out, true, nil
+		}
+		out = append(out, row)
+	}
+	row, ok, err := next() // read ahead one row
+	if err != nil || !ok {
+		return out, true, err
+	}
+	k.peeked = row
+	return out, false, nil
+}
+
+// Options control how a connection behaves.
+type Options struct {
+	LibDir     string // Oracle Instant Client directory
+	AutoCommit bool
+	DBMSOutput bool // enable DBMS_OUTPUT and collect it after each statement
+}
+
+func Open(ctx context.Context, c config.Connection, o Options) (*Conn, error) {
+	var p godror.ConnectionParams
+	p.Username = c.User
+	p.Password = godror.NewPassword(c.ResolvedPassword())
+	p.ConnectString = c.ConnectString
+	if c.SysDBA {
+		p.AdminRole = dsn.SysDBA
+	}
+	p.LibDir = o.LibDir
+	p.StandaloneConnection = sql.NullBool{Bool: true, Valid: true}
+	p.Timezone = time.Local
+
+	db := sql.OpenDB(godror.NewConnector(p))
+	db.SetMaxOpenConns(1)
+	// Pin one session: transactions and DBMS_OUTPUT are per session.
+	sc, err := db.Conn(ctx)
+	if err == nil {
+		err = sc.PingContext(ctx)
+	}
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	conn := &Conn{Name: c.Name, ReadOnly: c.ReadOnly, db: db, sc: sc, auto: o.AutoCommit}
+	if o.DBMSOutput {
+		// Without EXECUTE on DBMS_OUTPUT the connection still works, just
+		// without collecting output.
+		// No deadline here: godror turns a context deadline on this PL/SQL
+		// call into an Oracle call timeout that stays on the session, which
+		// would cancel every later statement after that many seconds.
+		conn.output = godror.EnableDbmsOutput(context.Background(), sc) == nil
+	}
+	return conn, nil
+}
+
+// readOutput returns and clears the session's DBMS_OUTPUT buffer.
+// Callers hold c.mu.
+func (c *Conn) readOutput() []string {
+	if !c.output {
+		return nil
+	}
+	// No deadline: see Open (a deadline would stay on the session as an
+	// Oracle call timeout).
+	ctx := context.Background()
+	var p interface {
+		PrepareContext(context.Context, string) (*sql.Stmt, error)
+	} = c.sc
+	if c.tx != nil {
+		p = c.tx
+	}
+	var buf strings.Builder
+	if err := godror.ReadDbmsOutput(ctx, &buf, p); err != nil {
+		return []string{"(could not read DBMS_OUTPUT: " + CleanError(err) + ")"}
+	}
+	s := strings.TrimSuffix(buf.String(), "\n")
+	if s == "" {
+		return nil
+	}
+	return strings.Split(s, "\n")
+}
+
+// Close rolls back any open transaction and ends the session. It is safe
+// to call more than once.
+func (c *Conn) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	c.closeCursor()
+	if c.tx != nil {
+		_ = c.tx.Rollback()
+	}
+	_ = c.sc.Close()
+	return c.db.Close()
+}
+
+func (c *Conn) InTransaction() bool { return c.tx != nil }
+
+// closeCursor discards an open query cursor. Callers hold c.mu.
+func (c *Conn) closeCursor() {
+	if c.cur != nil {
+		c.cur.close()
+		c.cur = nil
+	}
+}
+
+// HasMore reports whether the last query still has rows to fetch.
+func (c *Conn) HasMore() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cur != nil
+}
+
+// CloseCursor discards the rows of the last query that were not fetched.
+func (c *Conn) CloseCursor() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closeCursor()
+}
+
+func (c *Conn) Commit() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.commit()
+}
+
+func (c *Conn) Rollback() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.rollback()
+}
+
+func (c *Conn) commit() error {
+	c.closeCursor()
+	if c.tx == nil {
+		return nil
+	}
+	err := c.tx.Commit()
+	c.tx = nil
+	return err
+}
+
+func (c *Conn) rollback() error {
+	c.closeCursor()
+	if c.tx == nil {
+		return nil
+	}
+	err := c.tx.Rollback()
+	c.tx = nil
+	return err
+}
+
+// FetchMore returns up to n further rows of the last query (n < 0: all).
+// done reports that no rows are left; the cursor is then closed. Cancelling
+// ctx stops the fetch and closes the cursor, returning the rows read so far.
+func (c *Conn) FetchMore(ctx context.Context, n int) (rows [][]string, done bool, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cur == nil {
+		return nil, true, nil
+	}
+	stop := context.AfterFunc(ctx, c.cur.cancel)
+	rows, done, err = c.cur.fetch(n)
+	stop()
+	if ctx.Err() != nil {
+		err, done = ctx.Err(), true
+	}
+	if done {
+		c.closeCursor()
+	}
+	return rows, done, err
+}
+
+type execer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+var (
+	reLeadingComments = regexp.MustCompile(`^(\s*(--[^\n]*\n|/\*(?s:.*?)\*/))*\s*`)
+	reFirstWord       = regexp.MustCompile(`^[A-Za-z]+`)
+)
+
+// FirstKeyword returns the uppercased first keyword of a statement.
+func FirstKeyword(stmt string) string {
+	s := reLeadingComments.ReplaceAllString(stmt, "")
+	return strings.ToUpper(reFirstWord.FindString(s))
+}
+
+// Normalize trims the statement and strips a trailing ';' or '/' except
+// for PL/SQL blocks, which need their final ';'.
+func Normalize(stmt string) string {
+	s := strings.TrimSpace(stmt)
+	s = strings.TrimSuffix(s, "/")
+	s = strings.TrimSpace(s)
+	switch FirstKeyword(s) {
+	case "BEGIN", "DECLARE":
+		return s
+	case "CREATE":
+		up := strings.ToUpper(s)
+		if regexp.MustCompile(`^CREATE\s+(OR\s+REPLACE\s+)?(EDITIONABLE\s+|NONEDITIONABLE\s+)?(PROCEDURE|FUNCTION|PACKAGE|TRIGGER|TYPE)\b`).MatchString(up) {
+			return s
+		}
+	}
+	return strings.TrimSpace(strings.TrimSuffix(s, ";"))
+}
+
+// Execute runs one statement. A query returns its first maxRows rows
+// (maxRows < 0: all); if more exist, Result.More is set and FetchMore
+// returns them. Running any statement discards the previous query's cursor.
+func (c *Conn) Execute(ctx context.Context, stmt string, maxRows int) (*Result, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closeCursor()
+	stmt = Normalize(stmt)
+	if stmt == "" {
+		return nil, fmt.Errorf("empty statement")
+	}
+	kw := FirstKeyword(stmt)
+	start := time.Now()
+
+	switch kw {
+	case "COMMIT":
+		err := c.commit()
+		return &Result{Message: "Commit complete.", Duration: time.Since(start)}, err
+	case "ROLLBACK":
+		err := c.rollback()
+		return &Result{Message: "Rollback complete.", Duration: time.Since(start)}, err
+	}
+
+	isQuery := kw == "SELECT" || kw == "WITH"
+	if c.ReadOnly && !isQuery && kw != "EXPLAIN" && kw != "DESC" {
+		return nil, fmt.Errorf("connection %q is read-only; %s refused", c.Name, kw)
+	}
+
+	var ex execer = c.sc
+	if !isQuery && !c.auto && (isTransactional(kw) || isPLSQL(kw)) {
+		if c.tx == nil {
+			tx, err := c.sc.BeginTx(context.Background(), nil)
+			if err != nil {
+				return nil, err
+			}
+			c.tx = tx
+		}
+	}
+	if c.tx != nil {
+		ex = c.tx
+	}
+
+	if isQuery {
+		res, err := c.query(ctx, ex, stmt, maxRows)
+		if err != nil {
+			return c.failed(err)
+		}
+		res.Duration = time.Since(start)
+		if !res.More { // while the cursor is open the session is busy
+			res.Output = c.readOutput()
+		}
+		return res, nil
+	}
+
+	r, err := ex.ExecContext(ctx, stmt)
+	if err != nil {
+		return c.failed(err)
+	}
+	n, _ := r.RowsAffected()
+	res := &Result{Affected: n, Duration: time.Since(start)}
+	switch {
+	case isTransactional(kw):
+		res.Message = fmt.Sprintf("%d row(s) %s.", n, pastTense(kw))
+	case isPLSQL(kw):
+		res.Message = "PL/SQL procedure successfully completed."
+	default:
+		res.Message = kw + " executed."
+	}
+	if c.tx != nil && commitsImplicitly(kw) {
+		// Oracle committed the open transaction before running the DDL;
+		// close our handle so the TX state matches the server.
+		_ = c.tx.Commit()
+		c.tx = nil
+		res.Message += " (open transaction was committed by DDL)"
+	}
+	res.Output = c.readOutput()
+	return res, nil
+}
+
+// failed returns err together with any DBMS_OUTPUT the failed statement
+// produced (often printed just before an exception).
+func (c *Conn) failed(err error) (*Result, error) {
+	if out := c.readOutput(); out != nil {
+		return &Result{Output: out}, err
+	}
+	return nil, err
+}
+
+func isPLSQL(kw string) bool {
+	switch kw {
+	case "BEGIN", "DECLARE", "CALL":
+		return true
+	}
+	return false
+}
+
+// commitsImplicitly reports DDL statements that make Oracle commit.
+func commitsImplicitly(kw string) bool {
+	switch kw {
+	case "CREATE", "ALTER", "DROP", "TRUNCATE", "RENAME", "GRANT", "REVOKE",
+		"COMMENT", "ANALYZE", "AUDIT", "NOAUDIT", "PURGE", "FLASHBACK":
+		return true
+	}
+	return false
+}
+
+func isTransactional(kw string) bool {
+	switch kw {
+	case "INSERT", "UPDATE", "DELETE", "MERGE":
+		return true
+	}
+	return false
+}
+
+func pastTense(kw string) string {
+	switch kw {
+	case "INSERT":
+		return "inserted"
+	case "UPDATE":
+		return "updated"
+	case "DELETE":
+		return "deleted"
+	case "MERGE":
+		return "merged"
+	}
+	return "affected"
+}
+
+func (c *Conn) query(ctx context.Context, ex execer, stmt string, maxRows int) (*Result, error) {
+	// The cursor may outlive this call, so it gets its own context; ctx
+	// only cancels it while the first rows are fetched.
+	cctx, ccancel := context.WithCancel(context.Background())
+	stop := context.AfterFunc(ctx, ccancel)
+	defer stop()
+	rows, err := ex.QueryContext(cctx, stmt, godror.FetchArraySize(256))
+	if err != nil {
+		ccancel()
+		return nil, err
+	}
+	cols, err := rows.Columns()
+	if err != nil {
+		rows.Close()
+		ccancel()
+		return nil, err
+	}
+	var types []string
+	if cts, err := rows.ColumnTypes(); err == nil {
+		for _, ct := range cts {
+			types = append(types, ct.DatabaseTypeName())
+		}
+	}
+	k := &cursor{rows: rows, cancel: ccancel, vals: make([]any, len(cols)), ptrs: make([]any, len(cols))}
+	for i := range k.vals {
+		k.ptrs[i] = &k.vals[i]
+	}
+	out, done, err := k.fetch(maxRows)
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
+	if err != nil {
+		k.close()
+		return nil, err
+	}
+	res := &Result{Columns: cols, Types: types, Rows: out, IsQuery: true, More: !done}
+	if done {
+		k.close()
+	} else {
+		c.cur = k
+	}
+	res.Message = RowsMessage(len(out), res.More)
+	return res, nil
+}
+
+// RowsMessage describes how many rows a query has returned so far.
+func RowsMessage(n int, more bool) string {
+	if more {
+		return fmt.Sprintf("%d row(s) fetched, more available.", n)
+	}
+	return fmt.Sprintf("%d row(s) selected.", n)
+}
+
+// rePLSQLStart matches statements that contain PL/SQL and therefore end
+// only at a "/" line: blocks, stored code, and queries with inline
+// functions (WITH FUNCTION / WITH PROCEDURE, Oracle 12c+).
+var rePLSQLStart = regexp.MustCompile(`(?i)^(DECLARE|BEGIN|CREATE\s+(OR\s+REPLACE\s+)?(EDITIONABLE\s+|NONEDITIONABLE\s+)?(PROCEDURE|FUNCTION|PACKAGE|TRIGGER|TYPE)\b|WITH\s+(FUNCTION|PROCEDURE)\b)`)
+
+// Statement is one statement of a script with its position (0-based rows
+// and columns, end inclusive) in the script.
+type Statement struct {
+	Text               string
+	StartRow, StartCol int
+	EndRow, EndCol     int
+}
+
+func isPLSQLText(s string) bool {
+	return rePLSQLStart.MatchString(reLeadingComments.ReplaceAllString(s, ""))
+}
+
+// ParseStatements splits a script into statements, SQL*Plus style:
+//   - plain SQL ends at a ';' (outside strings and comments, also in the
+//     middle of a line), at a blank line, or at a line holding only "/";
+//   - PL/SQL blocks (DECLARE/BEGIN/CREATE PROCEDURE...) end only at a line
+//     holding only "/", so they may contain ';' and blank lines.
+func ParseStatements(script string) []Statement {
+	var (
+		out                 []Statement
+		pieces              []string
+		started             bool
+		st                  Statement
+		lastR, lastC        int
+		inQuote, inBlockCmt bool
+	)
+	text := func() string { return strings.Join(pieces, "\n") }
+	flush := func() {
+		t := strings.TrimSpace(text())
+		if started && t != "" {
+			st.Text = t
+			st.EndRow, st.EndCol = lastR, lastC
+			out = append(out, st)
+		}
+		pieces, started, st = nil, false, Statement{}
+	}
+	mark := func(r, c int) { // record non-blank content at r,c
+		if !started {
+			started = true
+			st.StartRow, st.StartCol = r, c
+		}
+		lastR, lastC = r, c
+	}
+
+	for r, line := range strings.Split(script, "\n") {
+		rs := []rune(line)
+		t := strings.TrimSpace(line)
+		if !inQuote && !inBlockCmt {
+			if t == "/" {
+				flush()
+				continue
+			}
+			if t == "" && !isPLSQLText(text()) {
+				flush()
+				continue
+			}
+		}
+		segStart := 0
+		for c := 0; c < len(rs); c++ {
+			ch := rs[c]
+			next := rune(0)
+			if c+1 < len(rs) {
+				next = rs[c+1]
+			}
+			switch {
+			case inBlockCmt:
+				mark(r, c)
+				if ch == '*' && next == '/' {
+					inBlockCmt = false
+					c++
+					mark(r, c)
+				}
+				continue
+			case inQuote:
+				mark(r, c)
+				if ch == '\'' {
+					if next == '\'' { // escaped quote
+						c++
+						mark(r, c)
+					} else {
+						inQuote = false
+					}
+				}
+				continue
+			case ch == '-' && next == '-': // line comment: rest of line
+				if !started && segStart > 0 {
+					// trailing comment after a statement on this line:
+					// don't carry it into the next statement
+					segStart = len(rs)
+				} else {
+					mark(r, len(rs)-1)
+				}
+				c = len(rs)
+				continue
+			case ch == '/' && next == '*':
+				inBlockCmt = true
+				mark(r, c)
+				c++
+				mark(r, c)
+				continue
+			case ch == '\'':
+				inQuote = true
+			}
+			if ch != ' ' && ch != '\t' {
+				mark(r, c)
+			}
+			if ch == ';' {
+				seg := string(rs[segStart : c+1])
+				cand := strings.Join(append(append([]string{}, pieces...), seg), "\n")
+				if !isPLSQLText(cand) {
+					pieces = append(pieces, seg)
+					flush()
+					segStart = c + 1
+				}
+			}
+		}
+		rest := string(rs[segStart:])
+		if started || strings.TrimSpace(rest) != "" {
+			pieces = append(pieces, rest)
+		}
+	}
+	flush()
+	return out
+}
+
+// SplitStatements returns the statement texts of a script.
+func SplitStatements(script string) []string {
+	var out []string
+	for _, s := range ParseStatements(script) {
+		out = append(out, s.Text)
+	}
+	return out
+}
+
+// StatementAtCursor returns the statement containing the cursor (row, col).
+// The position just after a statement's last character still counts as
+// inside it. Elsewhere (e.g. on a blank line) the nearest statement above
+// is used, or the first one below if there is none above.
+func StatementAtCursor(script string, row, col int) (Statement, bool) {
+	stmts := ParseStatements(script)
+	before := func(r1, c1, r2, c2 int) bool { return r1 < r2 || (r1 == r2 && c1 <= c2) }
+	var above *Statement
+	for i := range stmts {
+		s := &stmts[i]
+		if before(s.StartRow, s.StartCol, row, col) && before(row, col, s.EndRow, s.EndCol+1) {
+			return *s, true
+		}
+		if before(s.EndRow, s.EndCol, row, col) {
+			above = s
+		}
+	}
+	if above != nil {
+		return *above, true
+	}
+	if len(stmts) > 0 {
+		return stmts[0], true
+	}
+	return Statement{}, false
+}
+
+var reOraCode = regexp.MustCompile(`(ORA|DPI|PLS|TNS)-\d{4,5}`)
+
+// CleanError strips godror's parameter dump, keeping the Oracle message.
+func CleanError(err error) string {
+	if err == nil {
+		return ""
+	}
+	s := err.Error()
+	if loc := reOraCode.FindStringIndex(s); loc != nil {
+		prefix := ""
+		if i := strings.Index(s[:loc[0]], "statement "); i == 0 {
+			prefix = s[:strings.Index(s, ":")+2] // keep "statement N: "
+		}
+		return prefix + s[loc[0]:]
+	}
+	return s
+}
+
+// Null marks a NULL value in Result.Rows. It can't come from the database,
+// so a real '(null)' string stays distinguishable. Display it as NullDisplay.
+const Null = "\x00NULL\x00"
+
+// NullDisplay is how NULL is shown on screen.
+const NullDisplay = "(null)"
+
+// FormatValue renders a scanned column value for display.
+func FormatValue(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return Null
+	case string:
+		if x == "" { // Oracle: '' IS NULL; godror returns NULL strings as ""
+			return Null
+		}
+		return x
+	case []byte:
+		return fmt.Sprintf("%X", x)
+	case time.Time:
+		if x.IsZero() {
+			return Null
+		}
+		if x.Nanosecond() != 0 {
+			return x.Format("2006-01-02 15:04:05.000000")
+		}
+		return x.Format("2006-01-02 15:04:05")
+	case godror.Number:
+		return string(x)
+	case *godror.Lob:
+		return "(lob)"
+	case fmt.Stringer:
+		return x.String()
+	default:
+		return fmt.Sprint(x)
+	}
+}

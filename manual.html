@@ -1,0 +1,892 @@
+<title>sqlcli Manual</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: technical manual. Sticky contents rail on the left (wide screens), one reading column,
+   terminal-window figures for the screen, keycaps for every shortcut. Colors borrow the app's own
+   UI: focus-border blue as accent, the TX-marker amber as the warning hue. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #eceff3;
+  --fg: #19202b;
+  --muted: #586273;
+  --line: #d6dce4;
+  --accent: #1d64c4;
+  --amber: #a75600;
+  --ok: #2f7d3a;
+  --term-bg: #141a22;
+  --term-fg: #d6dde7;
+  --term-dim: #6f7b8c;
+  --term-blue: #6cb2ff;
+  --term-green: #7fcf8a;
+  --term-amber: #e0913f;
+  --key-bg: #ffffff;
+  --key-edge: #c3cad4;
+
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --s-1: 0.8125rem; --s0: 1rem; --s1: 1.1875rem; --s2: 1.5rem; --s3: 2.25rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #1a2029; --fg: #dde3ec; --muted: #8f9aaa; --line: #2a323e;
+    --accent: #6cb2ff; --amber: #e39448; --ok: #7fcf8a;
+    --term-bg: #0b0f14; --key-bg: #222a35; --key-edge: #3a4452;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #1a2029; --fg: #dde3ec; --muted: #8f9aaa; --line: #2a323e;
+  --accent: #6cb2ff; --amber: #e39448; --ok: #7fcf8a;
+  --term-bg: #0b0f14; --key-bg: #222a35; --key-edge: #3a4452;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 400 var(--s0)/1.6 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px;
+  padding-block: 40px 96px;
+}
+@media (max-width: 960px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-block: 24px 64px; } }
+
+/* contents rail */
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; }
+.toc .brand { font: 700 var(--s1)/1.2 var(--f-display); letter-spacing: -0.01em; margin-bottom: 4px; }
+.toc .brand span { font-family: var(--f-mono); font-weight: 600; }
+.toc .ver { font-size: var(--s-1); color: var(--muted); margin-bottom: 20px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; counter-reset: toc; }
+.toc li { counter-increment: toc; }
+.toc a { display: flex; gap: 10px; padding: 5px 8px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 0.9rem; }
+.toc a::before { content: counter(toc, decimal-leading-zero); font: 400 0.75rem/1.9 var(--f-mono); color: var(--line); min-width: 1.4em; }
+.toc a:hover { color: var(--fg); background: var(--surface); }
+.toc a.on { color: var(--fg); background: var(--surface); }
+.toc a.on::before { color: var(--accent); }
+@media (max-width: 960px) {
+  .toc { position: static; max-height: none; }
+  .toc details { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+  .toc summary { cursor: pointer; font-weight: 600; }
+  .toc ol { margin-top: 10px; }
+}
+@media (min-width: 961px) { .toc summary { display: none; } .toc details > ol { display: grid; } }
+
+/* main column */
+main { min-width: 0; max-width: 760px; }
+header.intro { padding-bottom: 28px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.eyebrow { font: 600 0.75rem/1 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(2.25rem, 6vw, 3.25rem)/1.05 var(--f-display); letter-spacing: -0.025em; margin: 12px 0 14px; text-wrap: balance; }
+h1 code { font-family: var(--f-mono); font-weight: 600; font-size: 0.86em; letter-spacing: -0.04em; }
+.lede { font-size: var(--s1); line-height: 1.55; color: var(--muted); max-width: 62ch; margin: 0; }
+.lede strong { color: var(--fg); font-weight: 500; }
+
+.quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+@media (max-width: 640px) { .quick { grid-template-columns: minmax(0, 1fr); } }
+.quick div { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.quick b { display: block; font: 600 0.75rem/1.4 var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.quick code { font-size: 0.85rem; overflow-wrap: anywhere; }
+
+section { padding-top: 48px; scroll-margin-top: 16px; }
+h2 { font: 700 var(--s3)/1.15 var(--f-display); letter-spacing: -0.02em; margin: 0 0 16px; text-wrap: balance; display: flex; gap: 14px; align-items: baseline; }
+h2 .n { font: 400 var(--s0)/1 var(--f-mono); color: var(--muted); }
+h3 { font: 700 var(--s1)/1.3 var(--f-display); margin: 32px 0 10px; }
+p, ul, ol.steps { max-width: 66ch; }
+p { margin: 0 0 14px; }
+ul, ol.steps { padding-left: 1.3em; margin: 0 0 14px; }
+li { margin-bottom: 6px; }
+li::marker { color: var(--muted); }
+strong { font-weight: 600; }
+
+code { font: 400 0.88em var(--f-mono); background: var(--surface); padding: 0.1em 0.35em; border-radius: 4px; }
+pre { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 0 0 18px; font: 400 0.85rem/1.55 var(--f-mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+.c { color: var(--muted); }   /* comment in code */
+.k { color: var(--accent); }  /* key in toml */
+.s { color: var(--ok); }      /* string */
+
+kbd {
+  font: 600 0.78rem/1 var(--f-mono); white-space: nowrap;
+  display: inline-block; padding: 4px 6px 3px; min-width: 1.6em; text-align: center;
+  background: var(--key-bg); color: var(--fg);
+  border: 1px solid var(--key-edge); border-bottom-width: 2px; border-radius: 5px;
+}
+
+/* tables */
+.tbl { overflow-x: auto; margin: 0 0 20px; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { text-align: left; vertical-align: top; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font: 600 0.72rem/1.4 var(--f-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); background: var(--surface); }
+td:first-child { white-space: nowrap; }
+td.wrap-ok { white-space: normal; }
+
+/* callouts */
+.note { border-left: 3px solid var(--accent); background: var(--surface); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 0 0 18px; max-width: 66ch; }
+.note.warn { border-left-color: var(--amber); }
+.note p:last-child { margin-bottom: 0; }
+.note .lbl { font: 600 0.72rem/1 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 6px; }
+.note.warn .lbl { color: var(--amber); }
+
+/* terminal figure */
+.term { background: var(--term-bg); color: var(--term-fg); border-radius: 10px; overflow: hidden; margin: 0 0 18px; border: 1px solid var(--line); }
+.term .bar { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid #ffffff14; }
+.term .bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--term-dim); opacity: 0.6; }
+.term pre { background: none; border: 0; border-radius: 0; margin: 0; color: var(--term-fg); font-size: 0.78rem; line-height: 1.45; }
+.t-b { color: var(--term-blue); } .t-d { color: var(--term-dim); } .t-g { color: var(--term-green); }
+.t-h { color: var(--term-blue); font-weight: 600; }
+.t-tx { background: var(--term-amber); color: #111; font-weight: 600; }
+.t-cur { background: var(--term-fg); color: var(--term-bg); }
+figcaption { font-size: var(--s-1); color: var(--muted); margin: -8px 0 18px; }
+
+/* legend list for the screen parts */
+dl.parts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; margin: 0 0 18px; max-width: 66ch; }
+dl.parts dt { font-weight: 600; }
+dl.parts dd { margin: 0; color: var(--fg); }
+@media (max-width: 520px) { dl.parts { grid-template-columns: minmax(0, 1fr); gap: 2px; } dl.parts dd { margin-bottom: 10px; } }
+
+/* key finder */
+.finder { display: flex; gap: 10px; align-items: center; margin: 0 0 14px; flex-wrap: wrap; }
+.finder input { font: 400 var(--s0) var(--f-body); padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--key-bg); color: var(--fg); width: min(100%, 340px); }
+.finder span { font-size: var(--s-1); color: var(--muted); font-variant-numeric: tabular-nums; }
+td .grp { font: 600 0.7rem/1 var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+/* troubleshooting */
+.issue { border-top: 1px solid var(--line); padding: 16px 0 4px; }
+.issue h4 { margin: 0 0 6px; font: 600 0.95rem/1.4 var(--f-mono); color: var(--amber); overflow-wrap: anywhere; }
+
+footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line); font-size: var(--s-1); color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Contents">
+    <div class="brand"><span>sqlcli</span> manual</div>
+    <div class="ver">Oracle terminal client</div>
+    <details open>
+      <summary>Contents</summary>
+      <ol>
+        <li><a href="#req">Requirements</a></li>
+        <li><a href="#build">Building</a></li>
+        <li><a href="#start">Starting sqlcli</a></li>
+        <li><a href="#screen">The screen</a></li>
+        <li><a href="#conns">Connections</a></li>
+        <li><a href="#editor">SQL editor</a></li>
+        <li><a href="#running">Running SQL</a></li>
+        <li><a href="#tx">Transactions</a></li>
+        <li><a href="#results">Results</a></li>
+        <li><a href="#history">SQL history</a></li>
+        <li><a href="#config">Configuration file</a></li>
+        <li><a href="#files">Files</a></li>
+        <li><a href="#keys">Key reference</a></li>
+        <li><a href="#trouble">Troubleshooting</a></li>
+        <li><a href="#dev">Development</a></li>
+      </ol>
+    </details>
+  </nav>
+
+  <main>
+    <header class="intro">
+      <div class="eyebrow">User manual</div>
+      <h1><code>sqlcli</code>, a terminal SQL client for Oracle</h1>
+      <p class="lede">A split-screen client with <strong>connections</strong>, a <strong>SQL editor with JOE keybindings</strong> and a <strong>results grid</strong>. Settings live in a TOML file, and every statement you run is saved to a searchable SQLite history.</p>
+      <div class="quick">
+        <div><b>Start</b><code>sqlcli -c ora</code></div>
+        <div><b>Run statement</b><kbd>F5</kbd> &nbsp;whole buffer <kbd>F7</kbd></div>
+        <div><b>Quit</b><kbd>^K</kbd> <kbd>X</kbd></div>
+      </div>
+    </header>
+
+    <!-- 1 -->
+    <section id="req">
+      <h2><span class="n">01</span>Requirements</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Requirement</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Go 1.26+</td><td class="wrap-ok">To build</td></tr>
+          <tr><td>C compiler (gcc)</td><td class="wrap-ok">godror, the Oracle driver, uses cgo</td></tr>
+          <tr><td>Oracle Instant Client</td><td class="wrap-ok">Any recent version (tested with 23.26). The database can be 11.2 or newer (tested with 19c).</td></tr>
+          <tr><td><code>ORACLE_HOME</code></td><td class="wrap-ok">Points at the Instant Client directory, e.g. <code>/usr/local/oracle</code></td></tr>
+          <tr><td><code>TNS_ADMIN</code></td><td class="wrap-ok">Optional. Directory containing <code>tnsnames.ora</code>, if you use TNS aliases.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><span class="lbl">No LD_LIBRARY_PATH</span><p>sqlcli loads the Oracle client library from <code>ORACLE_HOME</code>, or from <code>oracle.lib_dir</code> in the config file. You don't need to set <code>LD_LIBRARY_PATH</code>.</p></div>
+    </section>
+
+    <!-- 2 -->
+    <section id="build">
+      <h2><span class="n">02</span>Building</h2>
+<pre><code>cd sqlcli
+make build          <span class="c"># same as: go build -o sqlcli ./cmd/sqlcli</span></code></pre>
+      <p>The result is a single binary, <code>./sqlcli</code>. Copy it anywhere on your <code>PATH</code>.</p>
+    </section>
+
+    <!-- 3 -->
+    <section id="start">
+      <h2><span class="n">03</span>Starting sqlcli</h2>
+<pre><code>sqlcli                      <span class="c"># choose a connection in the left pane</span>
+sqlcli -c ora               <span class="c"># connect to the saved connection "ora" at start</span>
+sqlcli -config ./my.toml    <span class="c"># use a different configuration file</span></code></pre>
+      <div class="tbl"><table>
+        <thead><tr><th>Option</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>-c NAME</code></td><td class="wrap-ok">Connect to the saved connection <code>NAME</code> (case-insensitive) on startup. sqlcli exits with an error if no such connection exists.</td></tr>
+          <tr><td><code>-config PATH</code></td><td class="wrap-ok">Configuration file to use. Default: <code>~/.config/sqlcli/config.toml</code>.</td></tr>
+          <tr><td><code>-version</code></td><td class="wrap-ok">Print the version (<code>sqlcli 0.1</code>) and exit.</td></tr>
+        </tbody>
+      </table></div>
+      <p>On first start, if the configuration file doesn't exist, sqlcli creates it with default settings and an <code>example</code> connection.</p>
+      <p>To quit, press <kbd>^K</kbd> <kbd>X</kbd>, or <kbd>Ctrl-C</kbd> when no query is running. If a transaction is open, sqlcli asks for confirmation and rolls it back.</p>
+    </section>
+
+    <!-- 4 -->
+    <section id="screen">
+      <h2><span class="n">04</span>The screen</h2>
+      <figure style="margin:0">
+        <div class="term" role="img" aria-label="sqlcli screen: connections pane on the left, SQL editor top right, results grid bottom right, status bar and key hints at the bottom">
+          <div class="bar"><i></i><i></i><i></i></div>
+<pre><span class="t-d">╭─ Connections ──╮</span><span class="t-b">╭─ SQL · ora ────────────────────────────────[x]─╮</span>
+<span class="t-d">│</span><span class="t-g">● ora</span>           <span class="t-d">│</span><span class="t-b">│</span><span class="t-d"> 1</span> select level n, 'row '||level label         <span class="t-b">│</span>
+<span class="t-d">│</span>  test (ro)     <span class="t-d">│</span><span class="t-b">│</span><span class="t-d"> 2</span>   from dual connect by level &lt;= 25<span class="t-cur"> </span>          <span class="t-b">│</span>
+<span class="t-d">│                │</span><span class="t-b">│</span><span class="t-d"> 3</span>                                             <span class="t-b">│</span>
+<span class="t-d">│                │</span><span class="t-b">╰─ </span><span class="t-g">✓ 25 rows</span><span class="t-d"> · 12ms · at 14:02:31</span><span class="t-b"> ──────────────╯</span>
+<span class="t-d">│                │╭─ Results  row 1/25  col 1/2 ──────────────────╮</span>
+<span class="t-d">│                ││</span><span class="t-h">   │ N │ LABEL                                 </span><span class="t-d">│</span>
+<span class="t-d">│                ││───┼───┼────────                               │</span>
+<span class="t-d">│                ││ 1 │</span> 1 <span class="t-d">│</span> row 1                                 <span class="t-d">│</span>
+<span class="t-d">│                ││ 2 │</span> 2 <span class="t-d">│</span> row 2                                 <span class="t-d">│</span>
+<span class="t-d">╰────────────────╯╰───────────────────────────────────────────────╯</span>
+ ora <span class="t-tx"> TX </span> │ Ln 2, Col 36 │ 25 row(s) selected.
+ <span class="t-b">F1</span> help  <span class="t-b">F2</span> conns  <span class="t-b">F3</span> results  <span class="t-b">F5</span> run  <span class="t-b">F7</span> run all  <span class="t-b">F6</span> history</pre>
+        </div>
+        <figcaption>The focused pane has a blue border. Here the editor has focus and a transaction is open.</figcaption>
+      </figure>
+      <dl class="parts">
+        <dt>Tab bar</dt><dd>Shown with two or more tabs: one entry per SQL tab with its connection, <code>TX</code> for an open transaction and <code>…</code> while a statement runs. See <a href="#tabs">Tabs</a>.</dd>
+        <dt>Connections</dt><dd>Saved connections. <code>●</code> marks the active tab's connection, <code>○</code> one open in another tab, <code>(ro)</code> a read-only one. <kbd>F2</kbd> hides or shows the panel; while it's hidden, the editor and results use the full width.</dd>
+        <dt>SQL</dt><dd>The editor. The title names the active connection (<code>SQL · ora</code>), adds <code>(read-only)</code> for read-only connections, or says <code>not connected</code>. It shows <code>^K-</code> while a ^K command waits for its second key.</dd>
+        <dt>SQL footer</dt><dd>The SQL panel's bottom border shows how the tab's last statement went: <code>● running 3.2s</code> while it runs (also <code>● fetching 12000 rows</code>, <code>● exporting</code>); <code>✓ 25 rows · 12ms · at 14:02:31</code> when it finished, with the row count following later fetches; <code>✓ 3 row(s) updated</code>, <code>✓ PL/SQL OK</code>, <code>✓ 4 statements, last: 25 rows</code>; <code>✗ ORA-00942: …</code> when it failed; <code>✗ timed out after 30s</code>; <code>■ cancelled after 2.1s</code> after Ctrl-C. Each tab keeps its own.</dd>
+        <dt>Results</dt><dd>Query results, messages and errors. The title shows the selected row and first visible column.</dd>
+        <dt>Status bar</dt><dd>Active connection, a <b>TX</b> marker when a transaction is open, cursor position, and the last message (red for errors). Running times are shown in the SQL panel's bottom border, not here.</dd>
+        <dt>Bottom line</dt><dd>Key hints, or the input line when sqlcli asks for something: a file name, search text or a confirmation.</dd>
+      </dl>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Goes to</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>F2</kbd></td><td class="wrap-ok">Show the connections panel (focused) / hide it</td></tr>
+          <tr><td><kbd>F3</kbd></td><td>Results</td></tr>
+          <tr><td><kbd>Esc</kbd> or <kbd>Tab</kbd></td><td class="wrap-ok">Back to the editor (from Connections or Results)</td></tr>
+        </tbody>
+      </table></div>
+      <p>You can also click a pane to focus it.</p>
+      <h3 id="mouse">Mouse</h3>
+      <p>With <code>ui.mouse = true</code> (the default):</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Click</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>A pane</td><td>Focus it</td></tr>
+          <tr><td>In the SQL editor</td><td>Move the cursor there</td></tr>
+          <tr><td>A row in the results grid</td><td>Select it</td></tr>
+          <tr><td>A connection</td><td class="wrap-ok">Select it; <strong>double-click</strong> connects the current tab</td></tr>
+          <tr><td>A tab in the tab bar</td><td>Switch to that tab</td></tr>
+          <tr><td><code>[x]</code> on the SQL panel</td><td class="wrap-ok">Close the tab (on the last tab sqlcli asks before quitting)</td></tr>
+          <tr><td>Mouse wheel</td><td>Scroll the pane under the pointer</td></tr>
+        </tbody>
+      </table></div>
+      <p>Hold <kbd>Shift</kbd> while dragging to select text for copying (most terminals).</p>
+    </section>
+
+    <!-- 5 -->
+    <section id="conns">
+      <h2><span class="n">05</span>Connections</h2>
+      <p>Press <kbd>F2</kbd> to show the connections panel; it opens focused. <kbd>F2</kbd> again hides it. When the panel is already visible, click it to focus it, or press <kbd>F2</kbd> twice.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> &nbsp;<kbd>^P</kbd> <kbd>^N</kbd> &nbsp;<kbd>k</kbd> <kbd>j</kbd></td><td>Select</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Connect to the selected connection</td></tr>
+          <tr><td><kbd>a</kbd></td><td>Add a new connection</td></tr>
+          <tr><td><kbd>d</kbd></td><td>Delete the selected connection (asks first)</td></tr>
+          <tr><td><kbd>Esc</kbd> <kbd>Tab</kbd></td><td>Back to the editor</td></tr>
+        </tbody>
+      </table></div>
+      <h3>Adding a connection</h3>
+      <p>Pressing <kbd>a</kbd> asks four questions on the bottom line:</p>
+      <ol class="steps">
+        <li><strong>Connection name.</strong> Any label. You use it with <code>-c</code>.</li>
+        <li><strong>User.</strong> The database user.</li>
+        <li><strong>Connect string.</strong> One of:
+          <ul>
+            <li>a TNS alias from <code>tnsnames.ora</code>, e.g. <code>ORCL.EXAMPLE</code></li>
+            <li>Easy Connect, e.g. <code>dbhost:1521/ORCLPDB1</code></li>
+            <li>a full descriptor, e.g. <code style="overflow-wrap:anywhere">(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=dbhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=orcl)))</code></li>
+          </ul>
+        </li>
+        <li><strong>Password.</strong> Shown as <code>*</code>. Leave it empty to read the password from an environment variable instead, then enter the variable name (default <code>SQLCLI_PASSWORD</code>).</li>
+      </ol>
+      <p>Added and deleted connections are saved to the configuration file straight away. Press <kbd>Esc</kbd> at any question to cancel.</p>
+      <p>Switching connections is refused while a transaction is open: commit (<kbd>F8</kbd>) or roll back (<kbd>F9</kbd>) first. Read-only connections (<code>read_only = true</code> in the config file) allow only <code>SELECT</code>, <code>WITH</code>, <code>EXPLAIN</code> and <code>DESC</code>.</p>
+      <div class="note warn"><span class="lbl">Passwords</span><p>A password typed in the wizard is stored in plain text in the configuration file. sqlcli writes that file with mode <code>0600</code>, so only you can read it. With <code>password_env</code> the password never touches the file.</p></div>
+
+      <h3 id="tabs">Tabs: several SQL panels and connections</h3>
+      <p>Each tab is a separate SQL panel with its own editor, results, status and <strong>its own Oracle session</strong>. Tabs can use the same connection or different ones, all at the same time.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>^K</kbd> <kbd>O</kbd></td><td class="wrap-ok">Open a new tab on the same connection as the current tab</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>N</kbd> / <kbd>^K</kbd> <kbd>P</kbd></td><td>Next / previous tab</td></tr>
+          <tr><td><kbd>Ctrl-PgDn</kbd> / <kbd>Ctrl-PgUp</kbd></td><td class="wrap-ok">Next / previous tab (works in every pane)</td></tr>
+          <tr><td><kbd>Alt-1</kbd> … <kbd>Alt-9</kbd></td><td>Go to tab 1 … 9</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>Q</kbd></td><td>Close the tab (on the last tab: quit)</td></tr>
+          <tr><td>Select in the connections panel, <kbd>Enter</kbd></td><td class="wrap-ok">Connect the current tab to another connection</td></tr>
+        </tbody>
+      </table></div>
+      <div class="term" role="img" aria-label="Tab bar with three tabs above the connections panel and SQL panel">
+<pre><span class="t-tx"> 1 ora TX </span><span class="t-d">│</span><span class="t-b"> 2 ora … </span><span class="t-d">│</span><span class="t-d"> 3 report </span>
+<span class="t-d">╭─ Connections ──╮</span><span class="t-b">╭─ SQL 2 · ora ───────────────────╮</span>
+<span class="t-d">│</span><span class="t-g">● ora</span>           <span class="t-d">│</span><span class="t-b">│</span> select count(*) from big_table  <span class="t-b">│</span>
+<span class="t-d">│</span>○ report        <span class="t-d">│</span><span class="t-b">│</span>                                 <span class="t-b">│</span></pre>
+      </div>
+      <ul>
+        <li>Separate sessions mean separate transactions: a change made in tab 1 is invisible in tab 2 until you commit it, and <kbd>F8</kbd> / <kbd>F9</kbd> only affect the current tab.</li>
+        <li>A long statement in one tab doesn't block the others. Switch tabs and keep working; the result appears in its own tab when it finishes.</li>
+        <li><kbd>Ctrl-C</kbd> cancels the statement in the current tab only.</li>
+        <li>Closing a tab with an open transaction asks first and rolls it back. Quitting lists every open transaction and running statement before it asks.</li>
+      </ul>
+    </section>
+
+    <!-- 6 -->
+    <section id="editor">
+      <h2><span class="n">06</span>The SQL editor</h2>
+      <p>The editor uses the keybindings of JOE (Joe's Own Editor). Arrow keys, Home, End, PgUp, PgDn, Delete and Backspace work as usual. Typed text is inserted at the cursor, and a paste from the terminal is inserted in one piece.</p>
+
+      <h3>Moving</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>^B</kbd> <kbd>^F</kbd></td><td>Character left / right</td></tr>
+          <tr><td><kbd>^P</kbd> <kbd>^N</kbd></td><td>Line up / down</td></tr>
+          <tr><td><kbd>^Z</kbd> <kbd>^X</kbd></td><td>Word left / right (also Ctrl-← / Ctrl-→)</td></tr>
+          <tr><td><kbd>^A</kbd> <kbd>^E</kbd></td><td>Beginning / end of line</td></tr>
+          <tr><td><kbd>Home</kbd></td><td class="wrap-ok">First non-blank character; press again for column 1</td></tr>
+          <tr><td><kbd>^U</kbd> <kbd>^V</kbd></td><td>Page up / down</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>U</kbd> &nbsp;<kbd>^K</kbd> <kbd>V</kbd></td><td class="wrap-ok">Top / end of buffer (also Ctrl-Home / Ctrl-End)</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>L</kbd></td><td>Go to line (asks for the number)</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>Deleting</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>^D</kbd></td><td>Delete character under the cursor</td></tr>
+          <tr><td><kbd>Backspace</kbd></td><td>Delete character left of the cursor</td></tr>
+          <tr><td><kbd>^Y</kbd></td><td>Delete the whole line</td></tr>
+          <tr><td><kbd>^W</kbd></td><td>Delete word to the right</td></tr>
+          <tr><td><kbd>^O</kbd></td><td>Delete word to the left</td></tr>
+          <tr><td><kbd>^J</kbd></td><td>Delete to end of line</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>Undo</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>^_</kbd></td><td class="wrap-ok">Undo. Typed text is undone a word at a time.</td></tr>
+          <tr><td><kbd>^^</kbd></td><td>Redo</td></tr>
+        </tbody>
+      </table></div>
+      <p>Terminals send these two keys in different ways, so sqlcli also accepts <kbd>Ctrl-/</kbd> and <kbd>Ctrl-7</kbd> for undo and <kbd>Ctrl-6</kbd> for redo.</p>
+
+      <h3>Blocks</h3>
+      <p>A block is the text between two marks. Set both marks, then act on the block, which is highlighted.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>^K</kbd> <kbd>B</kbd></td><td>Mark block begin at the cursor</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>K</kbd></td><td>Mark block end at the cursor</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>C</kbd></td><td>Copy the block to the cursor</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>M</kbd></td><td>Move the block to the cursor</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>Y</kbd></td><td>Delete the block</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>W</kbd></td><td>Write the block to a file</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>A</kbd></td><td>Clear the block marks (sqlcli-specific)</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><span class="lbl">Blocks and F5</span><p>While a block is marked, <kbd>F5</kbd> runs the block instead of the statement under the cursor. Clear the marks with <kbd>^K</kbd> <kbd>A</kbd> to go back to running single statements.</p></div>
+
+      <h3>Search and files</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>^K</kbd> <kbd>F</kbd></td><td class="wrap-ok">Find (case-insensitive, wraps at end of buffer)</td></tr>
+          <tr><td><kbd>^L</kbd></td><td>Find next</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>D</kbd></td><td>Save the whole buffer to a file</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>R</kbd></td><td>Insert a file at the cursor</td></tr>
+        </tbody>
+      </table></div>
+      <p>File names may start with <code>~/</code>.</p>
+
+      <h3>Other</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">New line, keeping the current indentation (<code>editor.auto_indent</code>)</td></tr>
+          <tr><td><kbd>Tab</kbd></td><td class="wrap-ok">Insert spaces to the next tab stop (<code>editor.tab_width</code>)</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>H</kbd> or <kbd>F1</kbd></td><td>Help screen</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>X</kbd></td><td>Quit sqlcli</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>O</kbd> <kbd>N</kbd> <kbd>P</kbd> <kbd>Q</kbd></td><td class="wrap-ok">New / next / previous / close tab (see <a href="#tabs">Tabs</a>)</td></tr>
+          <tr><td><kbd>Ctrl-C</kbd> after <kbd>^K</kbd></td><td>Cancel the pending ^K command</td></tr>
+        </tbody>
+      </table></div>
+      <p>As in JOE, ^K commands also accept the Ctrl form of the second key: <kbd>^K</kbd> <kbd>^B</kbd> works like <kbd>^K</kbd> <kbd>B</kbd>.</p>
+      <p>The window commands <kbd>^K</kbd> <kbd>X</kbd> (quit), <kbd>^K</kbd> <kbd>Q</kbd> (close tab), <kbd>^K</kbd> <kbd>O</kbd> (new tab), <kbd>^K</kbd> <kbd>N</kbd> / <kbd>^K</kbd> <kbd>P</kbd> (next / previous tab) and <kbd>^K</kbd> <kbd>H</kbd> (help) also work in the connections and results panes. The status bar shows <code>^K-</code> while sqlcli waits for the second key.</p>
+
+      <h3 id="syntax">Syntax highlighting</h3>
+      <p>With <code>editor.syntax_highlight = true</code> (the default) the editor colours SQL and PL/SQL as you type.</p>
+      <div class="term" role="img" aria-label="SQL editor with keywords, types, functions, strings, numbers, comments and bind variables in different colours">
+<pre><span class="t-d"> 1 </span><span style="color:#6cb2ff;font-weight:600">select</span> <span style="color:#e0b86a">count</span>(*), <span style="color:#e0b86a">to_char</span>(d, <span class="t-g">'YYYY'</span>) <span class="t-d" style="font-style:italic">-- yearly</span>
+<span class="t-d"> 2 </span>  <span style="color:#6cb2ff;font-weight:600">from</span> orders <span style="color:#6cb2ff;font-weight:600">where</span> amount > <span style="color:#e08ad6">1.5</span> <span style="color:#6cb2ff;font-weight:600">and</span> id = <span class="t-tx" style="background:none;color:#e0913f">:id</span>
+<span class="t-d"> 3 </span><span class="t-d" style="font-style:italic">/* note: */</span> <span style="color:#6cb2ff;font-weight:600">cast</span>(x <span style="color:#6cb2ff;font-weight:600">as</span> <span style="color:#5fd7d7">number</span>(10,2))</pre>
+      </div>
+      <div class="tbl"><table>
+        <thead><tr><th>Colour</th><th>What</th></tr></thead>
+        <tbody>
+          <tr><td>Bold blue</td><td class="wrap-ok">Keywords (<code>SELECT</code>, <code>FROM</code>, <code>BEGIN</code>, <code>LOOP</code> …)</td></tr>
+          <tr><td>Cyan</td><td class="wrap-ok">Data types (<code>NUMBER</code>, <code>VARCHAR2</code>, <code>DATE</code> …)</td></tr>
+          <tr><td>Yellow</td><td class="wrap-ok">Built-in functions followed by <code>(</code> (<code>COUNT(</code>, <code>TO_CHAR(</code>, <code>NVL(</code> …)</td></tr>
+          <tr><td>Green</td><td class="wrap-ok">Strings, including <code>N'…'</code> and Oracle's <code>q'[…]'</code> quoting</td></tr>
+          <tr><td>Pink</td><td class="wrap-ok">Numbers (<code>42</code>, <code>1.5</code>, <code>1e3</code>)</td></tr>
+          <tr><td>Grey italic</td><td class="wrap-ok">Comments, <code>-- …</code> and <code>/* … */</code></td></tr>
+          <tr><td>Orange</td><td class="wrap-ok">Bind variables (<code>:id</code>, <code>:1</code>)</td></tr>
+        </tbody>
+      </table></div>
+      <p>Comments and strings spanning several lines are coloured correctly. Names after a dot (<code>t.from</code>) and quoted identifiers (<code>"SELECT"</code>) aren't treated as keywords. Set <code>syntax_highlight = false</code> (or <code>"no"</code>) to turn it off; the option also accepts <code>"yes"</code>/<code>"no"</code> and <code>"on"</code>/<code>"off"</code>.</p>
+    </section>
+
+    <!-- 7 -->
+    <section id="running">
+      <h2><span class="n">07</span>Running SQL</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Runs</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>F5</kbd></td><td class="wrap-ok">The <strong>marked block</strong>, or else the <strong>one statement the cursor is in</strong>. Ctrl-Enter and Alt-Enter also work if your terminal sends them.</td></tr>
+          <tr><td><kbd>F7</kbd></td><td>The <strong>whole buffer</strong> as a script</td></tr>
+          <tr><td><kbd>Ctrl-C</kbd></td><td>Cancels the running statement</td></tr>
+        </tbody>
+      </table></div>
+      <p>Statements run one after another. If one fails, the rest are skipped. The results pane shows the last query result, or the messages of all statements.</p>
+
+      <h3>How statements are separated</h3>
+      <p>sqlcli follows SQL*Plus conventions:</p>
+      <ul>
+        <li>A plain SQL statement ends with a <code>;</code>, at a blank line, or at a line holding only <code>/</code>. The <code>;</code> can be anywhere on a line, so one line can hold several statements. A <code>;</code> inside a string (<code>'a;b'</code>) or a comment doesn't end a statement.</li>
+        <li>A <strong>PL/SQL block</strong> ends <strong>only</strong> at a line holding only <code>/</code>, so it can contain blank lines and semicolons. PL/SQL blocks start with <code>DECLARE</code>, <code>BEGIN</code>, <code>CREATE [OR REPLACE] PROCEDURE | FUNCTION | PACKAGE | TRIGGER | TYPE</code>, or <code>WITH FUNCTION</code> / <code>WITH PROCEDURE</code> (a query with inline PL/SQL).</li>
+      </ul>
+      <div class="note"><span class="lbl">One statement per F5</span><p><kbd>F5</kbd> runs exactly one statement: the one the cursor is in. The position just after a statement's closing <code>;</code> still counts as inside it. On a blank line, the statement above runs.</p></div>
+      <p>The trailing <code>;</code> or <code>/</code> is removed before the statement goes to Oracle. PL/SQL blocks keep their final <code>;</code>, which Oracle requires.</p>
+<pre><code>select * from netlist;
+select * from nsm;
+select 1 from dual; select 2 from dual;
+
+update emp set sal = sal * 1.1
+ where empno = 7369
+
+begin
+  dbms_stats.gather_table_stats(user, 'EMP');
+
+  dbms_output.put_line('done');
+end;
+/</code></pre>
+      <ul>
+        <li>Cursor on line 1, <kbd>F5</kbd>: runs only <code>select * from netlist</code>.</li>
+        <li>Cursor on line 2, <kbd>F5</kbd>: runs only <code>select * from nsm</code>.</li>
+        <li>Line 3: where the cursor sits on the line decides which <code>select</code> runs.</li>
+        <li>Cursor on either line of the <code>update</code>, <kbd>F5</kbd>: runs the update. It has no <code>;</code>; the blank line ends it.</li>
+        <li>Cursor anywhere in the PL/SQL block, including its blank line, <kbd>F5</kbd>: runs the block.</li>
+        <li><kbd>F7</kbd>: runs all six statements in order.</li>
+      </ul>
+      <p>To run several statements with one key, mark them as a block (<kbd>^K</kbd> <kbd>B</kbd> … <kbd>^K</kbd> <kbd>K</kbd>) and press <kbd>F5</kbd>, or press <kbd>F7</kbd> for the whole buffer.</p>
+    </section>
+
+    <!-- 8 -->
+    <section id="tx">
+      <h2><span class="n">08</span>Transactions</h2>
+      <p>By default (<code>query.auto_commit = false</code>) changes are <strong>not</strong> committed automatically.</p>
+      <ul>
+        <li><code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>MERGE</code>, PL/SQL blocks and <code>CALL</code> start a transaction if none is open. The status bar shows <b>TX</b>.</li>
+        <li><kbd>F8</kbd> commits and <kbd>F9</kbd> rolls back. You can also run <code>COMMIT</code> or <code>ROLLBACK</code> as statements.</li>
+        <li>Quitting with an open transaction asks for confirmation and rolls it back. Switching connections is refused until you commit or roll back.</li>
+      </ul>
+      <div class="note warn"><span class="lbl">DDL commits</span><p>DDL (<code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>, <code>TRUNCATE</code>, <code>GRANT</code> and similar) makes Oracle <strong>commit the open transaction</strong> before it runs. sqlcli says so in the message and clears the TX marker.</p></div>
+      <p>With <code>auto_commit = true</code>, every statement is committed as soon as it succeeds, and TX never appears.</p>
+    </section>
+
+    <!-- 9 -->
+    <section id="results">
+      <h2><span class="n">09</span>Results</h2>
+      <p>Press <kbd>F3</kbd> to focus the results pane.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> &nbsp;<kbd>^P</kbd> <kbd>^N</kbd> &nbsp;<kbd>k</kbd> <kbd>j</kbd></td><td>Select row</td></tr>
+          <tr><td><kbd>PgUp</kbd> <kbd>PgDn</kbd> &nbsp;<kbd>^U</kbd> <kbd>^V</kbd></td><td>Page</td></tr>
+          <tr><td>Mouse wheel</td><td class="wrap-ok">Scroll three rows (works without focusing the pane)</td></tr>
+          <tr><td><kbd>Home</kbd> &nbsp;<kbd>^A</kbd> &nbsp;<kbd>g</kbd></td><td>First row</td></tr>
+          <tr><td><kbd>End</kbd> &nbsp;<kbd>^E</kbd> &nbsp;<kbd>G</kbd></td><td class="wrap-ok">Last row. <strong>Fetches all remaining rows first.</strong></td></tr>
+          <tr><td><kbd>←</kbd> <kbd>→</kbd> &nbsp;<kbd>^B</kbd> <kbd>^F</kbd> &nbsp;<kbd>h</kbd> <kbd>l</kbd></td><td>Scroll one column left / right</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">Show the selected row as a record (see <a href="#record">Record view</a>)</td></tr>
+          <tr><td><kbd>o</kbd></td><td class="wrap-ok">Switch between the grid and DBMS_OUTPUT (when a query produced both)</td></tr>
+          <tr><td><kbd>e</kbd></td><td class="wrap-ok">Export the result to a .csv, .tsv or .json file (see <a href="#export">Exporting</a>)</td></tr>
+          <tr><td><kbd>Esc</kbd> <kbd>Tab</kbd></td><td>Back to the editor</td></tr>
+        </tbody>
+      </table></div>
+      <h3 id="record">Record view</h3>
+      <p><kbd>Enter</kbd> on a grid row shows that row as a record: one line per column, long values in full, NULL as <code>(null)</code>.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> &nbsp;<kbd>^P</kbd> <kbd>^N</kbd></td><td>Previous / next record</td></tr>
+          <tr><td><kbd>Home</kbd> &nbsp;<kbd>^A</kbd></td><td>First record</td></tr>
+          <tr><td><kbd>End</kbd> &nbsp;<kbd>^E</kbd></td><td class="wrap-ok">Last record. Fetches all remaining rows first, like End in the grid.</td></tr>
+          <tr><td><kbd>PgUp</kbd> <kbd>PgDn</kbd> &nbsp;<kbd>^U</kbd> <kbd>^V</kbd></td><td class="wrap-ok">Back / forward by <code>ui.record_page</code> records (default 10)</td></tr>
+          <tr><td><kbd>Shift-↑</kbd> <kbd>Shift-↓</kbd>, <kbd>Shift-PgUp</kbd> <kbd>Shift-PgDn</kbd>, wheel</td><td class="wrap-ok">Scroll a record that's taller than the screen</td></tr>
+          <tr><td><kbd>Ctrl-C</kbd></td><td>Stop fetching</td></tr>
+          <tr><td>Any other key</td><td class="wrap-ok">Close the record view (the grid keeps the record selected)</td></tr>
+        </tbody>
+      </table></div>
+      <p>Stepping past the last fetched row with <kbd>↓</kbd> or <kbd>PgDn</kbd> fetches the next batch; PgDn still lands exactly <code>record_page</code> records further.</p>
+      <h3>Fetching rows</h3>
+      <p>A query first fetches <code>query.max_rows</code> rows (default 1000). If it has more, the query stays open on the server, the status says <code>1000 row(s) fetched, more available.</code>, and the row count in the title gets a <code>+</code> (<code>row 1/1000+</code>).</p>
+      <ul>
+        <li><strong>Scrolling</strong> (arrows, PgDn, mouse wheel) to within a page of the last fetched row fetches the next <code>max_rows</code> rows.</li>
+        <li><kbd>End</kbd> fetches all remaining rows in batches of 5000, showing <code>Fetching… N rows</code> in the status bar, then selects the last row.</li>
+        <li><kbd>Ctrl-C</kbd> stops a fetch. Rows already fetched stay in the grid; the rest are discarded.</li>
+        <li>To always get every row, set <code>query.fetch_all = true</code>. Every query then fetches all its rows right away, and Ctrl-C stops it the same way.</li>
+      </ul>
+      <p>Running another statement, commit (<kbd>F8</kbd>) or rollback (<kbd>F9</kbd>) closes the open query. The rows in the grid stay, but no more can be fetched.</p>
+      <div class="note warn"><span class="lbl">Memory</span><p>Every fetched row is held in memory. Millions of wide rows can take gigabytes, so prefer a <code>WHERE</code> clause, or watch the counter and press <kbd>Ctrl-C</kbd>.</p></div>
+      <h3 id="export">Exporting</h3>
+      <p>Press <kbd>e</kbd> in the results pane to save the result to a file. sqlcli asks for the file name (it offers <code>result.csv</code>, then the last name you used); the extension picks the format.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Extension</th><th>Format</th></tr></thead>
+        <tbody>
+          <tr><td><code>.csv</code></td><td class="wrap-ok">Comma-separated, header row, quoted where needed (RFC 4180)</td></tr>
+          <tr><td><code>.tsv</code></td><td class="wrap-ok">Tab-separated, header row</td></tr>
+          <tr><td><code>.json</code></td><td class="wrap-ok">An array of objects, one per row, keys in column order</td></tr>
+        </tbody>
+      </table></div>
+      <ul>
+        <li><strong>All rows are exported</strong>, not only those on screen. If the query has more rows on the server, sqlcli fetches them first (<code>Fetching all rows for export… N</code>); <kbd>Ctrl-C</kbd> stops that and cancels the export.</li>
+        <li>NULL is an empty field in CSV/TSV and <code>null</code> in JSON. <code>NUMBER</code> columns are JSON numbers, written exactly as Oracle returned them; everything else is a string, dates as <code>YYYY-MM-DD HH:MI:SS</code>.</li>
+        <li>Duplicate column names (<code>select a.id, b.id …</code>) become <code>ID</code> and <code>ID_2</code> in JSON.</li>
+        <li>An existing file is only replaced after you confirm. The file is written under a temporary name first, so a failed export never leaves half a file.</li>
+      </ul>
+      <h3>How values are shown</h3>
+      <ul>
+        <li>NULL appears as a grey <code>(null)</code>. In Oracle an empty string is NULL.</li>
+        <li>Dates appear as <code>YYYY-MM-DD HH:MI:SS</code>. Timestamps with fractional seconds add microseconds.</li>
+        <li>RAW values appear as hex, CLOBs as their text.</li>
+        <li>Columns are as wide as their widest value, up to 50 characters. Longer values are cut with <code>…</code>; open the record view with <kbd>Enter</kbd> to read them in full. Line breaks inside values show as <code>⏎</code>.</li>
+      </ul>
+      <p>For DML and DDL the pane shows messages such as <code>3 row(s) updated.</code> with the elapsed time. Errors are shown in red and start with the Oracle error code.</p>
+      <h3>DBMS_OUTPUT</h3>
+      <p>Output from <code>DBMS_OUTPUT.PUT_LINE</code> appears in the results pane below the statement's message, as with <code>SET SERVEROUTPUT ON</code> in SQL*Plus.</p>
+      <div class="term" role="img" aria-label="Results pane showing a PL/SQL message followed by two lines of DBMS_OUTPUT">
+<pre><span class="t-g">PL/SQL procedure successfully completed.  (3ms)</span>
+<span class="t-d">── DBMS_OUTPUT (2 line(s)) ──</span>
+Hello from PL/SQL
+second line</pre>
+      </div>
+      <ul>
+        <li>It's collected after every statement: PL/SQL blocks, <code>CALL</code>, DML that fires triggers, and queries calling functions that print.</li>
+        <li>If a block fails, the lines it printed before the error appear below the error message.</li>
+        <li><kbd>F7</kbd> (whole script) shows the output of all statements together.</li>
+        <li>Long output scrolls with the arrows, PgUp/PgDn, Home/End and the mouse wheel; <kbd>←</kbd> <kbd>→</kbd> scroll long lines sideways. The title shows <code>lines 1-15/202</code>.</li>
+        <li>When a query produced both rows and output, the grid shows first and the title says <code>o: DBMS_OUTPUT</code>. Press <kbd>o</kbd> in the results pane to switch.</li>
+        <li>There's no size limit (<code>DBMS_OUTPUT.ENABLE(NULL)</code>). Set <code>query.dbms_output = false</code> to turn it off.</li>
+      </ul>
+    </section>
+
+    <!-- 10 -->
+    <section id="history">
+      <h2><span class="n">10</span>SQL history</h2>
+      <p>Every statement you run is saved, successful or not, with the connection name, SQL text, start time, duration, row count and error message.</p>
+      <p>Press <kbd>F6</kbd> to open the history browser.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>Type text</td><td class="wrap-ok">Filter to entries whose SQL contains the text (case-insensitive)</td></tr>
+          <tr><td><kbd>Backspace</kbd> &nbsp;<kbd>^Y</kbd></td><td>Delete last filter character / clear the filter</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> &nbsp;<kbd>PgUp</kbd> <kbd>PgDn</kbd></td><td>Select</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Insert the selected SQL at the editor cursor</td></tr>
+          <tr><td><kbd>^R</kbd></td><td>Replace the whole editor buffer with the selected SQL</td></tr>
+          <tr><td><kbd>Del</kbd></td><td>Delete the entry from history</td></tr>
+          <tr><td><kbd>Esc</kbd> <kbd>F6</kbd></td><td>Close</td></tr>
+        </tbody>
+      </table></div>
+      <p>Failed statements are marked <code>✗</code>. The lower part shows the full SQL of the selected entry with its duration and row count, or its error.</p>
+      <p>The browser lists the newest <code>history.max_entries</code> entries (default 500). The database itself is never trimmed. It's an ordinary SQLite file, so you can query it directly:</p>
+<pre><code>sqlite3 ~/.local/state/sqlcli/history.db \
+  "select datetime(executed_at/1000,'unixepoch','localtime'), connection, sql
+     from history where error = '' order by id desc limit 20"</code></pre>
+      <div class="tbl"><table>
+        <thead><tr><th>Column</th><th>Type</th><th>Content</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>INTEGER</td><td>Auto-increment key</td></tr>
+          <tr><td><code>connection</code></td><td>TEXT</td><td>Connection name</td></tr>
+          <tr><td><code>sql</code></td><td>TEXT</td><td>Statement as sent to Oracle</td></tr>
+          <tr><td><code>executed_at</code></td><td>INTEGER</td><td>Start time, Unix milliseconds</td></tr>
+          <tr><td><code>duration_ms</code></td><td>INTEGER</td><td>Elapsed time</td></tr>
+          <tr><td><code>rows</code></td><td>INTEGER</td><td>Rows fetched or affected</td></tr>
+          <tr><td><code>error</code></td><td>TEXT</td><td>Error message, empty on success</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 11 -->
+    <section id="config">
+      <h2><span class="n">11</span>Configuration file</h2>
+      <p>The file is <code>~/.config/sqlcli/config.toml</code>, or <code>$XDG_CONFIG_HOME/sqlcli/config.toml</code>, or the path given with <code>-config</code>. It's plain TOML that you can edit in any text editor. Changes take effect the next time sqlcli starts.</p>
+      <p>A complete example with every setting:</p>
+<pre><code>[oracle]
+  <span class="k">lib_dir</span> = <span class="s">"/usr/local/oracle"</span>   <span class="c"># Instant Client dir; empty = $ORACLE_HOME</span>
+
+[editor]
+  <span class="k">tab_width</span> = 4          <span class="c"># spaces inserted by Tab; also expands pasted tabs</span>
+  <span class="k">auto_indent</span> = true     <span class="c"># Enter keeps the current line's indentation</span>
+  <span class="k">syntax_highlight</span> = true <span class="c"># colour SQL; also "yes" / "no"</span>
+
+[query]
+  <span class="k">max_rows</span> = 1000        <span class="c"># rows per fetch; more on scroll or End</span>
+  <span class="k">fetch_all</span> = false      <span class="c"># true = fetch all rows of every query at once</span>
+  <span class="k">timeout_seconds</span> = 0    <span class="c"># cancel statements after N seconds; 0 = never</span>
+  <span class="k">auto_commit</span> = false    <span class="c"># true = commit every statement immediately</span>
+  <span class="k">dbms_output</span> = true     <span class="c"># show DBMS_OUTPUT in the results pane</span>
+
+[ui]
+  <span class="k">mouse</span> = true           <span class="c"># wheel scrolls; hold Shift to select text</span>
+  <span class="k">show_connections</span> = true <span class="c"># connections panel visible at start (F2 toggles)</span>
+  <span class="k">record_page</span> = 10       <span class="c"># records PgUp / PgDn move in the record view</span>
+
+[history]
+  <span class="k">path</span> = <span class="s">""</span>              <span class="c"># SQLite file; empty = ~/.local/state/sqlcli/history.db</span>
+  <span class="k">max_entries</span> = 500      <span class="c"># entries listed in the history browser</span>
+
+[[connections]]
+  <span class="k">name</span> = <span class="s">"ora"</span>
+  <span class="k">user</span> = <span class="s">"scott"</span>
+  <span class="k">password_env</span> = <span class="s">"SQLCLI_PASSWORD"</span>   <span class="c"># read the password from this variable</span>
+  <span class="k">connect_string</span> = <span class="s">"ORCL.EXAMPLE"</span>    <span class="c"># TNS alias</span>
+
+[[connections]]
+  <span class="k">name</span> = <span class="s">"prod-readonly"</span>
+  <span class="k">user</span> = <span class="s">"report"</span>
+  <span class="k">password</span> = <span class="s">"secret"</span>                <span class="c"># stored in plain text</span>
+  <span class="k">connect_string</span> = <span class="s">"dbhost:1521/PROD"</span>
+  <span class="k">read_only</span> = true                   <span class="c"># only SELECT / WITH / EXPLAIN / DESC</span>
+
+[[connections]]
+  <span class="k">name</span> = <span class="s">"admin"</span>
+  <span class="k">user</span> = <span class="s">"sys"</span>
+  <span class="k">password_env</span> = <span class="s">"ORA_SYS_PW"</span>
+  <span class="k">connect_string</span> = <span class="s">"dbhost:1521/ORCLPDB1"</span>
+  <span class="k">sysdba</span> = true                      <span class="c"># connect AS SYSDBA</span></code></pre>
+      <h3>Connection settings</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Required</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>name</code></td><td>yes</td><td class="wrap-ok">Label shown in the list and used with <code>-c</code></td></tr>
+          <tr><td><code>user</code></td><td>yes</td><td class="wrap-ok">Database user</td></tr>
+          <tr><td><code>connect_string</code></td><td>yes</td><td class="wrap-ok">TNS alias, Easy Connect string, or full descriptor</td></tr>
+          <tr><td><code>password</code></td><td>no</td><td class="wrap-ok">Password in plain text</td></tr>
+          <tr><td><code>password_env</code></td><td>no</td><td class="wrap-ok">Environment variable holding the password. Used instead of <code>password</code> when the variable is set.</td></tr>
+          <tr><td><code>read_only</code></td><td>no</td><td class="wrap-ok">Refuse everything except queries</td></tr>
+          <tr><td><code>sysdba</code></td><td>no</td><td class="wrap-ok">Connect with the SYSDBA role</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 12 -->
+    <section id="files">
+      <h2><span class="n">12</span>Files and locations</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>File</th><th>Default location</th><th>Override</th></tr></thead>
+        <tbody>
+          <tr><td>Configuration</td><td><code>~/.config/sqlcli/config.toml</code></td><td><code>-config</code>, <code>$XDG_CONFIG_HOME</code></td></tr>
+          <tr><td>SQL history</td><td><code>~/.local/state/sqlcli/history.db</code></td><td><code>history.path</code>, <code>$XDG_STATE_HOME</code></td></tr>
+          <tr><td>TNS aliases</td><td><code>$TNS_ADMIN/tnsnames.ora</code></td><td>Oracle standard</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 13 -->
+    <section id="keys">
+      <h2><span class="n">13</span>Key reference</h2>
+      <div class="finder">
+        <label for="keyfilter" class="sr" style="position:absolute;left:-9999px">Filter keys</label>
+        <input id="keyfilter" type="search" placeholder="Filter, e.g. block, undo, commit" autocomplete="off">
+        <span id="keycount" aria-live="polite"></span>
+      </div>
+      <div class="tbl"><table id="keytable">
+        <thead><tr><th>Key</th><th>Action</th><th>Where</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>F1</kbd></td><td>Help</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F2</kbd></td><td>Show / hide connections panel</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F3</kbd></td><td>Focus results</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F5</kbd></td><td>Run block or statement under cursor</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F7</kbd></td><td>Run whole buffer</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F6</kbd></td><td>History browser</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F8</kbd> / <kbd>F9</kbd></td><td>Commit / rollback</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>Ctrl-C</kbd></td><td>Cancel running statement; otherwise quit</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>X</kbd></td><td>Quit</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>O</kbd></td><td>New tab on the same connection</td><td><span class="grp">Tabs</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>N</kbd> / <kbd>^K</kbd> <kbd>P</kbd></td><td>Next / previous tab</td><td><span class="grp">Tabs</span></td></tr>
+          <tr><td><kbd>Ctrl-PgDn</kbd> / <kbd>Ctrl-PgUp</kbd></td><td>Next / previous tab</td><td><span class="grp">Tabs</span></td></tr>
+          <tr><td><kbd>Alt-1</kbd> … <kbd>Alt-9</kbd></td><td>Go to tab</td><td><span class="grp">Tabs</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>Q</kbd></td><td>Close tab (last tab: quit)</td><td><span class="grp">Tabs</span></td></tr>
+          <tr><td><kbd>^B</kbd> <kbd>^F</kbd> <kbd>^P</kbd> <kbd>^N</kbd></td><td>Move left / right / up / down</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^A</kbd> <kbd>^E</kbd></td><td>Line start / end</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^Z</kbd> <kbd>^X</kbd></td><td>Word left / right</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^U</kbd> <kbd>^V</kbd></td><td>Page up / down</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>U</kbd> / <kbd>^K</kbd> <kbd>V</kbd></td><td>Top / end of buffer</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>L</kbd></td><td>Go to line</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^D</kbd></td><td>Delete character</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^Y</kbd></td><td>Delete line</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^W</kbd> <kbd>^O</kbd></td><td>Delete word right / left</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^J</kbd></td><td>Delete to end of line</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^_</kbd> <kbd>^^</kbd></td><td>Undo / redo</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>F</kbd> / <kbd>^L</kbd></td><td>Find / find next</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>B</kbd> / <kbd>^K</kbd> <kbd>K</kbd></td><td>Block begin / end</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>C</kbd> <kbd>M</kbd> <kbd>Y</kbd></td><td>Copy / move / delete block</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>A</kbd></td><td>Clear block marks</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>W</kbd></td><td>Write block to file</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>D</kbd></td><td>Save buffer to file</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>R</kbd></td><td>Insert file</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Connect to selected connection</td><td><span class="grp">Connections</span></td></tr>
+          <tr><td><kbd>a</kbd> / <kbd>d</kbd></td><td>Add / delete connection</td><td><span class="grp">Connections</span></td></tr>
+          <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Scroll columns</td><td><span class="grp">Results</span></td></tr>
+          <tr><td><kbd>End</kbd></td><td>Fetch all rows, go to last row</td><td><span class="grp">Results</span></td></tr>
+          <tr><td>Mouse wheel</td><td>Scroll; fetches more rows near the end</td><td><span class="grp">Results</span></td></tr>
+          <tr><td><kbd>Ctrl-C</kbd></td><td>Stop fetching rows</td><td><span class="grp">Results</span></td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Show row as record</td><td><span class="grp">Results</span></td></tr>
+          <tr><td><kbd>o</kbd></td><td>Grid / DBMS_OUTPUT</td><td><span class="grp">Results</span></td></tr>
+          <tr><td><kbd>e</kbd></td><td>Export to CSV / TSV / JSON</td><td><span class="grp">Results</span></td></tr>
+          <tr><td><kbd>Enter</kbd> / <kbd>^R</kbd></td><td>Insert SQL / replace buffer with SQL</td><td><span class="grp">History</span></td></tr>
+          <tr><td><kbd>Del</kbd></td><td>Delete history entry</td><td><span class="grp">History</span></td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Accept answer</td><td><span class="grp">Input line</span></td></tr>
+          <tr><td><kbd>Esc</kbd> <kbd>Ctrl-C</kbd> <kbd>^G</kbd></td><td>Cancel question</td><td><span class="grp">Input line</span></td></tr>
+          <tr><td><kbd>Backspace</kbd> <kbd>^D</kbd> <kbd>^Y</kbd></td><td>Delete left / delete right / clear</td><td><span class="grp">Input line</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- 14 -->
+    <section id="trouble">
+      <h2><span class="n">14</span>Troubleshooting</h2>
+      <div class="issue">
+        <h4>DPI-1047: Cannot locate a 64-bit Oracle Client library</h4>
+        <p>Instant Client wasn't found. Set <code>ORACLE_HOME</code> to the Instant Client directory (the one containing <code>libclntsh.so</code>), or set <code>oracle.lib_dir</code> in the configuration file.</p>
+      </div>
+      <div class="issue">
+        <h4>ORA-12154: could not resolve the connect identifier</h4>
+        <p>The TNS alias is unknown. Check that <code>TNS_ADMIN</code> points to the directory with <code>tnsnames.ora</code> and that the alias is spelled correctly, or use an Easy Connect string (<code>host:port/service</code>) instead.</p>
+      </div>
+      <div class="issue">
+        <h4>ORA-12541: Cannot connect. No listener</h4>
+        <p>The host or port is wrong, or the database listener is down.</p>
+      </div>
+      <div class="issue">
+        <h4>ORA-01017: invalid username/password</h4>
+        <p>Wrong credentials. Oracle passwords are case-sensitive. With <code>password_env</code>, check that the variable is exported in the shell that starts sqlcli. Repeated failures can lock the account.</p>
+      </div>
+      <div class="issue">
+        <h4>A key does nothing (^_ undo, F-keys)</h4>
+        <p>Some terminals and tmux setups intercept or translate keys. Try the alternatives listed under <a href="#editor">Undo</a>, or check your terminal's key settings. In tmux, <code>set -g extended-keys on</code> helps with Ctrl combinations.</p>
+      </div>
+      <div class="issue">
+        <h4>A statement takes too long</h4>
+        <p>Press <kbd>Ctrl-C</kbd> to cancel it, or set <code>query.timeout_seconds</code>.</p>
+      </div>
+      <div class="issue">
+        <h4>I can't select text with the mouse</h4>
+        <p>sqlcli uses the mouse wheel, so the terminal passes mouse clicks to it. Hold <kbd>Shift</kbd> while selecting (most terminals), or set <code>ui.mouse = false</code>.</p>
+      </div>
+      <div class="issue">
+        <h4>A PL/SQL block fails, or F5 runs too much</h4>
+        <p>End every PL/SQL block with a line holding only <code>/</code>. Until that line, sqlcli treats everything after <code>BEGIN</code> or <code>DECLARE</code> as part of the block.</p>
+      </div>
+    </section>
+
+    <!-- 15 -->
+    <section id="dev">
+      <h2><span class="n">15</span>Development and tests</h2>
+<pre><code>cmd/sqlcli/          <span class="c">entry point, command-line options</span>
+internal/config/     <span class="c">TOML configuration</span>
+internal/db/         <span class="c">Oracle access (godror), statement splitting</span>
+internal/editor/     <span class="c">JOE-style editor</span>
+internal/export/     <span class="c">CSV / TSV / JSON export</span>
+internal/history/    <span class="c">SQLite history store</span>
+internal/ui/         <span class="c">Bubble Tea user interface</span></code></pre>
+<pre><code>make build        <span class="c"># build ./sqlcli</span>
+make test         <span class="c"># unit + integration tests (reads test.env if present)</span>
+make test-unit    <span class="c"># unit tests only</span></code></pre>
+      <p>Integration tests run against a real database when these variables are set. <code>make test</code> reads them from <code>test.env</code>, which is git-ignored:</p>
+<pre><code>SQLCLI_TEST_CONNECT=ORCL.EXAMPLE
+SQLCLI_TEST_USER=scott
+SQLCLI_TEST_PASSWORD=...</code></pre>
+      <p>The integration tests leave nothing behind. Write tests use an Oracle private temporary table (<code>ORA$PTT_…</code>) that exists only in the test session.</p>
+    </section>
+
+    <footer>sqlcli manual · Go, godror, Bubble Tea · JOE keybindings</footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  // Highlight the current section in the contents rail.
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window) {
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          links.forEach(function (a) { a.classList.remove('on'); });
+          var a = byId[e.target.id];
+          if (a) a.classList.add('on');
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    document.querySelectorAll('main section[id]').forEach(function (s) { obs.observe(s); });
+  }
+
+  // Key finder.
+  var input = document.getElementById('keyfilter');
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#keytable tbody tr'));
+  var count = document.getElementById('keycount');
+  function apply() {
+    var q = input.value.trim().toLowerCase();
+    var shown = 0;
+    rows.forEach(function (r) {
+      var hit = !q || r.textContent.toLowerCase().indexOf(q) !== -1;
+      r.hidden = !hit;
+      if (hit) shown++;
+    });
+    count.textContent = q ? shown + ' of ' + rows.length + ' keys' : rows.length + ' keys';
+  }
+  input.addEventListener('input', apply);
+  apply();
+})();
+</script>
