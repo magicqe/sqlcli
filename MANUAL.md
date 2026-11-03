@@ -154,6 +154,8 @@ F2 twice.
 | ↑ / ↓ (also ^P / ^N, k / j) | select |
 | Enter | connect to the selected connection |
 | a | add a new connection |
+| e | edit the selected connection ([Editing](#editing-and-viewing-a-connection)) |
+| v | view the selected connection's settings |
 | d | delete the selected connection (asks for confirmation) |
 | Esc / Tab | back to the editor |
 
@@ -171,6 +173,28 @@ Adding (**a**) asks, on the bottom line, for:
 
 Added and deleted connections are saved to the configuration file at once.
 Press Esc at any question to cancel.
+
+### Editing and viewing a connection
+
+**e** edits the selected connection. sqlcli asks, on the bottom line, for:
+
+1. **Connection name**, **user** and **connect string**: each pre-filled with
+   the current value; press Enter to keep it.
+2. **New password**: hidden as you type. Leave it empty to keep the current
+   password setting. A typed password is stored in the config file and
+   replaces a `password_env` setting.
+3. **Password env var** (only when you left the password empty): pre-filled
+   with the current variable; clear it for none.
+4. **Read-only?** and **Connect as SYSDBA?**: `yes` or `no`, pre-filled.
+
+Nothing is saved until the last answer; Esc at any question cancels without
+changes. A name another connection already uses is refused. Tabs that are
+connected keep their old settings until you reconnect them (Enter).
+
+**v** shows the selected connection's settings: name, user, connect string
+(and whether it is a TNS alias, Easy Connect string or descriptor), where
+the password comes from (never the password itself), read-only, SYSDBA,
+which tabs have it open, and the config file. Any key closes it.
 
 Switching connections is refused while a transaction is open: commit (F8) or
 roll back (F9) first. Read-only connections (`read_only = true`, set in the

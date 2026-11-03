@@ -40,6 +40,7 @@ const (
 	modeHistory
 	modeHelp
 	modeRecord
+	modeConnView
 )
 
 type prompt struct {
@@ -772,6 +773,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case modeRecord:
 		return m.updateRecord(key)
+	case modeConnView:
+		m.mode = modeNormal
+		return nil
 	case modeHistory:
 		return m.updateHistory(key, text)
 	}
@@ -1053,6 +1057,14 @@ func (m *Model) updateConns(key string) tea.Cmd {
 		return m.connect(m.connSel)
 	case "a":
 		m.addConnectionWizard()
+	case "e":
+		if n > 0 {
+			m.editConnectionWizard(m.connSel)
+		}
+	case "v":
+		if n > 0 {
+			m.mode = modeConnView
+		}
 	case "d":
 		if n == 0 {
 			return nil
@@ -1362,6 +1374,9 @@ func (m *Model) View() tea.View {
 	case modeRecord:
 		v.SetContent(m.recordView())
 		return v
+	case modeConnView:
+		v.SetContent(m.connView())
+		return v
 	}
 
 	cw := m.connWidth()
@@ -1397,7 +1412,7 @@ func (m *Model) View() tea.View {
 		cl = append(cl, hintText.Render("none — press a"))
 	}
 	if m.focus == focusConns {
-		cl = append(cl, "", hintText.Render("Enter connect"), hintText.Render("a add  d delete"))
+		cl = append(cl, "", hintText.Render("Enter connect"), hintText.Render("a add  e edit"), hintText.Render("v view  d delete"))
 	}
 	avail := m.paneH()
 	left := box("Connections", strings.Join(cl, "\n"), cw, avail, m.focus == focusConns)
@@ -1668,7 +1683,8 @@ const helpText = `
                                            ^K B / ^K K            mark block begin / end
  CONNECTIONS PANE                          ^K C / ^K M / ^K Y     copy / move / delete block
  Enter       connect this tab              ^K A                   clear block marks
- a / d       add / delete (saved to TOML)  ^K F / ^L              find / find next
+ a / e / d   add / edit / delete           ^K F / ^L              find / find next
+ v           view connection settings
                                            ^K D                   save buffer to file
  RESULTS PANE                              ^K R                   insert file
  arrows, PgUp/PgDn, wheel   scroll         ^K W                   write block to file
@@ -2153,4 +2169,163 @@ func (m *Model) acceptCompletion() bool {
 	}
 	m.ed.ReplaceWord(r.Start, text)
 	return true
+}
+
+// ---- editing and viewing connections ----
+
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
+}
+
+// parseYesNo reads a yes/no answer; empty keeps def.
+func parseYesNo(v string, def bool) (bool, bool) {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "":
+		return def, true
+	case "y", "yes", "true", "on", "1":
+		return true, true
+	case "n", "no", "false", "off", "0":
+		return false, true
+	}
+	return false, false
+}
+
+// editConnectionWizard asks for each field of connection i, pre-filled with
+// its current value, and saves the config after the last answer. Esc at
+// any question cancels without changing anything.
+func (m *Model) editConnectionWizard(i int) {
+	orig := m.cfg.Connections[i]
+	c := orig
+	yn := func(label string, def bool, set func(bool), next func() tea.Cmd) {
+		m.ask(label, yesNo(def), false, func(v string) tea.Cmd {
+			b, ok := parseYesNo(v, def)
+			if !ok {
+				m.setStatus(fmt.Sprintf("%q is not yes or no; connection not changed", v), true)
+				return nil
+			}
+			set(b)
+			return next()
+		})
+	}
+	save := func() tea.Cmd {
+		m.cfg.Connections[i] = c
+		if err := m.cfg.Save(); err != nil {
+			m.cfg.Connections[i] = orig
+			m.setStatus("Saving config: "+err.Error(), true)
+			return nil
+		}
+		msg := fmt.Sprintf("Connection %q saved to %s", c.Name, m.cfg.Path())
+		for _, t := range m.tabs {
+			if t.conn != nil && t.conn.Name == orig.Name {
+				msg += ". Open tabs keep the old settings until you reconnect (Enter)."
+				break
+			}
+		}
+		m.setStatus(msg, false)
+		return nil
+	}
+	m.ask("Connection name:", orig.Name, false, func(v string) tea.Cmd {
+		c.Name = strings.TrimSpace(v)
+		if c.Name == "" {
+			m.setStatus("Name is required; connection not changed", true)
+			return nil
+		}
+		for j, o := range m.cfg.Connections {
+			if j != i && strings.EqualFold(o.Name, c.Name) {
+				m.setStatus(fmt.Sprintf("A connection named %q already exists; connection not changed", o.Name), true)
+				return nil
+			}
+		}
+		m.ask("User:", orig.User, false, func(v string) tea.Cmd {
+			c.User = strings.TrimSpace(v)
+			m.ask("Connect string:", orig.ConnectString, false, func(v string) tea.Cmd {
+				c.ConnectString = strings.TrimSpace(v)
+				m.ask("New password (empty = keep the current one):", "", true, func(v string) tea.Cmd {
+					askFlags := func() tea.Cmd {
+						yn("Read-only? (yes/no):", orig.ReadOnly, func(b bool) { c.ReadOnly = b }, func() tea.Cmd {
+							yn("Connect as SYSDBA? (yes/no):", orig.SysDBA, func(b bool) { c.SysDBA = b }, save)
+							return nil
+						})
+						return nil
+					}
+					if v != "" { // a typed password replaces an env var setting
+						c.Password, c.PasswordEnv = v, ""
+						return askFlags()
+					}
+					m.ask("Password env var (empty = none):", orig.PasswordEnv, false, func(v string) tea.Cmd {
+						c.PasswordEnv = strings.TrimSpace(v)
+						return askFlags()
+					})
+					return nil
+				})
+				return nil
+			})
+			return nil
+		})
+		return nil
+	})
+}
+
+// connectKind describes a connect string: TNS alias, Easy Connect or descriptor.
+func connectKind(s string) string {
+	switch {
+	case strings.HasPrefix(strings.TrimSpace(s), "("):
+		return "connect descriptor"
+	case strings.ContainsAny(s, ":/"):
+		return "Easy Connect"
+	}
+	return "TNS alias, from $TNS_ADMIN/tnsnames.ora"
+}
+
+// passwordSource says where the password comes from, never the password.
+func passwordSource(c config.Connection) string {
+	switch {
+	case c.PasswordEnv != "":
+		state := "not set"
+		if _, ok := os.LookupEnv(c.PasswordEnv); ok {
+			state = "set"
+		}
+		s := fmt.Sprintf("environment variable %s (%s)", c.PasswordEnv, state)
+		if c.Password != "" {
+			s += "; falls back to the password stored in the config file"
+		}
+		return s
+	case c.Password != "":
+		return "stored in the config file (hidden)"
+	}
+	return "none"
+}
+
+// connView shows the selected connection's settings.
+func (m *Model) connView() string {
+	c := m.cfg.Connections[m.connSel]
+	var open []string
+	for i, t := range m.tabs {
+		if t.conn != nil && t.conn.Name == c.Name {
+			open = append(open, fmt.Sprintf("tab %d", i+1))
+		}
+	}
+	openIn := "not connected"
+	if len(open) > 0 {
+		openIn = strings.Join(open, ", ")
+	}
+	rows := [][2]string{
+		{"Name", c.Name},
+		{"User", c.User},
+		{"Connect string", c.ConnectString + "  " + hintText.Render("("+connectKind(c.ConnectString)+")")},
+		{"Password", passwordSource(c)},
+		{"Read-only", yesNo(c.ReadOnly)},
+		{"SYSDBA", yesNo(c.SysDBA)},
+		{"Open in", openIn},
+		{"Config file", m.cfg.Path()},
+	}
+	var lines []string
+	for _, r := range rows {
+		lines = append(lines, headerStyle.Render(fmt.Sprintf("%-14s", r[0]))+sepStyle.Render(" │ ")+r[1])
+	}
+	lines = append(lines, "", hintText.Render("e in the connections pane edits this connection."))
+	return box("Connection "+c.Name+" — any key closes", strings.Join(lines, "\n"), m.w, m.h, true)
 }

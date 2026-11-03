@@ -318,6 +318,8 @@ sqlcli -config ./my.toml    <span class="c"># use a different configuration file
           <tr><td><kbd>↑</kbd> <kbd>↓</kbd> &nbsp;<kbd>^P</kbd> <kbd>^N</kbd> &nbsp;<kbd>k</kbd> <kbd>j</kbd></td><td>Select</td></tr>
           <tr><td><kbd>Enter</kbd></td><td>Connect to the selected connection</td></tr>
           <tr><td><kbd>a</kbd></td><td>Add a new connection</td></tr>
+          <tr><td><kbd>e</kbd></td><td class="wrap-ok">Edit the selected connection (see <a href="#edit-conn">Editing</a>)</td></tr>
+          <tr><td><kbd>v</kbd></td><td>View the selected connection's settings</td></tr>
           <tr><td><kbd>d</kbd></td><td>Delete the selected connection (asks first)</td></tr>
           <tr><td><kbd>Esc</kbd> <kbd>Tab</kbd></td><td>Back to the editor</td></tr>
         </tbody>
@@ -337,6 +339,17 @@ sqlcli -config ./my.toml    <span class="c"># use a different configuration file
         <li><strong>Password.</strong> Shown as <code>*</code>. Leave it empty to read the password from an environment variable instead, then enter the variable name (default <code>SQLCLI_PASSWORD</code>).</li>
       </ol>
       <p>Added and deleted connections are saved to the configuration file straight away. Press <kbd>Esc</kbd> at any question to cancel.</p>
+      <h3 id="edit-conn">Editing and viewing a connection</h3>
+      <p><kbd>e</kbd> edits the selected connection. sqlcli asks, on the bottom line, for:</p>
+      <ol class="steps">
+        <li><strong>Connection name</strong>, <strong>user</strong> and <strong>connect string</strong>, each pre-filled with the current value; Enter keeps it.</li>
+        <li><strong>New password</strong>, hidden as you type. Leave it empty to keep the current password setting. A typed password is stored in the config file and replaces a <code>password_env</code> setting.</li>
+        <li><strong>Password env var</strong> (only when you left the password empty), pre-filled with the current variable; clear it for none.</li>
+        <li><strong>Read-only?</strong> and <strong>Connect as SYSDBA?</strong>: <code>yes</code> or <code>no</code>, pre-filled.</li>
+      </ol>
+      <p>Nothing is saved until the last answer; <kbd>Esc</kbd> at any question cancels without changes. A name another connection already uses is refused. Connected tabs keep their old settings until you reconnect them (<kbd>Enter</kbd>).</p>
+      <p><kbd>v</kbd> shows the selected connection's settings: name, user, connect string (and whether it's a TNS alias, Easy Connect string or descriptor), where the password comes from (never the password itself), read-only, SYSDBA, which tabs have it open, and the config file. Any key closes it.</p>
+
       <p>Switching connections is refused while a transaction is open: commit (<kbd>F8</kbd>) or roll back (<kbd>F9</kbd>) first. Read-only connections (<code>read_only = true</code> in the config file) allow only <code>SELECT</code>, <code>WITH</code>, <code>EXPLAIN</code> and <code>DESC</code>.</p>
       <div class="note warn"><span class="lbl">Passwords</span><p>A password typed in the wizard is stored in plain text in the configuration file. sqlcli writes that file with mode <code>0600</code>, so only you can read it. With <code>password_env</code> the password never touches the file.</p></div>
 
@@ -806,7 +819,8 @@ second line</pre>
           <tr><td><kbd>Ctrl-Space</kbd></td><td>Code completion</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>Tab</kbd> / <kbd>Enter</kbd></td><td>Accept completion</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>Enter</kbd></td><td>Connect to selected connection</td><td><span class="grp">Connections</span></td></tr>
-          <tr><td><kbd>a</kbd> / <kbd>d</kbd></td><td>Add / delete connection</td><td><span class="grp">Connections</span></td></tr>
+          <tr><td><kbd>a</kbd> / <kbd>e</kbd> / <kbd>d</kbd></td><td>Add / edit / delete connection</td><td><span class="grp">Connections</span></td></tr>
+          <tr><td><kbd>v</kbd></td><td>View connection settings</td><td><span class="grp">Connections</span></td></tr>
           <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Scroll columns</td><td><span class="grp">Results</span></td></tr>
           <tr><td><kbd>End</kbd></td><td>Fetch all rows, go to last row</td><td><span class="grp">Results</span></td></tr>
           <tr><td>Mouse wheel</td><td>Scroll; fetches more rows near the end</td><td><span class="grp">Results</span></td></tr>
