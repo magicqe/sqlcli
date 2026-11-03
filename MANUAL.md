@@ -85,7 +85,7 @@ transaction is open, sqlcli asks for confirmation and then rolls it back.
 │                ││ 2 │ 2 │ row 2                                   │
 ╰────────────────╯╰─────────────────────────────────────────────────╯
  ora  TX  │ Ln 2, Col 7 │ 25 row(s) selected.
- F1 help  F2 conns  F3 results  F5 run  F7 run all  F6 history ...
+ F1 help  F2 conns  F3 results  F5 run  F7 run all  F6 history …   sqlcli 0.1
 ```
 
 * **Tab bar** (top, only with two or more tabs): one entry per SQL tab,

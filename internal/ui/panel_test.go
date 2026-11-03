@@ -9,6 +9,7 @@ import (
 
 	"sqlcli/internal/config"
 	"sqlcli/internal/db"
+	"sqlcli/internal/version"
 )
 
 func screen(m *Model) string { return ansi.Strip(m.View().Content) }
@@ -92,5 +93,22 @@ func TestPanelHiddenAtStartFromConfig(t *testing.T) {
 	}
 	if m := New(cfg, nil, ""); !m.showConns { // no -c: user must pick one
 		t.Fatal("panel must be shown when no connection is given")
+	}
+}
+
+func TestVersionInKeyHints(t *testing.T) {
+	for _, w := range []int{140, 100, 60} {
+		cfg := config.Default()
+		cfg.Connections = []config.Connection{{Name: "ora"}}
+		m := New(cfg, nil, "ora")
+		m.Update(tea.WindowSizeMsg{Width: w, Height: 30})
+		lines := strings.Split(screen(m), "\n")
+		last := lines[len(lines)-1]
+		if !strings.HasSuffix(last, "sqlcli "+version.Version+" ") || !strings.HasPrefix(last, " F1 help") {
+			t.Fatalf("width %d: key line %q", w, last)
+		}
+		if ansi.StringWidth(last) != w {
+			t.Fatalf("width %d: key line is %d wide", w, ansi.StringWidth(last))
+		}
 	}
 }

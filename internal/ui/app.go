@@ -1394,7 +1394,11 @@ func (m *Model) bottomLine() string {
 	for _, h := range hints {
 		parts = append(parts, hintKey.Render(h[0])+" "+hintText.Render(h[1]))
 	}
-	return ansi.Truncate(" "+strings.Join(parts, "  "), m.w, "")
+	// the version sits at the right end; the hints give way first
+	ver := hintText.Render("sqlcli " + version.Version + " ")
+	room := max(m.w-ansi.StringWidth(ver), 0)
+	keys := ansi.Truncate(" "+strings.Join(parts, "  "), max(room-1, 0), "…")
+	return keys + strings.Repeat(" ", max(room-ansi.StringWidth(keys), 0)) + ver
 }
 
 func (m *Model) historyView() string {
