@@ -62,6 +62,7 @@ type Editor struct {
 	Status     string // short message about the last editor action
 
 	styles Styles
+	pop    popup // code-completion list
 }
 
 type Styles struct {
@@ -731,6 +732,8 @@ func (e *Editor) View() string {
 		}
 	}
 
+	pops := e.popupCells(textW)
+
 	var out strings.Builder
 	for i := 0; i < e.height; i++ {
 		r := e.top + i
@@ -739,7 +742,17 @@ func (e *Editor) View() string {
 		}
 		if r >= len(e.lines) {
 			out.WriteString(e.styles.LineNo.Render(fmt.Sprintf("%*s", gw, "~ ")))
-			out.WriteString(strings.Repeat(" ", textW))
+			if p, ok := pops[i]; ok {
+				out.WriteString(strings.Repeat(" ", p.x))
+				st := popupStyle
+				if p.sel {
+					st = popupSelStyle
+				}
+				out.WriteString(st.Render(string(p.text)))
+				out.WriteString(strings.Repeat(" ", max(textW-p.x-len(p.text), 0)))
+			} else {
+				out.WriteString(strings.Repeat(" ", textW))
+			}
 			continue
 		}
 		ln := e.styles.LineNo
@@ -762,6 +775,10 @@ func (e *Editor) View() string {
 			}
 			s := string(seg)
 			switch {
+			case segStyle == 50:
+				out.WriteString(popupStyle.Render(s))
+			case segStyle == 51:
+				out.WriteString(popupSelStyle.Render(s))
 			case segStyle == 1:
 				out.WriteString(e.styles.Block.Render(s))
 			case segStyle == 2:
@@ -773,11 +790,24 @@ func (e *Editor) View() string {
 			}
 			seg = seg[:0]
 		}
+		pl, hasPop := pops[i]
 		for x := 0; x < textW; x++ {
 			c := e.left + x
 			ch := ' '
 			if c < len(line) {
 				ch = line[c]
+			}
+			if hasPop && x >= pl.x && x < pl.x+len(pl.text) {
+				st := 50
+				if pl.sel {
+					st = 51
+				}
+				if st != segStyle {
+					flush()
+					segStyle = st
+				}
+				seg = append(seg, pl.text[x-pl.x])
+				continue
 			}
 			st := 0
 			if e.Focused && r == e.cur.row && c == e.cur.col {

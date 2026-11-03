@@ -37,6 +37,7 @@ type Editor struct {
 	TabWidth        int  `toml:"tab_width"`
 	AutoIndent      bool `toml:"auto_indent"`
 	SyntaxHighlight Flag `toml:"syntax_highlight"` // colour SQL keywords, strings, comments ...
+	Completion      Flag `toml:"completion"`       // code completion (Ctrl-Space, or while typing)
 }
 
 // Flag is an on/off setting. Besides TOML's true / false it accepts the
@@ -106,7 +107,7 @@ type Config struct {
 
 func Default() *Config {
 	return &Config{
-		Editor:  Editor{TabWidth: 4, AutoIndent: true, SyntaxHighlight: true},
+		Editor:  Editor{TabWidth: 4, AutoIndent: true, SyntaxHighlight: true, Completion: true},
 		Query:   Query{MaxRows: 1000, TimeoutSeconds: 0, AutoCommit: false, DBMSOutput: true},
 		History: History{MaxEntries: 500},
 		UI:      UI{Mouse: true, ShowConnections: true, RecordPage: 10},

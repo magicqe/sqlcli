@@ -288,3 +288,44 @@ func TestUIRunFooter(t *testing.T) {
 		t.Fatalf("cancelled footer:\n%s", screen(m))
 	}
 }
+
+func TestUICompletionFromDatabase(t *testing.T) {
+	m := newTestModel(t, false)
+	drain(m, m.loadObjects(false)) // as after connecting
+	cat := m.catalogs[m.conn.Name]
+	if cat == nil || len(cat.objects) == 0 {
+		t.Fatal("objects not loaded")
+	}
+	m.ed.SetText("")
+	m.focus = focusEditor
+	typeText(m, "select * from du")
+	got := popupTexts(m)
+	if len(got) == 0 || !contains(got, "DUAL") {
+		t.Fatalf("du: %v", got[:min(10, len(got))])
+	}
+	press(m, key(tea.KeyEscape))
+
+	// columns are loaded from the database on demand
+	m.ed.SetText("select  from dual d")
+	m.ed.HandleKey("home", "")
+	for i := 0; i < 7; i++ {
+		m.ed.HandleKey("right", "")
+	}
+	typeText(m, "d.") // triggers loading DUAL's columns; drain delivers them
+	if got := popupTexts(m); strings.Join(got, ",") != "DUMMY" {
+		t.Fatalf("d.: %v", got)
+	}
+	press(m, key(tea.KeyTab))
+	if m.ed.Text() != "select d.DUMMY from dual d" {
+		t.Fatalf("inserted: %q", m.ed.Text())
+	}
+}
+
+func contains(s []string, x string) bool {
+	for _, v := range s {
+		if v == x {
+			return true
+		}
+	}
+	return false
+}

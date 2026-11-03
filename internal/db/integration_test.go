@@ -373,3 +373,49 @@ func TestIntegrationNoLeftoverTimeout(t *testing.T) {
 	}
 	_ = c.Rollback()
 }
+
+func TestIntegrationCatalog(t *testing.T) {
+	c := testConn(t)
+	ctx := context.Background()
+	objs, err := c.Objects(ctx)
+	if err != nil {
+		t.Fatal(CleanError(err))
+	}
+	kinds := map[string]int{}
+	hasDual := false
+	for _, o := range objs {
+		kinds[o.Type]++
+		hasDual = hasDual || (o.Name == "DUAL" && o.Type == "PUBLIC SYNONYM")
+	}
+	t.Logf("%d objects: %v", len(objs), kinds)
+	if !hasDual {
+		t.Fatal("public synonym DUAL missing")
+	}
+
+	// a table in the current schema, via a private temporary table's sibling: use a real dictionary view
+	cols, err := c.Columns(ctx, "SYS", "DUAL")
+	if err != nil || len(cols) != 1 || cols[0] != "DUMMY" {
+		t.Fatalf("SYS.DUAL: %v %v", cols, err)
+	}
+	// through a public synonym (no owner given)
+	cols, err = c.Columns(ctx, "", "ALL_TAB_COLUMNS")
+	if err != nil || len(cols) < 10 || cols[0] != "OWNER" {
+		t.Fatalf("ALL_TAB_COLUMNS via synonym: %v %v", cols, err)
+	}
+	if cols, _ := c.Columns(ctx, "", "NO_SUCH_TABLE_XYZ"); len(cols) != 0 {
+		t.Fatalf("unknown table: %v", cols)
+	}
+
+	// metadata while a result cursor is open must not disturb the cursor
+	r, err := c.Execute(ctx, "select level from dual connect by level <= 30", 10)
+	if err != nil || !r.More {
+		t.Fatal("no open cursor")
+	}
+	if _, err := c.Columns(ctx, "SYS", "DUAL"); err != nil {
+		t.Fatal(err)
+	}
+	rows, done, err := c.FetchMore(ctx, -1)
+	if err != nil || !done || len(rows) != 20 || rows[0][0] != "11" {
+		t.Fatalf("cursor after metadata: %d rows err=%v", len(rows), err)
+	}
+}

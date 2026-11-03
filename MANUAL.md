@@ -301,6 +301,40 @@ The window commands ^K X (quit), ^K Q (close tab), ^K O (new tab),
 connections and results panes. The status bar shows `^K-` while sqlcli waits
 for the second key.
 
+### Code completion
+
+With `editor.completion = true` (the default) the editor suggests what to
+type next:
+
+* The list **opens by itself** once you have typed two letters of a word and
+  something matches, and right after a `.` (`e.` for an alias). **Ctrl-Space**
+  opens it at any time, also on an empty position.
+* It offers the columns of the tables in the current statement first, then
+  tables, views and synonyms of your schema, then other objects (sequences,
+  packages, procedures …), SQL keywords, functions, data types and public
+  synonyms (`DUAL`, `DBMS_OUTPUT` …).
+* After `alias.` or `table.` it lists only that table's columns. Aliases are
+  read from the statement's `FROM` and `JOIN` clauses (`from employees e`,
+  `join hr.jobs as j`).
+* Object names are loaded in the background when a tab connects (once per
+  connection). Columns are loaded from the data dictionary the first time
+  they are needed, following synonyms. After `CREATE`, `DROP`, `ALTER` or
+  `RENAME` the names are loaded again.
+* The inserted text follows how you type: after `emp` you get `employees`,
+  after `EMP` you get `EMPLOYEES`. Names that need quotes (`"MixedCase"`) get
+  them.
+
+| Key | Action |
+|---|---|
+| typing | refines the list |
+| ↑ / ↓ (^P / ^N), PgUp / PgDn | choose an entry |
+| Tab | insert the chosen entry |
+| Enter | insert the chosen entry; if the word is already complete, start a new line as usual |
+| Esc | close the list |
+| Ctrl-Space | open the list now |
+
+Set `completion = false` (or `"no"`) to turn it off; Tab then indents as usual.
+
 ### Syntax highlighting
 
 With `editor.syntax_highlight = true` (the default) the editor colours SQL and
@@ -579,6 +613,7 @@ Complete example with all settings:
   tab_width = 4          # spaces inserted by Tab, also used to expand pasted tabs
   auto_indent = true     # Enter keeps the indentation of the current line
   syntax_highlight = true  # colour SQL; also "yes" / "no"
+  completion = true      # code completion (Ctrl-Space, or while typing); also "yes" / "no"
 
 [query]
   max_rows = 1000        # rows per fetch; more are fetched when you scroll or press End
@@ -671,6 +706,7 @@ Complete example with all settings:
 | ^K B ^K K | block begin / end | ^K C ^K M ^K Y | copy / move / delete block |
 | ^K A | clear block | ^K W | write block to file |
 | ^K D | save buffer to file | ^K R | insert file |
+| Ctrl-Space | code completion | Tab / Enter | accept completion |
 
 ### Input line (questions on the bottom line)
 

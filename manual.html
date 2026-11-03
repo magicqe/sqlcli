@@ -453,6 +453,34 @@ sqlcli -config ./my.toml    <span class="c"># use a different configuration file
       <p>As in JOE, ^K commands also accept the Ctrl form of the second key: <kbd>^K</kbd> <kbd>^B</kbd> works like <kbd>^K</kbd> <kbd>B</kbd>.</p>
       <p>The window commands <kbd>^K</kbd> <kbd>X</kbd> (quit), <kbd>^K</kbd> <kbd>Q</kbd> (close tab), <kbd>^K</kbd> <kbd>O</kbd> (new tab), <kbd>^K</kbd> <kbd>N</kbd> / <kbd>^K</kbd> <kbd>P</kbd> (next / previous tab) and <kbd>^K</kbd> <kbd>H</kbd> (help) also work in the connections and results panes. The status bar shows <code>^K-</code> while sqlcli waits for the second key.</p>
 
+      <h3 id="completion">Code completion</h3>
+      <p>With <code>editor.completion = true</code> (the default) the editor suggests what to type next.</p>
+      <div class="term" role="img" aria-label="Completion list under the cursor showing the columns of the EMPLOYEES table">
+<pre><span class="t-d"> 1 </span><span style="color:#6cb2ff;font-weight:600">select</span> e.sa<span class="t-cur"> </span>
+<span class="t-d"> 2 </span>  <span style="background:#005f87;color:#fff;font-weight:600"> SALARY        column </span>
+<span class="t-d"> 3 </span>  <span style="background:#3a3a3a;color:#d0d0d0"> SALES_REGION  column </span>
+<span class="t-d"> 4 </span><span style="color:#6cb2ff;font-weight:600">from</span> employees e</pre>
+      </div>
+      <ul>
+        <li>The list <strong>opens by itself</strong> once you've typed two letters of a word and something matches, and right after a <code>.</code> (<code>e.</code> for an alias). <kbd>Ctrl-Space</kbd> opens it at any time.</li>
+        <li>It offers the columns of the tables in the current statement first, then tables, views and synonyms of your schema, other objects (sequences, packages, procedures …), SQL keywords, functions, data types and public synonyms (<code>DUAL</code>, <code>DBMS_OUTPUT</code> …).</li>
+        <li>After <code>alias.</code> or <code>table.</code> it lists only that table's columns. Aliases come from the statement's <code>FROM</code> and <code>JOIN</code> clauses.</li>
+        <li>Object names load in the background when a tab connects (once per connection). Columns load from the data dictionary the first time they're needed, following synonyms. After <code>CREATE</code>, <code>DROP</code>, <code>ALTER</code> or <code>RENAME</code> the names load again.</li>
+        <li>The inserted text follows how you type: <code>emp</code> gives <code>employees</code>, <code>EMP</code> gives <code>EMPLOYEES</code>. Names that need quotes get them.</li>
+      </ul>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>Typing</td><td>Refines the list</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> &nbsp;<kbd>^P</kbd> <kbd>^N</kbd>, <kbd>PgUp</kbd> <kbd>PgDn</kbd></td><td>Choose an entry</td></tr>
+          <tr><td><kbd>Tab</kbd></td><td>Insert the chosen entry</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">Insert the chosen entry; if the word is already complete, start a new line as usual</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Close the list</td></tr>
+          <tr><td><kbd>Ctrl-Space</kbd></td><td>Open the list now</td></tr>
+        </tbody>
+      </table></div>
+      <p>Set <code>completion = false</code> (or <code>"no"</code>) to turn it off; <kbd>Tab</kbd> then indents as usual.</p>
+
       <h3 id="syntax">Syntax highlighting</h3>
       <p>With <code>editor.syntax_highlight = true</code> (the default) the editor colours SQL and PL/SQL as you type.</p>
       <div class="term" role="img" aria-label="SQL editor with keywords, types, functions, strings, numbers, comments and bind variables in different colours">
@@ -667,6 +695,7 @@ second line</pre>
   <span class="k">tab_width</span> = 4          <span class="c"># spaces inserted by Tab; also expands pasted tabs</span>
   <span class="k">auto_indent</span> = true     <span class="c"># Enter keeps the current line's indentation</span>
   <span class="k">syntax_highlight</span> = true <span class="c"># colour SQL; also "yes" / "no"</span>
+  <span class="k">completion</span> = true       <span class="c"># code completion; also "yes" / "no"</span>
 
 [query]
   <span class="k">max_rows</span> = 1000        <span class="c"># rows per fetch; more on scroll or End</span>
@@ -774,6 +803,8 @@ second line</pre>
           <tr><td><kbd>^K</kbd> <kbd>W</kbd></td><td>Write block to file</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>D</kbd></td><td>Save buffer to file</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>R</kbd></td><td>Insert file</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>Ctrl-Space</kbd></td><td>Code completion</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>Tab</kbd> / <kbd>Enter</kbd></td><td>Accept completion</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>Enter</kbd></td><td>Connect to selected connection</td><td><span class="grp">Connections</span></td></tr>
           <tr><td><kbd>a</kbd> / <kbd>d</kbd></td><td>Add / delete connection</td><td><span class="grp">Connections</span></td></tr>
           <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Scroll columns</td><td><span class="grp">Results</span></td></tr>

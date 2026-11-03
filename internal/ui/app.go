@@ -9,11 +9,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"sqlcli/internal/complete"
 	"sqlcli/internal/config"
 	"sqlcli/internal/db"
 	"sqlcli/internal/editor"
@@ -108,6 +110,8 @@ type Model struct {
 	connSel    int
 	showConns  bool   // connections panel visible (F2)
 	lastExport string // file name offered by the next export
+
+	catalogs map[string]*catalog // completion data per connection name
 
 	helpTop      int       // first visible line of the help screen
 	recTop       int       // first visible line of the record view
@@ -288,6 +292,7 @@ type connectedMsg struct {
 
 type execDoneMsg struct {
 	tab      int
+	ddl      bool // a statement changed the schema (reload completion data)
 	last     *db.Result
 	messages []string
 	output   []string // DBMS_OUTPUT of all statements
@@ -299,6 +304,19 @@ type fetchMsg struct {
 	tab  int
 	rows [][]string
 	done bool
+	err  error
+}
+
+type objectsMsg struct {
+	conn string
+	objs []db.ObjectInfo
+	err  error
+}
+
+type columnsMsg struct {
+	conn string
+	ref  complete.TableRef
+	cols []string
 	err  error
 }
 
@@ -363,7 +381,7 @@ func (m *Model) execute(stmts []string) tea.Cmd {
 	conn, hist, maxRows, id := m.conn, m.hist, m.cfg.Query.MaxRows, m.id
 	return tea.Batch(tick(), func() tea.Msg {
 		defer cancel()
-		out := execDoneMsg{tab: id}
+		out := execDoneMsg{tab: id, ddl: changesSchema(stmts)}
 		start := time.Now()
 		for i, s := range stmts {
 			t0 := time.Now()
@@ -584,7 +602,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.inBg {
 				m.focus = focusEditor
 			}
-			return nil
+			return m.loadObjects(false)
 		})
 
 	case execDoneMsg:
@@ -592,6 +610,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case fetchMsg:
 		return m, m.onTab(msg.tab, func() tea.Cmd { return m.fetchDone(msg) })
+
+	case objectsMsg:
+		if cat := m.catalogs[msg.conn]; cat != nil {
+			cat.loading = false
+			if msg.err == nil {
+				cat.setObjects(msg.objs)
+			}
+		}
+		return m, nil
+
+	case columnsMsg:
+		if cat := m.catalogs[msg.conn]; cat != nil {
+			delete(cat.colLoading, msg.ref)
+			if msg.err == nil {
+				cat.cols[msg.ref] = msg.cols
+			}
+		}
+		// refresh an open list (or one waiting for these columns after a '.')
+		if m.conn != nil && m.conn.Name == msg.conn && m.focus == focusEditor && m.mode == modeNormal {
+			return m, m.completeNow(false)
+		}
+		return m, nil
 
 	case exportDoneMsg:
 		return m, m.onTab(msg.tab, func() tea.Cmd {
@@ -629,10 +669,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) execDone(msg execDoneMsg) tea.Cmd {
+func (m *Model) execDone(msg execDoneMsg) (cmd tea.Cmd) {
 	m.running = false
 	m.cancel = nil
 	m.recordRun(msg)
+	if msg.ddl && msg.err == nil { // new or changed objects: reload completion data
+		reload := m.loadObjects(true)
+		defer func() { cmd = tea.Batch(cmd, reload) }()
+	}
 	errText := ""
 	if msg.err != nil {
 		errText = db.CleanError(msg.err)
@@ -843,11 +887,46 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	// editor
+	// editor: the completion list takes its keys first
+	if m.completionOn() && !m.ed.PrefixPending() {
+		if m.ed.PopupOpen() {
+			switch key {
+			case "up", "ctrl+p":
+				m.ed.PopupMove(-1)
+				return nil
+			case "down", "ctrl+n":
+				m.ed.PopupMove(1)
+				return nil
+			case "pgup":
+				m.ed.PopupMove(-8)
+				return nil
+			case "pgdown":
+				m.ed.PopupMove(8)
+				return nil
+			case "tab":
+				m.acceptCompletion()
+				return nil
+			case "enter":
+				if m.acceptCompletion() {
+					return nil
+				}
+			case "esc":
+				m.ed.ClosePopup()
+				return nil
+			}
+		}
+		if key == "ctrl+space" || key == "ctrl+@" {
+			return m.completeNow(true)
+		}
+	}
 	if key == "esc" && !m.ed.PrefixPending() {
 		return nil
 	}
-	switch m.ed.HandleKey(key, text) {
+	action := m.ed.HandleKey(key, text)
+	if action != editor.ActionNone {
+		m.ed.ClosePopup()
+	}
+	switch action {
 	case editor.ActionExit:
 		return m.quit()
 	case editor.ActionNewWindow:
@@ -899,6 +978,14 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	if m.ed.Status != "" {
 		m.setStatus(m.ed.Status, strings.HasPrefix(m.ed.Status, "No") || strings.HasPrefix(m.ed.Status, "Unknown"))
+	}
+	if m.completionOn() && m.mode == modeNormal && m.focus == focusEditor {
+		// typing a word (or '.') opens or refines the list; other keys close it
+		typed := text != "" && !strings.HasPrefix(key, "ctrl+") && !strings.HasPrefix(key, "alt+")
+		if m.ed.PopupOpen() || typed && (isIdentRune(text) || text == ".") {
+			return m.completeNow(false)
+		}
+		m.ed.ClosePopup()
 	}
 	return nil
 }
@@ -1599,6 +1686,8 @@ const helpText = `
  MOUSE  click a pane to focus it · click in the editor to move the cursor · double-click a connection
         to connect · click a tab to switch · [x] on the SQL panel closes the tab · Shift+drag selects text
 
+ COMPLETION  opens while typing (2 letters, or after '.') · Ctrl-Space opens it · ↑↓ choose · Tab/Enter insert · Esc close
+
  F5 runs the one statement the cursor is in. Statements end with ';', a blank line, or a '/' line.
  PL/SQL blocks (BEGIN/DECLARE/CREATE PROCEDURE ...) must end with a '/' line.
 `
@@ -1918,4 +2007,150 @@ func withoutTime(msg string) string {
 		return msg[:i]
 	}
 	return msg
+}
+
+// ---- code completion ----
+
+// catalog holds the completion data of one connection, shared by its tabs.
+type catalog struct {
+	objects    []complete.Item
+	names      map[string]bool
+	cols       map[complete.TableRef][]string
+	colLoading map[complete.TableRef]bool
+	loading    bool
+}
+
+func newCatalog() *catalog {
+	return &catalog{cols: map[complete.TableRef][]string{}, colLoading: map[complete.TableRef]bool{}}
+}
+
+func (c *catalog) Objects() []complete.Item   { return c.objects }
+func (c *catalog) HasObject(name string) bool { return c.names[name] }
+
+func (c *catalog) Columns(t complete.TableRef) ([]string, bool) {
+	cols, ok := c.cols[t]
+	return cols, ok
+}
+
+func (c *catalog) setObjects(objs []db.ObjectInfo) {
+	c.objects = make([]complete.Item, len(objs))
+	c.names = make(map[string]bool, len(objs))
+	for i, o := range objs {
+		c.objects[i] = complete.Item{Text: o.Name, Kind: complete.KindFor(o.Type)}
+		c.names[o.Name] = true
+	}
+}
+
+func (m *Model) completionOn() bool { return bool(m.cfg.Editor.Completion) }
+
+func isIdentRune(s string) bool {
+	for _, r := range s {
+		if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '$' || r == '#') {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// changesSchema reports whether any statement is DDL that can add, drop or
+// change objects or columns.
+func changesSchema(stmts []string) bool {
+	for _, s := range stmts {
+		switch db.FirstKeyword(s) {
+		case "CREATE", "DROP", "ALTER", "RENAME":
+			return true
+		}
+	}
+	return false
+}
+
+// loadObjects loads the active connection's object names in the background;
+// with reload it also forgets cached columns.
+func (m *Model) loadObjects(reload bool) tea.Cmd {
+	if !m.completionOn() || m.conn == nil {
+		return nil
+	}
+	if m.catalogs == nil {
+		m.catalogs = map[string]*catalog{}
+	}
+	name := m.conn.Name
+	cat := m.catalogs[name]
+	if cat == nil || reload {
+		cat = newCatalog()
+		m.catalogs[name] = cat
+	} else if cat.loading || cat.objects != nil {
+		return nil // loaded already, or on its way
+	}
+	cat.loading = true
+	conn := m.conn
+	return func() tea.Msg {
+		objs, err := conn.Objects(context.Background())
+		return objectsMsg{conn: name, objs: objs, err: err}
+	}
+}
+
+// completeNow computes candidates at the cursor and shows or updates the
+// list. force (Ctrl-Space) shows it even before two letters are typed.
+func (m *Model) completeNow(force bool) tea.Cmd {
+	var cat complete.Catalog = newCatalog()
+	if m.conn != nil && m.catalogs[m.conn.Name] != nil {
+		cat = m.catalogs[m.conn.Name]
+	}
+	lines := m.ed.Lines()
+	row, col := m.ed.CursorRow(), m.ed.CursorCol()
+	r := complete.Complete(lines, row, col, cat)
+
+	var cmds []tea.Cmd
+	if m.conn != nil {
+		if c := m.catalogs[m.conn.Name]; c != nil {
+			for _, t := range r.Need {
+				if !c.colLoading[t] {
+					c.colLoading[t] = true
+					conn, name, ref := m.conn, m.conn.Name, t
+					cmds = append(cmds, func() tea.Msg {
+						cols, err := conn.Columns(context.Background(), ref.Owner, ref.Name)
+						return columnsMsg{conn: name, ref: ref, cols: cols, err: err}
+					})
+				}
+			}
+		}
+	}
+
+	line := []rune(lines[row])
+	afterDot := r.Start > 0 && line[r.Start-1] == '.'
+	switch {
+	case len(r.Items) == 0:
+		m.ed.ClosePopup()
+	case !force && !m.ed.PopupOpen() && len([]rune(r.Prefix)) < 2 && !afterDot:
+		// wait for two letters before opening on its own
+	case !force && r.Prefix == "" && !afterDot:
+		m.ed.ClosePopup() // the word was deleted or ended
+	case !force && len(r.Items) == 1 && strings.EqualFold(r.Items[0].Text, r.Prefix):
+		m.ed.ClosePopup() // already complete
+	default:
+		items := make([]editor.PopupItem, len(r.Items))
+		for i, it := range r.Items {
+			items[i] = editor.PopupItem{Text: it.Text, Kind: it.Kind}
+		}
+		m.ed.OpenPopup(items, r.Start)
+	}
+	return tea.Batch(cmds...)
+}
+
+// acceptCompletion inserts the selected candidate. It reports false (and
+// closes the list) when the word is already exactly the candidate, so
+// Enter can start a new line instead.
+func (m *Model) acceptCompletion() bool {
+	it, ok := m.ed.PopupSelected()
+	if !ok {
+		return false
+	}
+	r := complete.Complete(m.ed.Lines(), m.ed.CursorRow(), m.ed.CursorCol(), newCatalog())
+	text := complete.Insert(complete.Item{Text: it.Text, Kind: it.Kind}, r.Prefix)
+	m.ed.ClosePopup()
+	if text == r.Prefix {
+		return false
+	}
+	m.ed.ReplaceWord(r.Start, text)
+	return true
 }
