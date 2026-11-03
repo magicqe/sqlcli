@@ -32,7 +32,7 @@ func TestUIDBMSOutputScroll(t *testing.T) {
 	if !strings.Contains(m.res.summary(), "/202") { // message + header + 200 lines
 		t.Errorf("summary: %q", m.res.summary())
 	}
-	press(m, key(tea.KeyF3))
+	m.focus = focusResults
 	press(m, key(tea.KeyEnd))
 	if txt := resultsText(m); !strings.Contains(txt, "out 200") {
 		t.Fatalf("End did not scroll to the last line:\n%s", txt)
@@ -64,7 +64,7 @@ func TestUIQueryWithOutputToggle(t *testing.T) {
 	if m.res.showText() || !strings.Contains(m.res.summary(), "o: DBMS_OUTPUT") {
 		t.Fatalf("grid should show first, summary %q", m.res.summary())
 	}
-	press(m, key(tea.KeyF3))
+	m.focus = focusResults
 	press(m, key('o'))
 	if !m.res.showText() || !strings.Contains(resultsText(m), "called f") {
 		t.Fatalf("o did not show output:\n%s", resultsText(m))

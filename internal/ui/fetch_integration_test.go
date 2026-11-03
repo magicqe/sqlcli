@@ -85,7 +85,7 @@ func TestUIFetchOnScrollAndEnd(t *testing.T) {
 	if !strings.Contains(m.status, "more available") {
 		t.Errorf("status: %q", m.status)
 	}
-	press(m, key(tea.KeyF3))
+	m.focus = focusResults
 	for i := 0; i < 200 && len(r.Rows) == 1000; i++ { // page down until a batch is fetched
 		press(m, key(tea.KeyPgDown))
 	}
@@ -132,7 +132,7 @@ func TestUICtrlCStopsFetchAll(t *testing.T) {
 	run(m, `select a.n, rpad('x', 300, 'x') pad
 	          from (select level n from dual connect by level <= 4000) a,
 	               (select level n from dual connect by level <= 4000) b`) // 16M rows
-	press(m, key(tea.KeyF3))
+	m.focus = focusResults
 	_, cmd := m.Update(key(tea.KeyEnd))
 
 	msgs := make(chan tea.Msg, 16)
@@ -185,7 +185,7 @@ func TestUICtrlCStopsFetchAll(t *testing.T) {
 func TestUIRecordFetches(t *testing.T) {
 	m := newTestModel(t, false)
 	run(m, "select level n from dual connect by level <= 2500")
-	press(m, key(tea.KeyF3))
+	m.focus = focusResults
 	press(m, key(tea.KeyEnter))
 	if m.mode != modeRecord {
 		t.Fatal("no record view")
@@ -203,7 +203,7 @@ func TestUIRecordFetches(t *testing.T) {
 	// stepping down through the first batch fetches the next one
 	press(m, key(tea.KeyEscape))
 	run(m, "select level n from dual connect by level <= 1500")
-	press(m, key(tea.KeyF3))
+	m.focus = focusResults
 	press(m, key(tea.KeyEnter))
 	r = m.res.res
 	for i := 0; i < 1100 && r.More; i++ {
@@ -218,7 +218,7 @@ func TestUIRecordPageFetches(t *testing.T) {
 	m := newTestModel(t, false)
 	m.cfg.UI.RecordPage = 100
 	run(m, "select level n from dual connect by level <= 1500")
-	press(m, key(tea.KeyF3))
+	m.focus = focusResults
 	press(m, key(tea.KeyEnter))
 	r := m.res.res
 	for i := 0; i < 20 && r.More; i++ {
@@ -238,7 +238,7 @@ func TestUIRunFooter(t *testing.T) {
 	if s := screen(m); !strings.Contains(s, "✓ 1000+ rows · ") {
 		t.Fatalf("query footer:\n%s", s)
 	}
-	press(m, key(tea.KeyF3))
+	m.focus = focusResults
 	press(m, key(tea.KeyEnd))
 	if !strings.Contains(screen(m), "✓ 2500 rows · ") {
 		t.Fatal("footer should follow the fetched row count")

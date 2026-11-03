@@ -107,10 +107,12 @@ type Model struct {
 	focus focus
 	mode  mode
 
-	prompt     prompt
-	connSel    int
-	showConns  bool   // connections panel visible (F2)
-	lastExport string // file name offered by the next export
+	prompt      prompt
+	connSel     int
+	showConns   bool   // connections panel visible (F2)
+	showResults bool   // results panel visible (F3)
+	showSQL     bool   // SQL panel visible (F4)
+	lastExport  string // file name offered by the next export
 
 	catalogs map[string]*catalog // completion data per connection name
 
@@ -129,7 +131,7 @@ type Model struct {
 
 // New builds the UI model. initialConn, if non-empty, is connected at start.
 func New(cfg *config.Config, hist *history.Store, initialConn string) *Model {
-	m := &Model{cfg: cfg, hist: hist, showConns: cfg.UI.ShowConnections}
+	m := &Model{cfg: cfg, hist: hist, showConns: cfg.UI.ShowConnections, showResults: true, showSQL: true}
 	m.tab = m.newTab()
 	for i, c := range cfg.Connections {
 		if strings.EqualFold(c.Name, initialConn) {
@@ -221,7 +223,7 @@ func (m *Model) openTab() tea.Cmd {
 	from := m.conn
 	t := m.newTab()
 	m.tab = t
-	m.focus = focusEditor
+	m.focusEditor()
 	m.layout()
 	if from != nil {
 		if i := m.connIndex(from.Name); i >= 0 {
@@ -239,7 +241,7 @@ func (m *Model) switchTab(i int) {
 	i = (i%len(m.tabs) + len(m.tabs)) % len(m.tabs)
 	m.tab = m.tabs[i]
 	if m.focus == focusConns && !m.showConns {
-		m.focus = focusEditor
+		m.focusMain()
 	}
 }
 
@@ -601,7 +603,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.conn = msg.conn
 			m.setStatus("Connected to "+msg.name, false)
 			if !m.inBg {
-				m.focus = focusEditor
+				m.focusEditor()
 			}
 			return m.loadObjects(false)
 		})
@@ -822,12 +824,15 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		if m.showConns {
 			m.focus = focusConns
 		} else if m.focus == focusConns {
-			m.focus = focusEditor
+			m.focusMain()
 		}
 		m.layout()
 		return nil
 	case "f3":
-		m.focus = focusResults
+		m.toggleResults()
+		return nil
+	case "f4":
+		m.toggleSQL()
 		return nil
 	case "f5", "ctrl+enter", "alt+enter":
 		return m.execute(m.currentStatements())
@@ -866,7 +871,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case focusResults:
 		switch key {
 		case "esc", "tab":
-			m.focus = focusEditor
+			m.focusEditor()
 		case "enter":
 			if m.res.selectedRow() != nil {
 				m.mode, m.recTop = modeRecord, 0
@@ -1084,7 +1089,7 @@ func (m *Model) updateConns(key string) tea.Cmd {
 			return nil
 		})
 	case "esc", "tab":
-		m.focus = focusEditor
+		m.focusEditor()
 	}
 	return nil
 }
@@ -1129,7 +1134,7 @@ func (m *Model) updateHistory(key, text string) tea.Cmd {
 		}
 		s := m.histEntries[m.histSel].SQL
 		m.mode = modeNormal
-		m.focus = focusEditor
+		m.focusEditor()
 		if key == "ctrl+r" { // replace buffer
 			m.ed.SetText(s)
 		} else {
@@ -1205,15 +1210,84 @@ func (m *Model) tabBarH() int {
 // paneH is the height available to the panes.
 func (m *Model) paneH() int { return m.h - 2 - m.tabBarH() } // status + key hints
 
+// paneHeights returns the outer heights of the SQL and results panels;
+// a hidden panel gets 0 and the other one the whole height.
+func (m *Model) paneHeights() (sqlH, resH int) {
+	avail := m.paneH()
+	switch {
+	case !m.showResults:
+		return avail, 0
+	case !m.showSQL:
+		return 0, avail
+	}
+	sqlH = max(avail*45/100, 5)
+	return sqlH, max(avail-sqlH, 4)
+}
+
 func (m *Model) layout() {
 	rightW := m.w - m.connWidth()
-	avail := m.paneH()
-	edH := max(avail*45/100, 5)
-	resH := max(avail-edH, 4)
-	for _, t := range m.tabs {
-		t.ed.SetSize(rightW-2, edH-2)
-		t.res.w, t.res.h = rightW-2, resH-2
+	sqlH, resH := m.paneHeights()
+	if sqlH == 0 { // hidden: keep a usable size for cursor logic
+		sqlH = m.paneH()
 	}
+	if resH == 0 {
+		resH = m.paneH()
+	}
+	for _, t := range m.tabs {
+		t.ed.SetSize(rightW-2, max(sqlH-2, 1))
+		t.res.w, t.res.h = rightW-2, max(resH-2, 1)
+	}
+}
+
+// focusEditor focuses the SQL editor, showing the SQL panel if hidden.
+func (m *Model) focusEditor() {
+	m.focus = focusEditor
+	if !m.showSQL {
+		m.showSQL = true
+		m.layout()
+	}
+}
+
+// focusMain focuses the editor, or the results when the SQL panel is hidden.
+func (m *Model) focusMain() {
+	if m.showSQL {
+		m.focus = focusEditor
+	} else {
+		m.focus = focusResults
+	}
+}
+
+// toggleResults hides the results panel or shows (and focuses) it. Hiding
+// it while the SQL panel is hidden brings the SQL panel back.
+func (m *Model) toggleResults() {
+	if m.showResults {
+		m.showResults = false
+		m.showSQL = true
+		if m.focus == focusResults {
+			m.focus = focusEditor
+		}
+	} else {
+		m.showResults = true
+		m.focus = focusResults
+	}
+	m.layout()
+}
+
+// toggleSQL hides the SQL panel or shows (and focuses) it. Hiding it while
+// the results panel is hidden brings the results back.
+func (m *Model) toggleSQL() {
+	if m.showSQL {
+		m.showSQL = false
+		m.showResults = true
+		m.ed.ClosePopup()
+		if m.focus == focusEditor {
+			m.focus = focusResults
+		}
+	} else {
+		m.showSQL = true
+		m.focus = focusEditor
+	}
+	m.layout()
 }
 
 var (
@@ -1419,15 +1493,19 @@ func (m *Model) View() tea.View {
 
 	edH := m.ed.View()
 	edTitle := m.sqlTitle()
-	edOuter := avail - (m.res.h + 2) // matches layout()
-	edBox := boxFull(edTitle, closeButton, m.runFooter(), edH, rightW, edOuter, m.focus == focusEditor)
-	resTitle := "Results"
-	if s := m.res.summary(); s != "" {
-		resTitle += "  " + s
+	sqlH, resH := m.paneHeights()
+	var panels []string
+	if sqlH > 0 {
+		panels = append(panels, boxFull(edTitle, closeButton, m.runFooter(), edH, rightW, sqlH, m.focus == focusEditor))
 	}
-	resBox := box(resTitle, m.res.view(m.focus == focusResults), rightW, m.res.h+2, m.focus == focusResults)
-
-	right := lipgloss.JoinVertical(lipgloss.Left, edBox, resBox)
+	if resH > 0 {
+		resTitle := "Results"
+		if s := m.res.summary(); s != "" {
+			resTitle += "  " + s
+		}
+		panels = append(panels, box(resTitle, m.res.view(m.focus == focusResults), rightW, resH, m.focus == focusResults))
+	}
+	right := lipgloss.JoinVertical(lipgloss.Left, panels...)
 	body := right
 	if m.showConns {
 		body = lipgloss.JoinHorizontal(lipgloss.Top, left, right)
@@ -1490,7 +1568,7 @@ func (m *Model) bottomLine() string {
 		}
 		return hintKey.Render(p.label) + " " + before + lipgloss.NewStyle().Reverse(true).Render(curCh) + after
 	}
-	hints := [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F5", "run"}, {"F7", "run all"},
+	hints := [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F7", "run all"},
 		{"F6", "history"}, {"F8", "commit"}, {"F9", "rollback"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
 	var parts []string
 	for _, h := range hints {
@@ -1671,7 +1749,7 @@ const helpText = `
  GLOBAL                                    EDITOR (JOE keys)
  F1          this help                     ^B ^F ^P ^N / arrows   move
  F2          show / hide connections pane  ^A / ^E                line start / end
- F3          results pane                  ^Z / ^X                word left / right
+ F3 / F4     show / hide results / SQL     ^Z / ^X                word left / right
  Esc         back to editor                ^U / ^V                page up / down
  F5          run statement at cursor       ^K U / ^K V            top / bottom of buffer
              (or the marked block)         ^K L                   go to line
@@ -1741,7 +1819,7 @@ func (m *Model) wheel(msg tea.MouseWheelMsg) tea.Cmd {
 		return nil
 	}
 	msg.Y -= m.tabBarH()
-	edOuter := m.paneH() - (m.res.h + 2)
+	edOuter, _ := m.paneHeights()
 	if msg.Y < edOuter {
 		for i := 0; i < 3; i++ {
 			m.ed.HandleKey(key, "")
@@ -1863,7 +1941,7 @@ func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 	}
 	cw := m.connWidth()
 	rightW := m.w - cw
-	edOuter := m.paneH() - (m.res.h + 2)
+	edOuter, _ := m.paneHeights()
 
 	switch {
 	case msg.X < cw: // connections
@@ -1884,7 +1962,7 @@ func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 		if y == 0 && msg.X >= btn && msg.X < btn+ansi.StringWidth(closeButton) {
 			return m.closeTabByMouse()
 		}
-		m.focus = focusEditor
+		m.focusEditor()
 		if y >= 1 && y < edOuter-1 && msg.X > cw && msg.X < cw+rightW-1 {
 			m.ed.ClickAt(msg.X-cw-1, y-1)
 		}

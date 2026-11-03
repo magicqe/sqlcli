@@ -85,7 +85,7 @@ transaction is open, sqlcli asks for confirmation and then rolls it back.
 │                ││ 2 │ 2 │ row 2                                   │
 ╰────────────────╯╰─────────────────────────────────────────────────╯
  ora  TX  │ Ln 2, Col 7 │ 25 row(s) selected.
- F1 help  F2 conns  F3 results  F5 run  F7 run all  F6 history …   sqlcli 0.1
+ F1 help  F2 conns  F3 results  F4 sql  F5 run  F7 run all  F6 history …   sqlcli 0.1
 ```
 
 * **Tab bar** (top, only with two or more tabs): one entry per SQL tab,
@@ -122,10 +122,16 @@ The focused pane has a blue border. Switch panes with:
 | Key | Pane |
 |---|---|
 | F2 | show the connections panel (focused) / hide it |
-| F3 | Results |
+| F3 | show the results panel (focused) / hide it |
+| F4 | show the SQL panel (focused) / hide it |
 | Esc or Tab (in Connections/Results) | back to the editor |
 
 You can also click a pane to focus it (see [Mouse](#mouse)).
+
+The SQL and results panels are never hidden together: hiding one while the
+other is hidden brings the other back (so F4 with the results hidden switches
+to "results only"). Going back to the editor (Esc in the results, connecting,
+inserting from history) shows a hidden SQL panel again.
 
 ### Mouse
 
@@ -462,7 +468,9 @@ succeeds, and TX never appears.
 
 ## 9. Results
 
-Press **F3** to focus the results pane.
+Press **F3** to show the results panel; it opens focused. F3 again hides it,
+and the SQL panel gets the whole height. When the panel is visible, click it
+to focus it, or press F3 twice.
 
 | Key | Action |
 |---|---|
@@ -704,7 +712,8 @@ Complete example with all settings:
 |---|---|
 | F1 | help |
 | F2 | show / hide connections panel |
-| F3 | focus results |
+| F3 | show / hide results panel |
+| F4 | show / hide SQL panel |
 | F5 | run block or statement under cursor |
 | F7 | run whole buffer |
 | F6 | history browser |

@@ -14,7 +14,8 @@ import (
 func sqlFooter(t *testing.T, m *Model) string {
 	t.Helper()
 	lines := strings.Split(screen(m), "\n")
-	y := m.tabBarH() + m.paneH() - (m.res.h + 2) - 1
+	sqlH, _ := m.paneHeights()
+	y := m.tabBarH() + sqlH - 1
 	f := string([]rune(lines[y])[m.connWidth():])
 	if !strings.HasPrefix(f, "╰") {
 		t.Fatalf("line %d is not the SQL panel's bottom border: %q", y, f)

@@ -32,7 +32,7 @@ func TestUIExport(t *testing.T) {
 	if len(m.res.res.Rows) != 1000 || !m.res.res.More {
 		t.Fatalf("expected a partial first batch, got %d", len(m.res.res.Rows))
 	}
-	press(m, key(tea.KeyF3))
+	m.focus = focusResults
 
 	// JSON: all 2500 rows, although only 1000 were fetched
 	jsonPath := filepath.Join(dir, "out.json")

@@ -269,7 +269,7 @@ sqlcli -config ./my.toml    <span class="c"># use a different configuration file
 <span class="t-d">│                ││ 2 │</span> 2 <span class="t-d">│</span> row 2                                 <span class="t-d">│</span>
 <span class="t-d">╰────────────────╯╰───────────────────────────────────────────────╯</span>
  ora <span class="t-tx"> TX </span> │ Ln 2, Col 36 │ 25 row(s) selected.
- <span class="t-b">F1</span> help  <span class="t-b">F2</span> conns  <span class="t-b">F3</span> results  <span class="t-b">F5</span> run  <span class="t-b">F7</span> run all  <span class="t-b">F6</span> history  <span class="t-d">sqlcli 0.1</span></pre>
+ <span class="t-b">F1</span> help  <span class="t-b">F2</span> conns  <span class="t-b">F3</span> results  <span class="t-b">F4</span> sql  <span class="t-b">F5</span> run  <span class="t-b">F7</span> run all  <span class="t-b">F6</span> history  <span class="t-d">sqlcli 0.1</span></pre>
         </div>
         <figcaption>The focused pane has a blue border. Here the editor has focus and a transaction is open.</figcaption>
       </figure>
@@ -286,11 +286,13 @@ sqlcli -config ./my.toml    <span class="c"># use a different configuration file
         <thead><tr><th>Key</th><th>Goes to</th></tr></thead>
         <tbody>
           <tr><td><kbd>F2</kbd></td><td class="wrap-ok">Show the connections panel (focused) / hide it</td></tr>
-          <tr><td><kbd>F3</kbd></td><td>Results</td></tr>
+          <tr><td><kbd>F3</kbd></td><td class="wrap-ok">Show the results panel (focused) / hide it</td></tr>
+          <tr><td><kbd>F4</kbd></td><td class="wrap-ok">Show the SQL panel (focused) / hide it</td></tr>
           <tr><td><kbd>Esc</kbd> or <kbd>Tab</kbd></td><td class="wrap-ok">Back to the editor (from Connections or Results)</td></tr>
         </tbody>
       </table></div>
       <p>You can also click a pane to focus it.</p>
+      <p>The SQL and results panels are never hidden together: hiding one while the other is hidden brings the other back, so <kbd>F4</kbd> with the results hidden switches to "results only". Going back to the editor (<kbd>Esc</kbd> in the results, connecting, inserting from history) shows a hidden SQL panel again.</p>
       <h3 id="mouse">Mouse</h3>
       <p>With <code>ui.mouse = true</code> (the default):</p>
       <div class="tbl"><table>
@@ -577,7 +579,7 @@ end;
     <!-- 9 -->
     <section id="results">
       <h2><span class="n">09</span>Results</h2>
-      <p>Press <kbd>F3</kbd> to focus the results pane.</p>
+      <p>Press <kbd>F3</kbd> to show the results panel; it opens focused. <kbd>F3</kbd> again hides it, and the SQL panel gets the whole height. When the panel is visible, click it to focus it, or press <kbd>F3</kbd> twice.</p>
       <div class="tbl"><table>
         <thead><tr><th>Key</th><th>Action</th></tr></thead>
         <tbody>
@@ -786,7 +788,8 @@ second line</pre>
         <tbody>
           <tr><td><kbd>F1</kbd></td><td>Help</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F2</kbd></td><td>Show / hide connections panel</td><td><span class="grp">Global</span></td></tr>
-          <tr><td><kbd>F3</kbd></td><td>Focus results</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F3</kbd></td><td>Show / hide results panel</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F4</kbd></td><td>Show / hide SQL panel</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F5</kbd></td><td>Run block or statement under cursor</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F7</kbd></td><td>Run whole buffer</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F6</kbd></td><td>History browser</td><td><span class="grp">Global</span></td></tr>
