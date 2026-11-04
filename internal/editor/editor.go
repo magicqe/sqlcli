@@ -300,12 +300,33 @@ func indexRunes(hay, needle []rune, from int) int {
 // 0-based offsets into the editor area (line-number gutter included).
 func (e *Editor) ClickAt(x, y int) {
 	e.prefixK = false
-	c := e.left + x - e.gutterWidth()
-	e.cur = e.clamp(pos{e.top + y, max(c, 0)})
+	e.cur = e.posAt(x, y)
 	e.wantX = e.cur.col
 	e.lastWasInsert = false
 	e.scroll()
 }
+
+// PosAt returns the buffer position (row, col) shown at view offset x, y.
+func (e *Editor) PosAt(x, y int) (int, int) {
+	p := e.posAt(x, y)
+	return p.row, p.col
+}
+
+func (e *Editor) posAt(x, y int) pos {
+	return e.clamp(pos{e.top + y, max(e.left+x-e.gutterWidth(), 0)})
+}
+
+// SetBlock marks the block between two buffer positions (in any order).
+func (e *Editor) SetBlock(r1, c1, r2, c2 int) {
+	a, b := e.clamp(pos{r1, c1}), e.clamp(pos{r2, c2})
+	if b.less(a) {
+		a, b = b, a
+	}
+	e.markB, e.markK, e.hasMarkB, e.hasMarkK = a, b, true, true
+}
+
+// ClearBlock removes the block marks.
+func (e *Editor) ClearBlock() { e.hasMarkB, e.hasMarkK = false, false }
 
 // SetCursor moves the cursor to a buffer position (0-based), clamped.
 func (e *Editor) SetCursor(row, col int) {

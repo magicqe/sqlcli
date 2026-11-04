@@ -21,8 +21,12 @@ type resultView struct {
 	output   []string // DBMS_OUTPUT lines
 
 	textMode bool // show the text view (always when there is no grid)
-	textTop  int  // first visible text line
-	textLeft int  // horizontal scroll of the text view
+
+	// rows (grid) or lines (text) selected by dragging the mouse
+	rangeOn        bool
+	rangeA, rangeB int
+	textTop        int // first visible text line
+	textLeft       int // horizontal scroll of the text view
 
 	widths []int
 	row    int // selected row
@@ -35,6 +39,7 @@ func (r *resultView) set(res *db.Result, messages, output []string, err string) 
 	r.res, r.messages, r.output, r.err = res, messages, output, err
 	r.row, r.top, r.colOff = 0, 0, 0
 	r.textTop, r.textLeft = 0, 0
+	r.rangeOn = false
 	r.widths = nil
 	r.textMode = !r.hasGrid()
 	if !r.hasGrid() {
@@ -199,9 +204,13 @@ func (r *resultView) view(focused bool) string {
 	if r.showText() {
 		lines := r.textLines()
 		r.textTop = min(r.textTop, max(len(lines)-r.h, 0))
-		lines = lines[r.textTop:min(len(lines), r.textTop+r.h)]
+		top := r.textTop
+		lines = lines[top:min(len(lines), top+r.h)]
 		for i, l := range lines {
 			lines[i] = ansi.Cut(l, r.textLeft, r.textLeft+r.w)
+			if n := top + i; r.rangeOn && n >= min(r.rangeA, r.rangeB) && n <= max(r.rangeA, r.rangeB) {
+				lines[i] = selStyle.Render(ansi.Strip(lines[i]) + strings.Repeat(" ", max(r.w-ansi.StringWidth(lines[i]), 0)))
+			}
 		}
 		return strings.Join(lines, "\n")
 	}
@@ -252,6 +261,9 @@ func (r *resultView) view(focused bool) string {
 			line.WriteString(" ")
 		}
 		s := ansi.Truncate(line.String(), r.w, "")
+		if r.rangeOn && i >= min(r.rangeA, r.rangeB) && i <= max(r.rangeA, r.rangeB) && i != r.row {
+			s = selDimStyle.Render(ansi.Strip(s) + strings.Repeat(" ", max(r.w-ansi.StringWidth(s), 0)))
+		}
 		if i == r.row {
 			st := selDimStyle
 			if focused {
@@ -325,4 +337,44 @@ func SetSelectionColor(c string) {
 		return
 	}
 	selStyle = lipgloss.NewStyle().Background(lipgloss.Color(strings.TrimSpace(c))).Foreground(lipgloss.Color("255")).Bold(true)
+}
+
+// indexAt returns the row (grid) or line (text) shown at content line y,
+// clamped to what exists; ok is false when there is nothing there.
+func (r *resultView) indexAt(y int) (int, bool) {
+	if r.showText() {
+		n := len(r.textLines())
+		if n == 0 {
+			return 0, false
+		}
+		return min(max(r.textTop+y, 0), n-1), true
+	}
+	if r.res == nil || len(r.res.Rows) == 0 {
+		return 0, false
+	}
+	return min(max(r.top+y-2, r.top), len(r.res.Rows)-1), true
+}
+
+// rangeText returns the selected rows as tab-separated values (NULL as
+// empty), or the selected text lines, and how many rows/lines that is.
+func (r *resultView) rangeText() (string, int) {
+	a, b := min(r.rangeA, r.rangeB), max(r.rangeA, r.rangeB)
+	var out []string
+	if r.showText() {
+		lines := r.textLines()
+		for i := a; i <= b && i < len(lines); i++ {
+			out = append(out, ansi.Strip(lines[i]))
+		}
+	} else {
+		for i := a; i <= b && i < len(r.res.Rows); i++ {
+			cells := make([]string, len(r.res.Rows[i]))
+			for j, v := range r.res.Rows[i] {
+				if v != db.Null {
+					cells[j] = v
+				}
+			}
+			out = append(out, strings.Join(cells, "\t"))
+		}
+	}
+	return strings.Join(out, "\n"), len(out)
 }

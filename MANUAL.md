@@ -151,7 +151,20 @@ With `ui.mouse = true` (the default):
 | `[x]` on the SQL panel's top border | close the tab (on the last tab sqlcli asks before quitting) |
 | mouse wheel | scroll the pane under the pointer |
 
-Hold Shift while dragging to select text for copying (most terminals).
+**Copying with the mouse.** Drag with the left button to select, and the
+selection is copied to the clipboard when you release the button (the status
+bar says what was copied):
+
+* **SQL editor:** the dragged text is marked as a block and copied. Like any
+  block, F5 then runs just that selection. A plain click clears a selection
+  made by dragging (a block marked with ^K B / ^K K stays until ^K A).
+* **Results grid:** the dragged rows are copied as tab-separated values, one
+  row per line, NULL as empty, ready to paste into a spreadsheet.
+* **DBMS_OUTPUT text:** the dragged lines are copied.
+
+sqlcli copies with the terminal's OSC 52 sequence, which most terminals and
+tmux support (also over SSH), and with `wl-copy`, `xclip` or `xsel` when one
+is installed. Hold Shift while dragging for the terminal's own selection.
 
 ## 5. Connections
 

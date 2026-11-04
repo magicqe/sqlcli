@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -122,6 +123,8 @@ type Model struct {
 	helpTop      int       // first visible line of the help screen
 	recTop       int       // first visible line of the record view
 	kPrefix      bool      // ^K pressed outside the editor
+	drag         dragState // mouse selection in progress
+	mouseBlock   bool      // the editor block was made by dragging (a click clears it)
 	lastClickAt  time.Time // for double-click on a connection
 	lastClickRow int
 
@@ -676,6 +679,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseClickMsg:
 		return m, m.click(msg)
 
+	case tea.MouseMotionMsg:
+		return m, m.dragTo(msg.X, msg.Y)
+
+	case tea.MouseReleaseMsg:
+		return m, m.dragEnd()
+
 	case tea.PasteMsg:
 		switch m.mode {
 		case modePrompt:
@@ -917,6 +926,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case focusConns:
 		return m.updateConns(key)
 	case focusResults:
+		m.res.rangeOn = false // a key ends a mouse selection
 		switch key {
 		case "esc", "tab":
 			m.focusEditor()
@@ -1873,7 +1883,8 @@ const helpText = `
  Enter in the connections pane connects this tab to the selected connection
 
  MOUSE  click a pane to focus it · click in the editor to move the cursor · double-click a connection
-        to connect · click a tab to switch · [x] on the SQL panel closes the tab · Shift+drag selects text
+        to connect · click a tab to switch · [x] on the SQL panel closes the tab
+        drag in the editor or results copies to the clipboard · Shift+drag: terminal selection
 
  COMPLETION  opens while typing (2 letters, or after '.') · Ctrl-Space opens it · ↑↓ choose · Tab/Enter insert · Esc close
 
@@ -2062,13 +2073,23 @@ func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 			return m.closeTabByMouse()
 		}
 		m.focusEditor()
+		if m.mouseBlock { // a plain click clears a selection made by dragging
+			m.ed.ClearBlock()
+			m.mouseBlock = false
+		}
 		if y >= 1 && y < edOuter-1 && msg.X > cw && msg.X < cw+rightW-1 {
 			m.ed.ClickAt(msg.X-cw-1, y-1)
+			r, c := m.ed.PosAt(msg.X-cw-1, y-1)
+			m.drag = dragState{active: true, pane: focusEditor, row: r, col: c}
 		}
 
 	default: // results
 		m.focus = focusResults
+		m.res.rangeOn = false
 		m.res.clickRow(y - edOuter - 1)
+		if i, ok := m.res.indexAt(y - edOuter - 1); ok {
+			m.drag = dragState{active: true, pane: focusResults, row: i}
+		}
 	}
 	return nil
 }
@@ -2768,4 +2789,107 @@ func (m *Model) saveSQL(path string) {
 	}
 	m.file = path
 	m.setStatus(fmt.Sprintf("Saved %d line(s) to %s", len(m.ed.Lines()), path), false)
+}
+
+// ---- mouse selection and the clipboard ----
+
+// dragState is a left-button drag that started in the editor or results.
+type dragState struct {
+	active   bool
+	moved    bool
+	pane     focus
+	row, col int // start: buffer position (editor) or row/line index (results)
+}
+
+// dragTo extends the selection to the pointer at screen cell x, y.
+func (m *Model) dragTo(x, y int) tea.Cmd {
+	if !m.drag.active || m.mode != modeNormal {
+		return nil
+	}
+	cw := m.connWidth()
+	sqlH, _ := m.paneHeights()
+	y -= m.tabBarH()
+	switch m.drag.pane {
+	case focusEditor:
+		r, c := m.ed.PosAt(max(x-cw-1, 0), min(max(y-1, 0), max(sqlH-3, 0)))
+		if r == m.drag.row && c == m.drag.col && !m.drag.moved {
+			return nil
+		}
+		m.drag.moved = true
+		m.ed.SetBlock(m.drag.row, m.drag.col, r, c)
+		m.ed.SetCursor(r, c)
+		m.mouseBlock = true
+	case focusResults:
+		i, ok := m.res.indexAt(y - sqlH - 1)
+		if !ok {
+			return nil
+		}
+		m.drag.moved = true
+		m.res.rangeOn, m.res.rangeA, m.res.rangeB = true, m.drag.row, i
+		if !m.res.showText() {
+			m.res.row = i
+			m.res.clampRow()
+		}
+	}
+	return nil
+}
+
+// dragEnd finishes a drag: the selected text is copied to the clipboard.
+func (m *Model) dragEnd() tea.Cmd {
+	d := m.drag
+	m.drag = dragState{}
+	if !d.active || !d.moved {
+		return nil
+	}
+	var text, what string
+	switch d.pane {
+	case focusEditor:
+		text = m.ed.BlockText()
+		what = fmt.Sprintf("%d character(s)", len([]rune(text)))
+	case focusResults:
+		var n int
+		text, n = m.res.rangeText()
+		what = fmt.Sprintf("%d row(s)", n)
+		if m.res.showText() {
+			what = fmt.Sprintf("%d line(s)", n)
+		}
+	}
+	if text == "" {
+		return nil
+	}
+	m.setStatus("Copied "+what+" to the clipboard", false)
+	return copyToClipboard(text)
+}
+
+// systemCopy puts text on the desktop clipboard with wl-copy, xclip or xsel
+// when available. Tests replace it.
+var systemCopy = func(text string) {
+	var args []string
+	switch {
+	case os.Getenv("WAYLAND_DISPLAY") != "" && hasCommand("wl-copy"):
+		args = []string{"wl-copy"}
+	case os.Getenv("DISPLAY") != "" && hasCommand("xclip"):
+		args = []string{"xclip", "-selection", "clipboard"}
+	case os.Getenv("DISPLAY") != "" && hasCommand("xsel"):
+		args = []string{"xsel", "--clipboard", "--input"}
+	default:
+		return
+	}
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdin = strings.NewReader(text)
+	_ = cmd.Run()
+}
+
+func hasCommand(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
+
+// copyToClipboard copies text with the terminal's OSC 52 sequence (works in
+// most terminals, also over SSH and in tmux) and with a desktop tool.
+func copyToClipboard(text string) tea.Cmd {
+	return tea.Batch(tea.SetClipboard(text), func() tea.Msg {
+		systemCopy(text)
+		return nil
+	})
 }
