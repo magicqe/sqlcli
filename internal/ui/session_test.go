@@ -246,6 +246,17 @@ func TestF5InCommentRunsNothing(t *testing.T) {
 	if !strings.HasPrefix(m.status, "Not connected") {
 		t.Fatalf("on the statement: %q", m.status)
 	}
+	// in a "--" comment at the end of a code line it runs the code before it
+	m.ed.SetText("-- count rows\nselect count(*) from t; -- all of them\n/* old\nselect 1 from dual;\n*/")
+	m.ed.SetCursor(1, 30)
+	m.status = ""
+	press(m, key(tea.KeyF5))
+	if !strings.HasPrefix(m.status, "Not connected") {
+		t.Fatalf("trailing comment: %q", m.status)
+	}
+	if st := m.currentStatements(); len(st) != 1 || st[0] != "select count(*) from t;" {
+		t.Fatalf("trailing comment runs %q", st)
+	}
 	// a marked block runs whatever the cursor is on
 	m.ed.SetCursor(1, 0)
 	m.ed.HandleKey("ctrl+k", "")

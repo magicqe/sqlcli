@@ -841,6 +841,13 @@ func InComment(script string, row, col int) bool {
 // scanLine walks one line from the given state and returns the state at its
 // end and whether the line has any code (not blank, not inside a comment).
 func scanLine(rs []rune, inBlock, inQuote bool, qClose *rune) (bool, bool, bool) {
+	inBlock, inQuote, hasCode, _ := scanLineDash(rs, inBlock, inQuote, qClose)
+	return inBlock, inQuote, hasCode
+}
+
+// scanLineDash is scanLine that also returns the column where a "--"
+// comment starts on the line (-1 if there is none).
+func scanLineDash(rs []rune, inBlock, inQuote bool, qClose *rune) (bool, bool, bool, int) {
 	hasCode := false
 	for c := 0; c < len(rs); c++ {
 		next := rune(0)
@@ -872,7 +879,7 @@ func scanLine(rs []rune, inBlock, inQuote bool, qClose *rune) (bool, bool, bool)
 			hasCode, inQuote, *qClose = true, true, qDelimiter(rs[c+2])
 			c += 2
 		case rs[c] == '-' && next == '-':
-			return inBlock, inQuote, hasCode
+			return inBlock, inQuote, hasCode, c
 		case rs[c] == '/' && next == '*':
 			inBlock = true
 			c++
@@ -882,7 +889,7 @@ func scanLine(rs []rune, inBlock, inQuote bool, qClose *rune) (bool, bool, bool)
 			hasCode = true
 		}
 	}
-	return inBlock, inQuote, hasCode
+	return inBlock, inQuote, hasCode, -1
 }
 
 // commentOnlyLine reports whether line row is non-blank and holds only
@@ -899,6 +906,32 @@ func commentOnlyLine(script string, row int) bool {
 	}
 	_, _, hasCode := scanLine([]rune(lines[row]), inBlock, inQuote, &q)
 	return !hasCode
+}
+
+// RunCursor returns the position F5 runs from: the cursor itself, or, when
+// the cursor is in a "--" comment at the end of a line that has code, the
+// end of that code (so the statement before the comment runs). ok is false
+// when the cursor is in a comment with no code to run on its line.
+func RunCursor(script string, row, col int) (int, int, bool) {
+	if !InComment(script, row, col) {
+		return row, col, true
+	}
+	if commentOnlyLine(script, row) {
+		return row, col, false
+	}
+	lines := strings.Split(script, "\n")
+	inBlock, inQuote := false, false
+	var q rune
+	for r := 0; r < row; r++ {
+		inBlock, inQuote, _ = scanLine([]rune(lines[r]), inBlock, inQuote, &q)
+	}
+	rs := []rune(lines[row])
+	_, _, _, dash := scanLineDash(rs, inBlock, inQuote, &q)
+	if dash < 0 || col < dash {
+		return row, col, false // in a /* */ comment
+	}
+	code := strings.TrimRight(string(rs[:dash]), " \t")
+	return row, len([]rune(code)), true
 }
 
 // inCommentAt is the character-level part of InComment.

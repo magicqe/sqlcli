@@ -580,7 +580,9 @@ func (m *Model) currentStatements() []string {
 	if m.ed.HasBlock() {
 		return db.SplitStatements(m.ed.BlockText())
 	}
-	st, ok := db.StatementAtCursor(m.ed.Text(), m.ed.CursorRow(), m.ed.CursorCol())
+	text := m.ed.Text()
+	row, col, _ := db.RunCursor(text, m.ed.CursorRow(), m.ed.CursorCol()) // a trailing "--" comment: the code before it
+	st, ok := db.StatementAtCursor(text, row, col)
 	if !ok {
 		return nil
 	}
@@ -1075,9 +1077,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.cyclePanel(-1)
 		return nil
 	case "f5", "ctrl+enter", "alt+enter":
-		if !m.ed.HasBlock() && db.InComment(m.ed.Text(), m.ed.CursorRow(), m.ed.CursorCol()) {
-			m.setStatus("The cursor is in a comment: nothing to run", true)
-			return nil
+		if !m.ed.HasBlock() {
+			if _, _, ok := db.RunCursor(m.ed.Text(), m.ed.CursorRow(), m.ed.CursorCol()); !ok {
+				m.setStatus("The cursor is in a comment: nothing to run", true)
+				return nil
+			}
 		}
 		return m.execute(m.currentStatements())
 	case "f7":

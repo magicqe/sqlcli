@@ -524,10 +524,12 @@ SQL never runs and never breaks an F7 script. Comments inside a statement stay,
 including optimizer hints (`/*+ … */`).
 
 **With the cursor inside a comment, F5 runs nothing** (the status bar says
-so): anywhere in a `/* … */` block, from `--` to the end of that line, or
-anywhere on a line that holds nothing but comments (also just after a closing
-`*/`, or on the indentation before `-- note`). A
-marked block runs as usual, wherever the cursor is.
+so): anywhere in a `/* … */` block, or anywhere on a line that holds nothing
+but comments (also just after a closing `*/`, or on the indentation before
+`-- note`). A `--` comment **at the end of a line with code** is different:
+with the cursor in it, F5 ignores the comment and runs the statement before
+it (`select * from emp; -- all rows`). A marked block runs as usual, wherever
+the cursor is.
 
 **F5 runs exactly one statement: the one the cursor is in.** The position just
 after a statement's closing `;` still counts as inside it. If the cursor is on

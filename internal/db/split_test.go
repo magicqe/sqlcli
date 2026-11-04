@@ -271,3 +271,41 @@ func TestQQuotes(t *testing.T) {
 		t.Fatalf("seq'...': %#v", got)
 	}
 }
+
+func TestRunCursorTrailingComment(t *testing.T) {
+	script := "select 1 from dual;   -- note\n" + // 0
+		"-- whole line\n" + // 1
+		"select 'a -- b' x from dual -- tail\n" + // 2
+		"/* block */\n" + // 3
+		"select 2 from dual /* c */ -- d" // 4
+	cases := []struct {
+		row, col      int
+		wantRow, col2 int
+		ok            bool
+	}{
+		{0, 3, 0, 3, true},    // in the code: unchanged
+		{0, 25, 0, 19, true},  // in the trailing comment: end of the code
+		{0, 29, 0, 19, true},  // end of the line
+		{1, 4, 1, 4, false},   // comment-only line
+		{2, 11, 2, 11, true},  // "--" inside a string is code
+		{2, 32, 2, 27, true},  // the real trailing comment
+		{3, 4, 3, 4, false},   // block comment line
+		{4, 21, 4, 21, false}, // inside /* */ after code: still nothing
+		{4, 30, 4, 26, true},  // the "--" after it
+	}
+	for _, c := range cases {
+		r, col, ok := RunCursor(script, c.row, c.col)
+		if r != c.wantRow || col != c.col2 || ok != c.ok {
+			t.Errorf("(%d,%d): got (%d,%d,%v), want (%d,%d,%v)", c.row, c.col, r, col, ok, c.wantRow, c.col2, c.ok)
+		}
+	}
+	// the statement found from there is the one before the comment
+	r, col, _ := RunCursor(script, 0, 25)
+	if st, ok := StatementAtCursor(script, r, col); !ok || st.Text != "select 1 from dual;" {
+		t.Fatalf("statement: %q", st.Text)
+	}
+	r, col, _ = RunCursor(script, 2, 32)
+	if st, ok := StatementAtCursor(script, r, col); !ok || !strings.HasPrefix(st.Text, "select 'a -- b' x from dual") {
+		t.Fatalf("statement: %q", st.Text)
+	}
+}
