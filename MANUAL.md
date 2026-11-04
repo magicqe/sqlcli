@@ -325,6 +325,7 @@ to running single statements.
 | ^K F | find (case-insensitive, wraps at end of buffer) |
 | ^L | find next |
 | ^K D | save the SQL panel to a file (see below) |
+| ^K I | load a file into the SQL panel, replacing its text (see below) |
 | ^K R | insert a file at the cursor |
 
 File names may start with `~/`.
@@ -334,6 +335,12 @@ last file (or `query.sql` the first time). Saving again to the same file
 doesn't ask; another existing file is replaced only after you confirm. The
 file name is then shown in the SQL panel's title (`SQL · ora · report.sql`).
 ^K D also works from the connections and results panes.
+
+**Loading a file (^K I)** replaces the SQL panel's text with a text file,
+puts the cursor at the top-left corner, and makes it the tab's file: the title
+shows its name and ^K D saves back to it. ^_ (undo) brings back the previous
+text. Directories, binary files and files over 10 MB are refused. To insert a
+file at the cursor instead, use ^K R.
 
 ### Other
 
@@ -819,7 +826,7 @@ Complete example with all settings:
 | ^K L | go to line | ^K F, ^L | find, find next |
 | ^K B ^K K | block begin / end | ^K C ^K M ^K Y | copy / move / delete block |
 | ^K A | clear block | ^K W | write block to file |
-| ^K D | save buffer to file | ^K R | insert file |
+| ^K D | save SQL panel to file | ^K I / ^K R | load file / insert file at cursor |
 | Ctrl-Space | code completion | Tab / Enter | accept completion |
 
 ### Input line (questions on the bottom line)

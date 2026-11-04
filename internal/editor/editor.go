@@ -27,6 +27,7 @@ const (
 	ActionPrevWindow         // ^K P
 	ActionCloseWindow        // ^K Q  (close tab)
 	ActionSessions           // ^K E  (session list)
+	ActionLoadFile           // ^K I  (replace the buffer with a file)
 )
 
 type pos struct{ row, col int }
@@ -529,6 +530,8 @@ func (e *Editor) handleCtrlK(key string) Action {
 		return ActionCloseWindow
 	case "e":
 		return ActionSessions
+	case "i":
+		return ActionLoadFile
 	case "o":
 		return ActionNewWindow
 	case "n":

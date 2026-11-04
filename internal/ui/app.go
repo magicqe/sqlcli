@@ -2,6 +2,7 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -1006,6 +1008,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.closeTab()
 	case editor.ActionSessions:
 		m.openSessions()
+	case editor.ActionLoadFile:
+		m.askLoadSQL()
 	case editor.ActionHelp:
 		m.mode = modeHelp
 	case editor.ActionFindPrompt:
@@ -1636,7 +1640,7 @@ func (m *Model) statusLine() string {
 	pos := fmt.Sprintf(" Ln %d, Col %d ", m.ed.CursorRow()+1, m.ed.CursorCol()+1)
 	msg := m.status
 	if m.kPrefix {
-		msg = "^K-  (X quit, Q close tab, O new tab, N/P next/previous tab, E sessions, D save SQL, H help)"
+		msg = "^K-  (X quit, Q close tab, O new tab, N/P next/previous tab, E sessions, D save / I load SQL, H help)"
 	} else if m.running && m.exporting {
 		msg = fmt.Sprintf("Exporting %d rows…", len(m.res.res.Rows))
 	} else if m.running && m.fetching && m.afterFetch != nil && m.res.res != nil {
@@ -1672,7 +1676,7 @@ func (m *Model) bottomLine() string {
 		return hintKey.Render(p.label) + " " + before + lipgloss.NewStyle().Reverse(true).Render(curCh) + after
 	}
 	hints := [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F7", "run all"},
-		{"F6", "history"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K D", "save sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
+		{"F6", "history"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K D/I", "save/load sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
 	var parts []string
 	for _, h := range hints {
 		parts = append(parts, hintKey.Render(h[0])+" "+hintText.Render(h[1]))
@@ -1868,6 +1872,7 @@ const helpText = `
  Enter       connect this tab              ^K D                   save buffer to file
  a / e / d   add / edit / delete           ^K R                   insert file
  v           view connection settings      ^K W                   write block to file
+                                           ^K I                   load file (replace text)
 
  RESULTS PANE                              RECORD VIEW (Enter on a row)
  arrows, PgUp/PgDn, wheel   scroll         ↑↓ / Home End          previous, next / first, last
@@ -2016,6 +2021,8 @@ func (m *Model) ctrlKCommand(key string) tea.Cmd {
 		m.openSessions()
 	case "d":
 		m.askSaveSQL()
+	case "i":
+		m.askLoadSQL()
 	case "o":
 		return m.openTab()
 	case "n":
@@ -2892,4 +2899,60 @@ func copyToClipboard(text string) tea.Cmd {
 		systemCopy(text)
 		return nil
 	})
+}
+
+// maxLoadSize is the largest file ^K I loads into a SQL panel.
+const maxLoadSize = 10 << 20
+
+// askLoadSQL asks for a file and replaces the SQL panel's text with it
+// (^_ undoes). The file becomes the tab's file, so ^K D saves back to it.
+func (m *Model) askLoadSQL() {
+	m.ask("Load file into this SQL panel:", m.file, false, func(v string) tea.Cmd {
+		name := strings.TrimSpace(v)
+		if name == "" {
+			return nil
+		}
+		path := expandHome(name)
+		if abs, err := filepath.Abs(path); err == nil {
+			path = abs
+		}
+		text, err := readTextFile(path)
+		if err != nil {
+			m.setStatus("Loading "+name+": "+err.Error(), true)
+			return nil
+		}
+		m.focusEditor()
+		m.ed.ClosePopup()
+		m.ed.SetText(strings.TrimSuffix(text, "\n")) // cursor at the top-left corner
+		m.mouseBlock = false
+		m.file = path
+		m.setStatus(fmt.Sprintf("Loaded %d line(s) from %s (^_ undoes)", len(m.ed.Lines()), path), false)
+		return nil
+	})
+}
+
+// readTextFile reads a text file, refusing directories, binary files and
+// files larger than maxLoadSize.
+func readTextFile(path string) (string, error) {
+	st, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", errors.New("no such file")
+		}
+		return "", err
+	}
+	if st.IsDir() {
+		return "", errors.New("it is a directory")
+	}
+	if st.Size() > maxLoadSize {
+		return "", fmt.Errorf("file is larger than %d MB", maxLoadSize>>20)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if bytes.IndexByte(b, 0) >= 0 || !utf8.Valid(b) {
+		return "", errors.New("not a text file")
+	}
+	return string(b), nil
 }

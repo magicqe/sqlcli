@@ -458,11 +458,13 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
           <tr><td><kbd>^K</kbd> <kbd>F</kbd></td><td class="wrap-ok">Find (case-insensitive, wraps at end of buffer)</td></tr>
           <tr><td><kbd>^L</kbd></td><td>Find next</td></tr>
           <tr><td><kbd>^K</kbd> <kbd>D</kbd></td><td>Save the SQL panel to a file (see below)</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>I</kbd></td><td class="wrap-ok">Load a file into the SQL panel, replacing its text (see below)</td></tr>
           <tr><td><kbd>^K</kbd> <kbd>R</kbd></td><td>Insert a file at the cursor</td></tr>
         </tbody>
       </table></div>
       <p>File names may start with <code>~/</code>.</p>
       <p><strong>Saving the SQL panel (<kbd>^K</kbd> <kbd>D</kbd>)</strong> asks for the file name, offering the tab's last file (or <code>query.sql</code> the first time). Saving again to the same file doesn't ask; another existing file is replaced only after you confirm. The file name is then shown in the SQL panel's title (<code>SQL · ora · report.sql</code>). <kbd>^K</kbd> <kbd>D</kbd> also works from the connections and results panes.</p>
+      <p><strong>Loading a file (<kbd>^K</kbd> <kbd>I</kbd>)</strong> replaces the SQL panel's text with a text file, puts the cursor at the top-left corner, and makes it the tab's file: the title shows its name and <kbd>^K</kbd> <kbd>D</kbd> saves back to it. <kbd>^_</kbd> (undo) brings back the previous text. Directories, binary files and files over 10 MB are refused. To insert a file at the cursor instead, use <kbd>^K</kbd> <kbd>R</kbd>.</p>
 
       <h3>Other</h3>
       <div class="tbl"><table>
@@ -851,7 +853,8 @@ second line</pre>
           <tr><td><kbd>^K</kbd> <kbd>C</kbd> <kbd>M</kbd> <kbd>Y</kbd></td><td>Copy / move / delete block</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>A</kbd></td><td>Clear block marks</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>W</kbd></td><td>Write block to file</td><td><span class="grp">Editor</span></td></tr>
-          <tr><td><kbd>^K</kbd> <kbd>D</kbd></td><td>Save buffer to file</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>D</kbd></td><td>Save SQL panel to file</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>I</kbd></td><td>Load file into SQL panel</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>R</kbd></td><td>Insert file</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>Ctrl-Space</kbd></td><td>Code completion</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>Tab</kbd> / <kbd>Enter</kbd></td><td>Accept completion</td><td><span class="grp">Editor</span></td></tr>
