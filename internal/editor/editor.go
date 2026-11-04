@@ -440,9 +440,9 @@ func (e *Editor) HandleKey(key, text string) Action {
 		e.moveVert(-max(e.height-1, 1))
 	case "pgdown", "ctrl+v":
 		e.moveVert(max(e.height-1, 1))
-	case "ctrl+z", "ctrl+left", "alt+left":
+	case "ctrl+z", "alt+left": // (Ctrl-arrows move between panels)
 		e.wordLeft()
-	case "ctrl+x", "ctrl+right", "alt+right":
+	case "ctrl+x", "alt+right":
 		e.wordRight()
 	case "ctrl+home":
 		e.cur, e.wantX = pos{}, 0

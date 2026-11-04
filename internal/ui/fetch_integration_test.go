@@ -656,3 +656,25 @@ func TestUIObjectDDL(t *testing.T) {
 	}
 	press(m, key(tea.KeyEscape))
 }
+
+func TestUITreeSelectShowsResults(t *testing.T) {
+	m := newTestModel(t, false)
+	drain(m, m.loadTree(true))
+	tr := m.tree()
+	nodes, _ := tr.visible()
+	for i, n := range nodes {
+		if n.label == "Tables" {
+			tr.sel = i
+		}
+	}
+	m.focus = focusTree
+	press(m, key(tea.KeyEnter))
+	press(m, key(tea.KeyDown)) // first table
+	press(m, key('s'))
+	if m.showSQL || !m.showResults || m.focus != focusResults || !m.res.hasGrid() {
+		t.Fatalf("s: sql=%v results=%v focus=%v status=%q", m.showSQL, m.showResults, m.focus, m.status)
+	}
+	if _, h := m.paneHeights(); h != m.paneH() {
+		t.Fatalf("results should have the whole height: %d of %d", h, m.paneH())
+	}
+}

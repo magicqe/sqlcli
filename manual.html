@@ -292,7 +292,10 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
           <tr><td><kbd>F2</kbd></td><td class="wrap-ok">Show the connections panel (focused) / hide it</td></tr>
           <tr><td><kbd>F3</kbd></td><td class="wrap-ok">Show the results panel (focused) / hide it</td></tr>
           <tr><td><kbd>F4</kbd></td><td class="wrap-ok">Show the SQL panel (focused) / hide it</td></tr>
-          <tr><td><kbd>Esc</kbd> or <kbd>Tab</kbd></td><td class="wrap-ok">Back to the editor (from Connections or Results)</td></tr>
+          <tr><td><kbd>F12</kbd></td><td class="wrap-ok">Object tree (shows the left panel if hidden)</td></tr>
+          <tr><td><kbd>Ctrl-←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td class="wrap-ok">The panel to the left / right / above / below: connections and object tree on the left, SQL editor and results on the right (a hidden panel is shown)</td></tr>
+          <tr><td><kbd>Tab</kbd> / <kbd>Shift-Tab</kbd></td><td class="wrap-ok">Next / previous panel: connections → object tree → results → SQL editor; hidden panels are skipped (in the editor, Tab indents)</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td class="wrap-ok">Back to the editor (from Connections, Results or the tree)</td></tr>
         </tbody>
       </table></div>
       <p>You can also click a pane to focus it.</p>
@@ -395,13 +398,13 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
       <div class="tbl"><table>
         <thead><tr><th>Key</th><th>Action</th></tr></thead>
         <tbody>
-          <tr><td><kbd>Tab</kbd> (in the connections list)</td><td class="wrap-ok">Go to the tree; Tab again goes to the editor</td></tr>
+          <tr><td><kbd>Tab</kbd> (in the connections list)</td><td class="wrap-ok">Go to the tree; Tab again goes to the results, Shift-Tab back</td></tr>
           <tr><td><kbd>↑</kbd> <kbd>↓</kbd>, <kbd>PgUp</kbd> <kbd>PgDn</kbd>, <kbd>Home</kbd> <kbd>End</kbd></td><td>Move</td></tr>
           <tr><td><kbd>Enter</kbd> / <kbd>→</kbd></td><td class="wrap-ok">Open a group or object (Enter on a leaf inserts its name)</td></tr>
           <tr><td><kbd>←</kbd></td><td>Close, or go to the parent</td></tr>
           <tr><td><kbd>i</kbd></td><td class="wrap-ok">Insert the name at the editor cursor (<code>package.member</code> for members)</td></tr>
           <tr><td><kbd>d</kbd></td><td><code>DESC</code> the object</td></tr>
-          <tr><td><kbd>s</kbd></td><td><code>select * from</code> the table, view or synonym</td></tr>
+          <tr><td><kbd>s</kbd></td><td class="wrap-ok"><code>select * from</code> the table, view or synonym; the results get the whole height (SQL panel hidden, <kbd>F4</kbd> brings it back)</td></tr>
           <tr><td><kbd>r</kbd></td><td>Reload the tree</td></tr>
           <tr><td><kbd>Ctrl-D</kbd></td><td class="wrap-ok">Open the object's <strong>DDL</strong> in a new SQL tab (see below)</td></tr>
           <tr><td><kbd>Esc</kbd></td><td>Back to the editor</td></tr>
@@ -422,7 +425,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
         <tbody>
           <tr><td><kbd>^B</kbd> <kbd>^F</kbd></td><td>Character left / right</td></tr>
           <tr><td><kbd>^P</kbd> <kbd>^N</kbd></td><td>Line up / down</td></tr>
-          <tr><td><kbd>^Z</kbd> <kbd>^X</kbd></td><td>Word left / right (also Ctrl-← / Ctrl-→)</td></tr>
+          <tr><td><kbd>^Z</kbd> <kbd>^X</kbd></td><td class="wrap-ok">Word left / right (also Alt-← / Alt-→; Ctrl-arrows move between panels)</td></tr>
           <tr><td><kbd>^A</kbd> <kbd>^E</kbd></td><td>Beginning / end of line</td></tr>
           <tr><td><kbd>Home</kbd></td><td class="wrap-ok">First non-blank character; press again for column 1</td></tr>
           <tr><td><kbd>^U</kbd> <kbd>^V</kbd></td><td>Page up / down</td></tr>

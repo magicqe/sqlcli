@@ -129,7 +129,10 @@ The focused pane has a blue border. Switch panes with:
 | F2 | show the connections panel (focused) / hide it |
 | F3 | show the results panel (focused) / hide it |
 | F4 | show the SQL panel (focused) / hide it |
-| Esc or Tab (in Connections/Results) | back to the editor |
+| F12 | object tree (shows the left panel if hidden) |
+| Ctrl-← / → / ↑ / ↓ | the panel to the left / right / above / below: connections and object tree on the left, SQL editor and results on the right (a hidden panel is shown) |
+| Tab / Shift-Tab | next / previous panel, in the order connections → object tree → results → SQL editor; hidden panels are skipped (in the editor, Tab indents) |
+| Esc (in Connections/Results/tree) | back to the editor |
 
 You can also click a pane to focus it (see [Mouse](#mouse)).
 
@@ -272,13 +275,13 @@ connection, and is loaded again after `CREATE`, `DROP`, `ALTER` or `RENAME`.
 
 | Key | Action |
 |---|---|
-| Tab (in the connections list) | go to the tree; Tab again goes to the editor |
+| Tab (in the connections list) | go to the tree; Tab again goes to the results, Shift-Tab back |
 | ↑ / ↓, PgUp / PgDn, Home / End | move |
 | Enter / → | open a group or object (Enter on a leaf inserts its name) |
 | ← | close, or go to the parent |
 | i | insert the name at the editor cursor (`package.member` for members) |
 | d | `DESC` the object |
-| s | `select * from` the table, view or synonym |
+| s | `select * from` the table, view or synonym; the results get the whole height (the SQL panel is hidden, F4 brings it back) |
 | r | reload the tree |
 | Ctrl-D | open the object's **DDL** in a new SQL tab (see below) |
 | Esc | back to the editor |
@@ -305,7 +308,7 @@ Pasting from the terminal (bracketed paste) inserts the whole text at once.
 |---|---|
 | ^B / ^F | character left / right |
 | ^P / ^N | line up / down |
-| ^Z / ^X | word left / right (also Ctrl-← / Ctrl-→) |
+| ^Z / ^X | word left / right (also Alt-← / Alt-→; Ctrl-arrows move between panels) |
 | ^A / ^E | beginning / end of line |
 | Home | first non-blank character; press again for column 1 |
 | ^U / ^V | page up / down |

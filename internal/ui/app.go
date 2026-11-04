@@ -1036,6 +1036,15 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "f4":
 		m.toggleSQL()
 		return nil
+	case "f12": // the object tree
+		m.jumpTo(focusTree)
+		return nil
+	case "ctrl+left", "ctrl+right", "ctrl+up", "ctrl+down":
+		m.jumpDirection(strings.TrimPrefix(key, "ctrl+"))
+		return nil
+	case "shift+tab":
+		m.cyclePanel(-1)
+		return nil
 	case "f5", "ctrl+enter", "alt+enter":
 		if !m.ed.HasBlock() && db.InComment(m.ed.Text(), m.ed.CursorRow(), m.ed.CursorCol()) {
 			m.setStatus("The cursor is in a comment: nothing to run", true)
@@ -1098,8 +1107,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case focusResults:
 		m.res.rangeOn = false // a key ends a mouse selection
 		switch key {
-		case "esc", "tab":
+		case "esc":
 			m.focusEditor()
+		case "tab":
+			m.cyclePanel(1)
 		case "enter":
 			if m.res.selectedRow() != nil {
 				m.mode, m.recTop = modeRecord, 0
@@ -1337,9 +1348,11 @@ func (m *Model) updateConns(key string) tea.Cmd {
 			}
 			return nil
 		})
-	case "tab": // on to the object tree
-		m.focus = focusTree
-		m.setStatus("Objects: Enter open · i insert name · d DESC · s select * · r reload · Tab editor", false)
+	case "tab": // on to the next panel (the object tree)
+		m.cyclePanel(1)
+		if m.focus == focusTree {
+			m.setStatus("Objects: Enter open · i insert name · d DESC · s select * · Ctrl-D DDL · r reload", false)
+		}
 	case "esc":
 		m.focusEditor()
 	}
@@ -2040,24 +2053,25 @@ const helpText = `
  GLOBAL                                    EDITOR (JOE keys)
  F1          this help                     ^B ^F ^P ^N / arrows   move
  F2          show / hide connections pane  ^A / ^E                line start / end
- F3 / F4     show / hide results / SQL     ^Z / ^X                word left / right
- Esc         back to editor                ^U / ^V                page up / down
- F5          run statement at cursor       ^K U / ^K V            top / bottom of buffer
-             (or the marked block)         ^K L                   go to line
- F7          run whole buffer as script    ^D                     delete char
- F6          SQL history (SQLite)          ^Y                     delete line
- F8 / F9     rollback / commit             ^W / ^O                delete word right / left
- F10, ^K E   sessions (load / save)        ^J                     delete to end of line
- ^S          save session                  ^_ / ^^                undo / redo
- Ctrl-C      cancel running query / quit   ^K B / ^K K            mark block begin / end
- ^K X        quit                          ^K C / ^K M / ^K Y     copy / move / delete block
-                                           ^K A                   clear block marks
- CONNECTIONS PANE                          ^K F / ^L              find / find next
+ F3 / F4     show / hide results / SQL     ^Z / ^X, Alt-←/→       word left / right
+ F12         object tree                   ^U / ^V                page up / down
+ Ctrl-arrows panel left/right/up/down      ^K U / ^K V            top / bottom of buffer
+ Tab / S-Tab next / previous panel         ^K L                   go to line
+ Esc         back to editor                ^D                     delete char
+ F5          run statement at cursor       ^Y                     delete line
+             (or the marked block)         ^W / ^O                delete word right / left
+ F7          run whole buffer as script    ^J                     delete to end of line
+ F6          SQL history (SQLite)          ^_ / ^^                undo / redo
+ F8 / F9     rollback / commit             ^K B / ^K K            mark block begin / end
+ F10, ^K E   sessions (load / save)        ^K C / ^K M / ^K Y     copy / move / delete block
+ ^S          save session                  ^K A                   clear block marks
+ Ctrl-C      cancel running query / quit   ^K F / ^L              find / find next
+ ^K X        quit
+ CONNECTIONS PANE
  Enter       connect this tab              ^K D                   save buffer to file
  a / e / d   add / edit / delete           ^K R                   insert file
  v           view connection settings      ^K W                   write block to file
- Tab         object tree (below)
-                                           ^K I                   load file (replace text)
+ Tab         object tree (below)           ^K I                   load file (replace text)
 
  RESULTS PANE                              RECORD VIEW (Enter on a row)
  arrows, PgUp/PgDn, wheel   scroll         ↑↓ / Home End          previous, next / first, last
@@ -3309,4 +3323,74 @@ func (m *Model) blockFromOtherTab(move bool) {
 		verb = "Moved"
 	}
 	m.setStatus(fmt.Sprintf("%s %d line(s) from tab %d", verb, strings.Count(text, "\n")+1, m.tabIndex(src)+1), false)
+}
+
+// ---- moving between panels ----
+
+// panelOrder is the Tab order of the panels (Shift-Tab goes backwards).
+var panelOrder = []focus{focusConns, focusTree, focusResults, focusEditor}
+
+func (m *Model) panelVisible(f focus) bool {
+	switch f {
+	case focusConns, focusTree:
+		return m.showConns
+	case focusResults:
+		return m.showResults
+	case focusEditor:
+		return m.showSQL
+	}
+	return false
+}
+
+// cyclePanel moves to the next (dir 1) or previous (dir -1) visible panel.
+func (m *Model) cyclePanel(dir int) {
+	i := 0
+	for j, f := range panelOrder {
+		if f == m.focus {
+			i = j
+		}
+	}
+	for k := 1; k <= len(panelOrder); k++ {
+		f := panelOrder[((i+dir*k)%len(panelOrder)+len(panelOrder))%len(panelOrder)]
+		if m.panelVisible(f) {
+			m.jumpTo(f)
+			return
+		}
+	}
+}
+
+// jumpTo focuses a panel, showing it if it's hidden.
+func (m *Model) jumpTo(f focus) {
+	switch f {
+	case focusConns, focusTree:
+		if !m.showConns {
+			m.showConns = true
+			m.layout()
+		}
+	case focusResults:
+		if !m.showResults {
+			m.showResults = true
+			m.layout()
+		}
+	case focusEditor:
+		m.focusEditor()
+		return
+	}
+	m.ed.ClosePopup()
+	m.focus = f
+}
+
+// jumpDirection moves to the panel left / right / up / down of the focused
+// one (Ctrl-arrows): connections and object tree on the left, SQL editor
+// and results on the right.
+func (m *Model) jumpDirection(dir string) {
+	next := map[focus]map[string]focus{
+		focusConns:   {"right": focusEditor, "down": focusTree},
+		focusTree:    {"right": focusResults, "up": focusConns},
+		focusEditor:  {"left": focusConns, "down": focusResults},
+		focusResults: {"left": focusTree, "up": focusEditor},
+	}
+	if f, ok := next[m.focus][dir]; ok {
+		m.jumpTo(f)
+	}
 }

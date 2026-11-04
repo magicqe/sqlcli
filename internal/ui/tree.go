@@ -231,8 +231,11 @@ func (m *Model) treeChildrenLoaded(msg treeChildrenMsg) {
 func (m *Model) updateTree(key string) tea.Cmd {
 	t := m.tree()
 	switch key {
-	case "esc", "tab":
+	case "esc":
 		m.focusMain()
+		return nil
+	case "tab": // on to the results
+		m.cyclePanel(1)
 		return nil
 	}
 	if t == nil {
@@ -293,6 +296,11 @@ func (m *Model) updateTree(key string) tea.Cmd {
 			}
 			switch obj.objType {
 			case "TABLE", "VIEW", "MATERIALIZED VIEW", "SYNONYM":
+				// show the rows: results get the whole height, SQL panel hidden
+				m.showResults, m.showSQL = true, false
+				m.ed.ClosePopup()
+				m.focus = focusResults
+				m.layout()
 				return m.execute([]string{"select * from " + quoteIdent(obj.name)})
 			}
 			m.setStatus("s queries tables, views and synonyms", true)
