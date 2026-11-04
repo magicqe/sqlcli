@@ -328,7 +328,12 @@ to running single statements.
 | ^K I | load a file into the SQL panel, replacing its text (see below) |
 | ^K R | insert a file at the cursor |
 
-File names may start with `~/`.
+File names may start with `~/`. **Tab completes file names** in these
+questions (and when saving, loading or exporting): a single match is completed
+fully (directories get a `/`, so the next Tab looks inside), several matches
+are completed as far as they agree and listed in the status line, and Tab
+again steps through them. Hidden files are offered when the name starts
+with `.`.
 
 **Saving the SQL panel (^K D)** asks for the file name, offering the tab's
 last file (or `query.sql` the first time). Saving again to the same file

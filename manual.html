@@ -462,7 +462,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
           <tr><td><kbd>^K</kbd> <kbd>R</kbd></td><td>Insert a file at the cursor</td></tr>
         </tbody>
       </table></div>
-      <p>File names may start with <code>~/</code>.</p>
+      <p>File names may start with <code>~/</code>. <strong><kbd>Tab</kbd> completes file names</strong> in these questions (and when saving, loading or exporting): a single match is completed fully (directories get a <code>/</code>, so the next Tab looks inside), several matches are completed as far as they agree and listed in the status line, and Tab again steps through them. Hidden files are offered when the name starts with <code>.</code>.</p>
       <p><strong>Saving the SQL panel (<kbd>^K</kbd> <kbd>D</kbd>)</strong> asks for the file name, offering the tab's last file (or <code>query.sql</code> the first time). Saving again to the same file doesn't ask; another existing file is replaced only after you confirm. The file name is then shown in the SQL panel's title (<code>SQL · ora · report.sql</code>). <kbd>^K</kbd> <kbd>D</kbd> also works from the connections and results panes.</p>
       <p><strong>Loading a file (<kbd>^K</kbd> <kbd>I</kbd>)</strong> replaces the SQL panel's text with a text file, puts the cursor at the top-left corner, and makes it the tab's file: the title shows its name and <kbd>^K</kbd> <kbd>D</kbd> saves back to it. <kbd>^_</kbd> (undo) brings back the previous text. Directories, binary files and files over 10 MB are refused. To insert a file at the cursor instead, use <kbd>^K</kbd> <kbd>R</kbd>.</p>
 

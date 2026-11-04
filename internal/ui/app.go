@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -53,7 +54,13 @@ type prompt struct {
 	input    []rune
 	cur      int
 	mask     bool
+	files    bool // Tab completes file names
 	onSubmit func(string) tea.Cmd
+
+	// Tab cycling through several matching file names
+	cycleDir string
+	cycle    []string
+	cycleIdx int
 }
 
 // tab is one SQL panel: an editor, its results and its own Oracle session.
@@ -509,8 +516,19 @@ func (m *Model) ask(label, initial string, mask bool, onSubmit func(string) tea.
 	m.prompt = prompt{label: label, input: []rune(initial), cur: len([]rune(initial)), mask: mask, onSubmit: onSubmit}
 }
 
+// askFile is ask for a file name: Tab completes it.
+func (m *Model) askFile(label, initial string, onSubmit func(string) tea.Cmd) {
+	m.ask(label, initial, false, onSubmit)
+	m.prompt.files = true
+}
+
 func (m *Model) updatePrompt(key, text string) tea.Cmd {
 	p := &m.prompt
+	if key == "tab" && p.files {
+		m.completeFileName()
+		return nil
+	}
+	p.cycle = nil // any other key ends Tab cycling
 	switch key {
 	case "esc", "ctrl+c", "ctrl+g":
 		m.mode = modeNormal
@@ -1031,12 +1049,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case editor.ActionSavePrompt:
 		m.askSaveSQL()
 	case editor.ActionWriteBlock:
-		m.ask("Write block to file:", "", false, func(v string) tea.Cmd {
+		m.askFile("Write block to file:", "", func(v string) tea.Cmd {
 			m.writeFile(v, m.ed.BlockText())
 			return nil
 		})
 	case editor.ActionInsertFile:
-		m.ask("Insert file:", "", false, func(v string) tea.Cmd {
+		m.askFile("Insert file:", "", func(v string) tea.Cmd {
 			b, err := os.ReadFile(expandHome(strings.TrimSpace(v)))
 			if err != nil {
 				m.setStatus(err.Error(), true)
@@ -1960,7 +1978,7 @@ func (m *Model) askExport() tea.Cmd {
 	if def == "" {
 		def = "result.csv"
 	}
-	m.ask("Export to (.csv, .tsv or .json):", def, false, func(v string) tea.Cmd {
+	m.askFile("Export to (.csv, .tsv or .json):", def, func(v string) tea.Cmd {
 		path := expandHome(strings.TrimSpace(v))
 		if path == "" {
 			return nil
@@ -2759,7 +2777,7 @@ func (m *Model) askSaveSQL() {
 	if def == "" {
 		def = "query.sql"
 	}
-	m.ask("Save SQL to file:", def, false, func(v string) tea.Cmd {
+	m.askFile("Save SQL to file:", def, func(v string) tea.Cmd {
 		name := strings.TrimSpace(v)
 		if name == "" {
 			return nil
@@ -2907,7 +2925,7 @@ const maxLoadSize = 10 << 20
 // askLoadSQL asks for a file and replaces the SQL panel's text with it
 // (^_ undoes). The file becomes the tab's file, so ^K D saves back to it.
 func (m *Model) askLoadSQL() {
-	m.ask("Load file into this SQL panel:", m.file, false, func(v string) tea.Cmd {
+	m.askFile("Load file into this SQL panel:", m.file, func(v string) tea.Cmd {
 		name := strings.TrimSpace(v)
 		if name == "" {
 			return nil
@@ -2955,4 +2973,96 @@ func readTextFile(path string) (string, error) {
 		return "", errors.New("not a text file")
 	}
 	return string(b), nil
+}
+
+// ---- file-name completion in prompts ----
+
+// completeFileName completes the prompt input as a path: one match is
+// completed fully (directories get a "/"), several are completed to their
+// common prefix and listed in the status line; Tab again cycles through them.
+func (m *Model) completeFileName() {
+	p := &m.prompt
+	if len(p.cycle) > 0 {
+		p.input = []rune(p.cycleDir + p.cycle[p.cycleIdx%len(p.cycle)])
+		p.cycleIdx++
+		p.cur = len(p.input)
+		return
+	}
+	in := string(p.input)
+	dir, matches := matchFiles(in)
+	switch len(matches) {
+	case 0:
+		m.setStatus("No matching files", true)
+	case 1:
+		p.input = []rune(dir + matches[0])
+		m.setStatus("", false)
+	default:
+		common := dir + commonPrefix(matches)
+		m.setStatus(fileList(matches), false)
+		p.cycleDir, p.cycle, p.cycleIdx = dir, matches, 0
+		if common != in {
+			p.input = []rune(common) // the next Tab starts cycling
+		} else {
+			p.input = []rune(dir + matches[0])
+			p.cycleIdx = 1
+		}
+	}
+	p.cur = len(p.input)
+}
+
+// matchFiles lists the entries matching the last path element of in. It
+// returns the directory part of in (as typed, e.g. "~/sql/") and the
+// matching names, sorted, directories with a trailing "/".
+func matchFiles(in string) (string, []string) {
+	dir, base := "", in
+	if i := strings.LastIndex(in, "/"); i >= 0 {
+		dir, base = in[:i+1], in[i+1:]
+	}
+	listDir := expandHome(dir)
+	if dir == "~" || listDir == "" {
+		listDir = "."
+	}
+	ents, err := os.ReadDir(listDir)
+	if err != nil {
+		return dir, nil
+	}
+	var out []string
+	for _, e := range ents {
+		name := e.Name()
+		if !strings.HasPrefix(name, base) || (strings.HasPrefix(name, ".") && !strings.HasPrefix(base, ".")) {
+			continue
+		}
+		isDir := e.IsDir()
+		if e.Type()&os.ModeSymlink != 0 { // follow links to directories
+			if st, err := os.Stat(filepath.Join(listDir, name)); err == nil {
+				isDir = st.IsDir()
+			}
+		}
+		if isDir {
+			name += "/"
+		}
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return dir, out
+}
+
+func commonPrefix(names []string) string {
+	p := names[0]
+	for _, n := range names[1:] {
+		for !strings.HasPrefix(n, p) {
+			p = p[:len(p)-1]
+		}
+	}
+	return p
+}
+
+// fileList shows matches in the status line (Tab cycles through them).
+func fileList(names []string) string {
+	const show = 12
+	s := strings.Join(names[:min(len(names), show)], "  ")
+	if len(names) > show {
+		s += fmt.Sprintf("  … (%d more)", len(names)-show)
+	}
+	return s + "   (Tab: next)"
 }
