@@ -33,12 +33,16 @@ type resultView struct {
 	row    int // selected row
 	top    int // first visible row
 	colOff int // first visible column
-	w, h   int
+	selCol int // column of the cell cursor
+
+	edits []cellEdit // cells changed in the database (reverted on rollback)
+	w, h  int
 }
 
 func (r *resultView) set(res *db.Result, messages, output []string, err string) {
 	r.res, r.messages, r.output, r.err = res, messages, output, err
-	r.row, r.top, r.colOff = 0, 0, 0
+	r.row, r.top, r.colOff, r.selCol = 0, 0, 0, 0
+	r.edits = nil
 	r.textTop, r.textLeft = 0, 0
 	r.rangeOn = false
 	r.compile = nil
@@ -111,10 +115,11 @@ func (r *resultView) handleKey(key string) {
 	case "end", "ctrl+e", "G":
 		r.row = n - 1
 	case "left", "ctrl+b", "h":
-		r.colOff = max(r.colOff-1, 0)
+		r.selCol = max(r.selCol-1, 0)
 	case "right", "ctrl+f", "l":
-		r.colOff = min(r.colOff+1, max(len(r.widths)-1, 0))
+		r.selCol = min(r.selCol+1, max(len(r.widths)-1, 0))
 	}
+	r.keepColVisible()
 	r.clampRow()
 }
 
@@ -151,6 +156,7 @@ var (
 	sepStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	selStyle    = lipgloss.NewStyle().Background(lipgloss.Color("24")).Foreground(lipgloss.Color("255")).Bold(true)
 	selDimStyle = lipgloss.NewStyle().Background(lipgloss.Color("237")) // selected row, pane not focused
+	cellStyle   = lipgloss.NewStyle().Reverse(true).Bold(true)          // the cell cursor
 	nullStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Italic(true)
 	errStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 	okStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("114"))
@@ -225,16 +231,8 @@ func (r *resultView) view(focused bool) string {
 
 	res := r.res
 	rnW := len(fmt.Sprint(len(res.Rows)))
-	// visible columns
-	var cols []int
-	used := rnW + 1
-	for i := r.colOff; i < len(r.widths); i++ {
-		if used >= r.w && len(cols) > 0 {
-			break
-		}
-		cols = append(cols, i)
-		used += r.widths[i] + 3
-	}
+	r.keepColVisible()
+	cols := r.visibleCols()
 
 	pad := func(s string, w int) string {
 		s = ansi.Truncate(s, w, "…")
@@ -277,7 +275,22 @@ func (r *resultView) view(focused bool) string {
 			if focused {
 				st = selStyle
 			}
-			s = st.Render(ansi.Strip(s) + strings.Repeat(" ", max(r.w-ansi.StringWidth(s), 0)))
+			plain := []rune(ansi.Strip(s) + strings.Repeat(" ", max(r.w-ansi.StringWidth(s), 0)))
+			// the cell cursor: the selected column of the selected row
+			x0 := rnW + 1
+			cellX, cellW := -1, 0
+			for _, c := range cols {
+				if c == r.selCol {
+					cellX, cellW = x0+2, r.widths[c]
+				}
+				x0 += r.widths[c] + 3
+			}
+			if focused && cellX >= 0 && cellX < len(plain) {
+				end := min(cellX+cellW, len(plain))
+				s = st.Render(string(plain[:cellX])) + cellStyle.Render(string(plain[cellX:end])) + st.Render(string(plain[end:]))
+			} else {
+				s = st.Render(string(plain))
+			}
 		}
 		b.WriteString(s)
 	}
@@ -331,7 +344,7 @@ func (r *resultView) summary() string {
 	if r.res.More {
 		more = "+"
 	}
-	s := fmt.Sprintf("row %d/%d%s  col %d/%d", min(r.row+1, len(r.res.Rows)), len(r.res.Rows), more, r.colOff+1, len(r.res.Columns))
+	s := fmt.Sprintf("row %d/%d%s  col %d/%d", min(r.row+1, len(r.res.Rows)), len(r.res.Rows), more, r.selCol+1, len(r.res.Columns))
 	if len(r.output) > 0 {
 		s += "  o: DBMS_OUTPUT"
 	}
@@ -385,4 +398,70 @@ func (r *resultView) rangeText() (string, int) {
 		}
 	}
 	return strings.Join(out, "\n"), len(out)
+}
+
+// cellEdit remembers a changed cell so a rollback can show the old value.
+type cellEdit struct {
+	row, col int
+	old      string
+}
+
+// visibleCols returns the columns shown, from colOff while they fit.
+func (r *resultView) visibleCols() []int {
+	rnW := len(fmt.Sprint(len(r.res.Rows)))
+	var cols []int
+	used := rnW + 1
+	for i := r.colOff; i < len(r.widths); i++ {
+		if used >= r.w && len(cols) > 0 {
+			break
+		}
+		cols = append(cols, i)
+		used += r.widths[i] + 3
+	}
+	return cols
+}
+
+// keepColVisible scrolls sideways so the cell cursor's column is shown
+// completely.
+func (r *resultView) keepColVisible() {
+	if r.res == nil || len(r.widths) == 0 {
+		return
+	}
+	r.selCol = min(max(r.selCol, 0), len(r.widths)-1)
+	if r.selCol < r.colOff {
+		r.colOff = r.selCol
+	}
+	rnW := len(fmt.Sprint(len(r.res.Rows)))
+	for r.colOff < r.selCol {
+		used := rnW + 1
+		for i := r.colOff; i <= r.selCol; i++ {
+			used += r.widths[i] + 3
+		}
+		if used <= r.w {
+			break
+		}
+		r.colOff++
+	}
+}
+
+// setCell changes a shown value after an UPDATE, remembering the old one.
+func (r *resultView) setCell(row, col int, value string) {
+	r.edits = append(r.edits, cellEdit{row: row, col: col, old: r.res.Rows[row][col]})
+	r.res.Rows[row][col] = value
+	if row <= 500 {
+		r.widths[col] = max(r.widths[col], min(ansi.StringWidth(cell(value)), maxColWidth))
+	}
+}
+
+// revertEdits shows the old values again (after a rollback).
+func (r *resultView) revertEdits() int {
+	n := len(r.edits)
+	for i := n - 1; i >= 0; i-- {
+		e := r.edits[i]
+		if r.res != nil && e.row < len(r.res.Rows) {
+			r.res.Rows[e.row][e.col] = e.old
+		}
+	}
+	r.edits = nil
+	return n
 }

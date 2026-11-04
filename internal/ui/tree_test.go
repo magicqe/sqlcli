@@ -132,7 +132,7 @@ func TestPanelKeyHints(t *testing.T) {
 	for f, want := range map[focus]string{
 		focusConns:   "Enter connect  a add  e edit  v view  d delete",
 		focusTree:    "Enter open  ← close  i insert name  d desc  s select  ^D ddl",
-		focusResults: "Enter record  e export",
+		focusResults: "Enter record  u edit  e export",
 		focusEditor:  "F1 help  F2 conns  F3 results",
 	} {
 		m.focus = f

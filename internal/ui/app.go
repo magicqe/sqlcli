@@ -783,6 +783,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ddlMsg:
 		return m, m.ddlLoaded(msg)
 
+	case editReadyMsg:
+		return m, m.onTab(msg.tab, func() tea.Cmd { return m.askCellValue(msg) })
+
+	case cellUpdatedMsg:
+		return m, m.onTab(msg.tab, func() tea.Cmd { m.cellUpdated(msg); return nil })
+
 	case objectsMsg:
 		if cat := m.catalogs[msg.conn]; cat != nil {
 			cat.loading = false
@@ -1089,10 +1095,18 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			r.More = false
 			r.Message = db.RowsMessage(len(r.Rows), false)
 		}
+		reverted := 0
+		if err == nil && commit {
+			m.res.edits = nil // the changed values are now committed
+		} else if err == nil {
+			reverted = m.res.revertEdits() // the grid shows the old values again
+		}
 		if err != nil {
 			m.setStatus(err.Error(), true)
 		} else if commit {
 			m.setStatus("Commit complete", false)
+		} else if reverted > 0 {
+			m.setStatus(fmt.Sprintf("Rollback complete: %d edited cell(s) show their old values again", reverted), false)
 		} else {
 			m.setStatus("Rollback complete", false)
 		}
@@ -1117,6 +1131,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			}
 		case "o":
 			m.res.toggleText()
+		case "u":
+			return m.startCellEdit()
 		case "e":
 			return m.askExport()
 		case "end", "ctrl+e", "G":
@@ -2069,6 +2085,7 @@ const helpText = `
  RESULTS PANE                              RECORD VIEW (Enter on a row)
  arrows, PgUp/PgDn, wheel   scroll         ↑↓ / Home End          previous, next / first, last
  End         fetch all rows, last row      PgUp / PgDn            ± record_page records
+ ←→ / u      cell cursor / edit the cell (needs ROWID; F9 commit, F8 rollback)
  Ctrl-C      stop fetching                 Shift-↑↓, wheel        scroll a long record
  Enter       show row as record
  o           grid / DBMS_OUTPUT
@@ -3406,7 +3423,7 @@ func (m *Model) keyHints() [][2]string {
 			}
 			return append(h, [2]string{"Tab", "editor"}, [2]string{"Esc", "editor"}, [2]string{"F1", "help"})
 		}
-		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Enter", "record"}, {"e", "export"}, {"End", "all rows"}}
+		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Enter", "record"}, {"u", "edit"}, {"e", "export"}, {"End", "all rows"}}
 		if m.res.canToggle() {
 			h = append(h, [2]string{"o", "output"})
 		}
@@ -3414,4 +3431,125 @@ func (m *Model) keyHints() [][2]string {
 	}
 	return [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F6", "history"},
 		{"F7", "run all"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K D/I", "save/load sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
+}
+
+// ---- editing cells of the results grid (u) ----
+
+type editReadyMsg struct {
+	tab, row, col       int
+	owner, table, colTy string
+	rowid, current      string
+	err                 error
+}
+
+type cellUpdatedMsg struct {
+	tab, row, col int
+	value         string
+	err           error
+}
+
+// editTarget checks that the current cell can be edited and returns the
+// table, the ROWID column and the column name.
+func (m *Model) editTarget() (complete.TableRef, int, string, error) {
+	r := m.res.res
+	if m.res.showText() || r == nil || len(r.Rows) == 0 {
+		return complete.TableRef{}, 0, "", errors.New("no row to edit: run a query first")
+	}
+	if m.conn == nil {
+		return complete.TableRef{}, 0, "", errors.New("not connected")
+	}
+	if m.conn.ReadOnly {
+		return complete.TableRef{}, 0, "", fmt.Errorf("connection %q is read-only", m.conn.Name)
+	}
+	ri := -1
+	for i, c := range r.Columns {
+		if strings.EqualFold(c, "ROWID") {
+			ri = i
+		}
+	}
+	tables := map[complete.TableRef]bool{}
+	for _, t := range complete.TableRefs(r.SQL) {
+		tables[t] = true
+	}
+	if len(tables) != 1 {
+		return complete.TableRef{}, 0, "", errors.New("editing works on a query of one table")
+	}
+	var table complete.TableRef
+	for t := range tables {
+		table = t
+	}
+	if ri < 0 {
+		return complete.TableRef{}, 0, "", fmt.Errorf("to edit, the query needs the ROWID: select rowid, t.* from %s t", strings.ToLower(table.Name))
+	}
+	if m.res.selCol == ri {
+		return complete.TableRef{}, 0, "", errors.New("the ROWID can't be edited")
+	}
+	return table, ri, r.Columns[m.res.selCol], nil
+}
+
+// startCellEdit looks up the column type, then asks for the new value.
+func (m *Model) startCellEdit() tea.Cmd {
+	if m.running {
+		m.setStatus("Wait for the running statement (Ctrl-C cancels it)", true)
+		return nil
+	}
+	table, ri, col, err := m.editTarget()
+	if err != nil {
+		m.setStatus(err.Error(), true)
+		return nil
+	}
+	row, ci := m.res.row, m.res.selCol
+	rowid, current := m.res.res.Rows[row][ri], m.res.res.Rows[row][ci]
+	conn, id := m.conn, m.id
+	return func() tea.Msg {
+		typ, err := conn.ColumnType(context.Background(), table.Owner, table.Name, strings.ToUpper(col))
+		return editReadyMsg{tab: id, row: row, col: ci, owner: table.Owner, table: table.Name, colTy: typ,
+			rowid: rowid, current: current, err: err}
+	}
+}
+
+func (m *Model) askCellValue(msg editReadyMsg) tea.Cmd {
+	if msg.err != nil {
+		m.setStatus(db.CleanError(msg.err), true)
+		return nil
+	}
+	col := m.res.res.Columns[msg.col]
+	cur := msg.current
+	if cur == db.Null {
+		cur = ""
+	}
+	m.ask(fmt.Sprintf("%s (%s, empty = NULL):", col, strings.ToLower(msg.colTy)), cur, false, func(v string) tea.Cmd {
+		if v == cur && msg.current != db.Null {
+			m.setStatus("Not changed", false)
+			return nil
+		}
+		conn, id := m.conn, m.id
+		m.setStatus("Updating "+col+"...", false)
+		return func() tea.Msg {
+			err := conn.UpdateCell(context.Background(), msg.owner, msg.table, strings.ToUpper(col), msg.colTy, v, v == "", msg.rowid)
+			shown := v
+			if v == "" {
+				shown = db.Null
+			}
+			return cellUpdatedMsg{tab: id, row: msg.row, col: msg.col, value: shown, err: err}
+		}
+	})
+	return nil
+}
+
+func (m *Model) cellUpdated(msg cellUpdatedMsg) {
+	if msg.err != nil {
+		m.setStatus(db.CleanError(msg.err), true)
+		return
+	}
+	r := m.res.res
+	if r == nil || msg.row >= len(r.Rows) {
+		return
+	}
+	m.res.setCell(msg.row, msg.col, msg.value)
+	what := "F9 commits, F8 rolls back"
+	if m.cfg.Query.AutoCommit {
+		what = "committed"
+	}
+	m.setStatus(fmt.Sprintf("%s updated (%s)", r.Columns[msg.col], what), false)
 }

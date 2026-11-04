@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -155,4 +156,66 @@ end;
 	if _, err := c.DDL(ctx, "TABLE", "NO_SUCH_TABLE_XYZ"); err == nil || !strings.Contains(err.Error(), "ORA-31603") {
 		t.Fatalf("missing: %v", err)
 	}
+}
+
+func TestIntegrationUpdateCell(t *testing.T) {
+	c := testConn(t)
+	ctx := context.Background()
+	defer c.Execute(ctx, "drop table sqlcli_test_edit purge", 1)
+	if _, err := c.Execute(ctx, "create table sqlcli_test_edit (id number(5), name varchar2(20), amount number(10,2), born date)", 1); err != nil {
+		t.Fatal(CleanError(err))
+	}
+	for i := 1; i <= 30; i++ {
+		c.Execute(ctx, fmt.Sprintf("insert into sqlcli_test_edit values (%d, 'n%d', %d.5, date '2026-01-01')", i, i, i), 1)
+	}
+	c.Commit()
+	r, err := c.Execute(ctx, "select rowid, t.* from sqlcli_test_edit t order by id", 10)
+	if err != nil || !r.More || r.SQL == "" {
+		t.Fatalf("query: %v %v", err, r)
+	}
+	rowid := r.Rows[0][0]
+
+	typ, err := c.ColumnType(ctx, "", "SQLCLI_TEST_EDIT", "AMOUNT")
+	if err != nil || typ != "NUMBER" {
+		t.Fatalf("column type: %q %v", typ, err)
+	}
+	if _, err := c.ColumnType(ctx, "", "SQLCLI_TEST_EDIT", "AMOUNT*2"); err == nil {
+		t.Fatal("a computed column has no type")
+	}
+	for _, u := range []struct{ col, typ, val string }{{"NAME", "VARCHAR2", "Žofia"}, {"AMOUNT", "NUMBER", "12,75"}, {"BORN", "DATE", "1999-12-31 23:59"}} {
+		if err := c.UpdateCell(ctx, "", "SQLCLI_TEST_EDIT", u.col, u.typ, u.val, false, rowid); err != nil {
+			t.Fatalf("%s: %s", u.col, CleanError(err))
+		}
+	}
+	if !c.InTransaction() {
+		t.Fatal("UpdateCell should run in a transaction")
+	}
+	// the open result cursor is still usable
+	rows, done, err := c.FetchMore(ctx, -1)
+	if err != nil || !done || len(rows) != 20 {
+		t.Fatalf("cursor after update: %d %v", len(rows), err)
+	}
+	r, _ = c.Execute(ctx, "select name, to_char(amount), to_char(born, 'YYYY-MM-DD HH24:MI') from sqlcli_test_edit where id = 1", 1)
+	if r.Rows[0][0] != "Žofia" || r.Rows[0][1] != "12.75" || r.Rows[0][2] != "1999-12-31 23:59" {
+		t.Fatalf("updated row: %v", r.Rows[0])
+	}
+	if err := c.UpdateCell(ctx, "", "SQLCLI_TEST_EDIT", "NAME", "VARCHAR2", "", true, rowid); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.UpdateCell(ctx, "", "SQLCLI_TEST_EDIT", "AMOUNT", "NUMBER", "abc", false, rowid); err == nil || !strings.Contains(err.Error(), "not a number") {
+		t.Fatalf("bad number: %v", err)
+	}
+	if err := c.UpdateCell(ctx, "", "SQLCLI_TEST_EDIT", "BORN", "DATE", "31.12.1999", false, rowid); err == nil || !strings.Contains(err.Error(), "not a date") {
+		t.Fatalf("bad date: %v", err)
+	}
+	c.Rollback()
+	r, _ = c.Execute(ctx, "select name from sqlcli_test_edit where id = 1", 1)
+	if r.Rows[0][0] != "n1" {
+		t.Fatalf("rollback: %v", r.Rows[0])
+	}
+	c.Execute(ctx, "delete from sqlcli_test_edit where id = 1", 1)
+	if err := c.UpdateCell(ctx, "", "SQLCLI_TEST_EDIT", "NAME", "VARCHAR2", "x", false, rowid); err == nil || !(strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "ORA-08006")) {
+		t.Fatalf("deleted row: %v", err)
+	}
+	c.Rollback()
 }

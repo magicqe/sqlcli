@@ -27,6 +27,7 @@ type Result struct {
 	Message  string
 	Output   []string // DBMS_OUTPUT lines produced by the statement
 	Errors   []string // compilation errors of a created PL/SQL object ("LINE/COL text")
+	SQL      string   // the query that produced the rows (for editing them)
 	Duration time.Duration
 }
 
@@ -498,7 +499,7 @@ func (c *Conn) query(ctx context.Context, ex execer, stmt string, maxRows int) (
 		k.close()
 		return nil, err
 	}
-	res := &Result{Columns: cols, Types: types, Rows: out, IsQuery: true, More: !done}
+	res := &Result{Columns: cols, Types: types, Rows: out, IsQuery: true, More: !done, SQL: stmt}
 	if done {
 		k.close()
 	} else {

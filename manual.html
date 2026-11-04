@@ -404,7 +404,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
           <tr><td><kbd>←</kbd></td><td>Close, or go to the parent</td></tr>
           <tr><td><kbd>i</kbd></td><td class="wrap-ok">Insert the name at the editor cursor (<code>package.member</code> for members)</td></tr>
           <tr><td><kbd>d</kbd></td><td><code>DESC</code> the object</td></tr>
-          <tr><td><kbd>s</kbd></td><td class="wrap-ok"><code>select * from</code> the table, view or synonym; the results get the whole height (SQL panel hidden, <kbd>F4</kbd> brings it back)</td></tr>
+          <tr><td><kbd>s</kbd></td><td class="wrap-ok"><code>select * from</code> the table, view or synonym (for tables <code>select rowid, t.*</code>, so the rows can be edited with <kbd>u</kbd>); the results get the whole height (SQL panel hidden, <kbd>F4</kbd> brings it back)</td></tr>
           <tr><td><kbd>r</kbd></td><td>Reload the tree</td></tr>
           <tr><td><kbd>Ctrl-D</kbd></td><td class="wrap-ok">Open the object's <strong>DDL</strong> in a new SQL tab (see below)</td></tr>
           <tr><td><kbd>Esc</kbd></td><td>Back to the editor</td></tr>
@@ -657,13 +657,17 @@ end;
           <tr><td>Mouse wheel</td><td class="wrap-ok">Scroll three rows (works without focusing the pane)</td></tr>
           <tr><td><kbd>Home</kbd> &nbsp;<kbd>^A</kbd> &nbsp;<kbd>g</kbd></td><td>First row</td></tr>
           <tr><td><kbd>End</kbd> &nbsp;<kbd>^E</kbd> &nbsp;<kbd>G</kbd></td><td class="wrap-ok">Last row. <strong>Fetches all remaining rows first.</strong></td></tr>
-          <tr><td><kbd>←</kbd> <kbd>→</kbd> &nbsp;<kbd>^B</kbd> <kbd>^F</kbd> &nbsp;<kbd>h</kbd> <kbd>l</kbd></td><td>Scroll one column left / right</td></tr>
+          <tr><td><kbd>←</kbd> <kbd>→</kbd> &nbsp;<kbd>^B</kbd> <kbd>^F</kbd> &nbsp;<kbd>h</kbd> <kbd>l</kbd></td><td>Move the cell cursor one column left / right</td></tr>
+          <tr><td><kbd>u</kbd></td><td class="wrap-ok">Edit the current cell (see <a href="#edit-cells">Editing cells</a>)</td></tr>
           <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">Show the selected row as a record (see <a href="#record">Record view</a>)</td></tr>
           <tr><td><kbd>o</kbd></td><td class="wrap-ok">Switch between the grid and DBMS_OUTPUT (when a query produced both)</td></tr>
           <tr><td><kbd>e</kbd></td><td class="wrap-ok">Export the result to a .csv, .tsv or .json file (see <a href="#export">Exporting</a>)</td></tr>
           <tr><td><kbd>Esc</kbd> <kbd>Tab</kbd></td><td>Back to the editor</td></tr>
         </tbody>
       </table></div>
+      <h3 id="edit-cells">Editing cells</h3>
+      <p>The grid has a <strong>cell cursor</strong>: <kbd>←</kbd> / <kbd>→</kbd> move it between columns (the grid scrolls sideways to keep the column visible), <kbd>↑</kbd> / <kbd>↓</kbd> between rows. <kbd>u</kbd> edits the current cell: the bottom line asks for the new value, filled in with the current one; an empty value sets NULL (for text that's the same in Oracle). sqlcli then runs <code>UPDATE table SET column = :value WHERE ROWID = :rowid</code> with bind variables, in the tab's transaction like any DML: <strong><kbd>F9</kbd> commits, <kbd>F8</kbd> rolls back</strong>, and after a rollback the edited cells show their old values again (with <code>query.auto_commit = true</code> each change is committed at once). Numbers may use <code>.</code> or <code>,</code>; dates are typed as <code>YYYY-MM-DD [HH:MI[:SS]]</code>.</p>
+      <p>Rows are found by their <strong>ROWID</strong>, so the result must come from one table and include a <code>ROWID</code> column. <kbd>s</kbd> in the object tree adds it for tables (<code>select rowid, t.* from table t</code>); in your own SQL write e.g. <code>select rowid, e.* from emp e</code>. Without a ROWID, for joins, computed columns, binary columns (RAW, BLOB) and read-only connections, <kbd>u</kbd> says why it can't edit.</p>
       <h3 id="record">Record view</h3>
       <p><kbd>Enter</kbd> on a grid row shows that row as a record: one line per column, long values in full, NULL as <code>(null)</code>.</p>
       <div class="tbl"><table>

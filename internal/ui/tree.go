@@ -301,6 +301,9 @@ func (m *Model) updateTree(key string) tea.Cmd {
 				m.ed.ClosePopup()
 				m.focus = focusResults
 				m.layout()
+				if obj.objType == "TABLE" { // with ROWID, so the rows can be edited (u)
+					return m.execute([]string{"select rowid, t.* from " + quoteIdent(obj.name) + " t"})
+				}
 				return m.execute([]string{"select * from " + quoteIdent(obj.name)})
 			}
 			m.setStatus("s queries tables, views and synonyms", true)

@@ -4,7 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
+
+	"github.com/godror/godror"
 )
 
 // ObjectInfo is a database object offered by code completion.
@@ -243,4 +247,106 @@ func (c *Conn) DDL(ctx context.Context, objectType, name string) (string, error)
 		}
 	}
 	return strings.Join(out, "\n\n") + "\n", nil
+}
+
+// ColumnType returns a table column's data type (e.g. "NUMBER", "DATE",
+// "TIMESTAMP(6)", "VARCHAR2"), or an error if the table has no such column.
+func (c *Conn) ColumnType(ctx context.Context, owner, table, column string) (string, error) {
+	rows, err := c.metaQuery(ctx, `select data_type from all_tab_columns
+		where owner = nvl(:1, sys_context('userenv', 'current_schema')) and table_name = :2 and column_name = :3`,
+		owner, table, column)
+	if err != nil {
+		return "", err
+	}
+	if len(rows) == 0 {
+		return "", fmt.Errorf("%s is not a column of %s (computed columns and aliases can't be edited)", column, table)
+	}
+	return rows[0][0], nil
+}
+
+// UpdateCell sets one column of the row with the given ROWID:
+// UPDATE owner.table SET column = :value WHERE ROWID = :rowid. The value is
+// converted for the column type (numbers with '.', dates as
+// "YYYY-MM-DD HH24:MI:SS"); null sets NULL. Like other DML it runs in the
+// open transaction (or starts one) unless auto-commit is on. An open result
+// cursor stays open.
+func (c *Conn) UpdateCell(ctx context.Context, owner, table, column, colType, value string, null bool, rowid string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed || c.sc == nil {
+		return sql.ErrConnDone
+	}
+	if c.ReadOnly {
+		return fmt.Errorf("connection %q is read-only", c.Name)
+	}
+	var arg any
+	if null {
+		arg = nil
+	} else {
+		v, err := bindValue(colType, value)
+		if err != nil {
+			return err
+		}
+		arg = v
+	}
+	target := quoteName(table)
+	if owner != "" {
+		target = quoteName(owner) + "." + target
+	}
+	stmt := fmt.Sprintf("update %s set %s = :1 where rowid = chartorowid(:2)", target, quoteName(column))
+	var ex execer = c.sc
+	if !c.auto {
+		if c.tx == nil {
+			tx, err := c.sc.BeginTx(context.Background(), nil)
+			if err != nil {
+				return err
+			}
+			c.tx = tx
+		}
+		ex = c.tx
+	} else if c.tx != nil {
+		ex = c.tx
+	}
+	r, err := ex.ExecContext(ctx, stmt, arg, rowid)
+	if err != nil {
+		return err
+	}
+	if n, _ := r.RowsAffected(); n != 1 {
+		return fmt.Errorf("the row was not found (deleted meanwhile?): %d rows updated", n)
+	}
+	return nil
+}
+
+// bindValue converts a typed-in value for a column type.
+func bindValue(colType, value string) (any, error) {
+	t := strings.ToUpper(colType)
+	switch {
+	case t == "NUMBER" || t == "FLOAT" || t == "BINARY_FLOAT" || t == "BINARY_DOUBLE" || t == "INTEGER":
+		v := strings.ReplaceAll(strings.TrimSpace(value), ",", ".")
+		if !reNumberValue.MatchString(v) {
+			return nil, fmt.Errorf("%q is not a number", value)
+		}
+		return godror.Number(v), nil
+	case t == "DATE" || strings.HasPrefix(t, "TIMESTAMP"):
+		v := strings.TrimSpace(value)
+		for _, layout := range []string{"2006-01-02 15:04:05.999999999", "2006-01-02 15:04:05", "2006-01-02 15:04", "2006-01-02"} {
+			if tm, err := time.ParseInLocation(layout, v, time.Local); err == nil {
+				return tm, nil
+			}
+		}
+		return nil, fmt.Errorf("%q is not a date: use YYYY-MM-DD [HH:MI[:SS]]", value)
+	case strings.Contains(t, "CHAR") || strings.HasSuffix(t, "CLOB"):
+		return value, nil
+	}
+	return nil, fmt.Errorf("columns of type %s can't be edited here", colType)
+}
+
+var reNumberValue = regexp.MustCompile(`^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$`)
+
+// quoteName quotes an identifier unless it's a plain upper-case name.
+func quoteName(s string) string {
+	if regexp.MustCompile(`^[A-Z][A-Z0-9_$#]*$`).MatchString(s) {
+		return s
+	}
+	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
 }

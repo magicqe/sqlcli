@@ -282,7 +282,7 @@ connection, and is loaded again after `CREATE`, `DROP`, `ALTER` or `RENAME`.
 | ← | close, or go to the parent |
 | i | insert the name at the editor cursor (`package.member` for members) |
 | d | `DESC` the object |
-| s | `select * from` the table, view or synonym; the results get the whole height (the SQL panel is hidden, F4 brings it back) |
+| s | `select * from` the table, view or synonym (for tables `select rowid, t.*`, so the rows can be edited with u); the results get the whole height (the SQL panel is hidden, F4 brings it back) |
 | r | reload the tree |
 | Ctrl-D | open the object's **DDL** in a new SQL tab (see below) |
 | Esc | back to the editor |
@@ -650,11 +650,36 @@ to focus it, or press F3 twice.
 | mouse wheel | scroll three rows (works without focusing the pane) |
 | Home (^A, g) | first row |
 | End (^E, G) | last row; **fetches all remaining rows first** |
-| ← / → (^B / ^F, h / l) | scroll one column left / right |
+| ← / → (^B / ^F, h / l) | move the cell cursor one column left / right |
+| u | edit the current cell ([Editing cells](#editing-cells)) |
 | Enter | show the selected row as a record ([Record view](#record-view)) |
 | o | switch between the grid and DBMS_OUTPUT (when a query produced both) |
 | e | export the result to a .csv, .tsv or .json file ([Exporting](#exporting)) |
 | Esc / Tab | back to the editor |
+
+### Editing cells
+
+The grid has a **cell cursor**: ← / → move it between columns (the grid
+scrolls sideways to keep the column visible), ↑ / ↓ between rows. **u** edits
+the current cell: the bottom line asks for the new value, filled in with the
+current one; an empty value sets NULL (for text that's the same in Oracle).
+sqlcli then runs
+
+```sql
+UPDATE table SET column = :value WHERE ROWID = :rowid
+```
+
+with bind variables, in the tab's transaction like any DML: **F9 commits, F8
+rolls back**, and after a rollback the edited cells show their old values
+again (with `query.auto_commit = true` each change is committed at once).
+Numbers may use `.` or `,`; dates are typed as `YYYY-MM-DD [HH:MI[:SS]]`.
+
+Rows are found by their **ROWID**, so the result must come from one table and
+include a `ROWID` column. **s** in the object tree adds it for tables
+(`select rowid, t.* from table t`); in your own SQL write e.g.
+`select rowid, e.* from emp e`. Without a ROWID, for joins, computed columns,
+binary columns (RAW, BLOB) and read-only connections, **u** says why it can't
+edit.
 
 ### Record view
 

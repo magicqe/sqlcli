@@ -574,7 +574,7 @@ func TestUIObjectTree(t *testing.T) {
 		t.Fatalf("columns: %+v", obj.children)
 	}
 	press(m, key('s')) // select * from the table
-	if !m.res.hasGrid() || m.res.res.Columns[0] != "ID" {
+	if !m.res.hasGrid() || m.res.res.Columns[0] != "ROWID" || m.res.res.Columns[1] != "ID" {
 		t.Fatalf("s: %q %+v", m.status, m.res.res)
 	}
 	m.focus = focusTree
@@ -677,4 +677,82 @@ func TestUITreeSelectShowsResults(t *testing.T) {
 	if _, h := m.paneHeights(); h != m.paneH() {
 		t.Fatalf("results should have the whole height: %d of %d", h, m.paneH())
 	}
+}
+
+func TestUIEditCells(t *testing.T) {
+	m := newTestModel(t, false)
+	ctx := context.Background()
+	defer m.conn.Execute(ctx, "drop table sqlcli_test_grid purge", 1)
+	run(m, "create table sqlcli_test_grid (id number(5), name varchar2(20), amount number(8,2))")
+	run(m, "insert into sqlcli_test_grid values (1, 'one', 1.5)")
+	run(m, "insert into sqlcli_test_grid values (2, 'two', 2.5)")
+	press(m, key(tea.KeyF9))
+	drain(m, m.loadTree(true))
+	tr := m.tree()
+	nodes, _ := tr.visible()
+	for i, n := range nodes {
+		if n.label == "Tables" {
+			tr.sel = i
+		}
+	}
+	m.focus = focusTree
+	press(m, key(tea.KeyEnter))
+	nodes, _ = tr.visible()
+	for i, n := range nodes {
+		if n.name == "SQLCLI_TEST_GRID" {
+			tr.sel = i
+		}
+	}
+	press(m, key('s')) // select rowid, t.* ...
+	if m.focus != focusResults || m.res.res.Columns[0] != "ROWID" {
+		t.Fatalf("s: %+v", m.res.res)
+	}
+	value := func() string {
+		r, _ := m.conn.Execute(ctx, "select name from sqlcli_test_grid where id = 1", 1)
+		return r.Rows[0][0]
+	}
+	// row with ID 1, column NAME
+	for i, row := range m.res.res.Rows {
+		if row[1] == "1" {
+			m.res.row = i
+		}
+	}
+	m.res.selCol = 2
+	press(m, key('u')) // drain: column type, then the question
+	if m.mode != modePrompt || string(m.prompt.input) != "one" || !strings.Contains(m.prompt.label, "NAME (varchar2") {
+		t.Fatalf("prompt: %q %q status %q", m.prompt.label, string(m.prompt.input), m.status)
+	}
+	answer(m, "ONE edited")
+	if m.res.res.Rows[m.res.row][2] != "ONE edited" || value() != "ONE edited" || !m.conn.InTransaction() {
+		t.Fatalf("after edit: grid %q db %q status %q", m.res.res.Rows[m.res.row][2], value(), m.status)
+	}
+	// F8: database and grid go back
+	m.focus = focusResults
+	press(m, key(tea.KeyF8))
+	if m.res.res.Rows[m.res.row][2] != "one" || value() != "one" || !strings.Contains(m.status, "old values") {
+		t.Fatalf("rollback: grid %q db %q status %q", m.res.res.Rows[m.res.row][2], value(), m.status)
+	}
+	// edit again and commit; a number column too
+	press(m, key('u'))
+	answer(m, "kept")
+	m.res.selCol = 3
+	press(m, key('u'))
+	answer(m, "9,25")
+	press(m, key(tea.KeyF9))
+	r, _ := m.conn.Execute(ctx, "select name, amount from sqlcli_test_grid where id = 1", 1)
+	if r.Rows[0][0] != "kept" || r.Rows[0][1] != "9.25" || len(m.res.edits) != 0 {
+		t.Fatalf("commit: %v edits %d", r.Rows[0], len(m.res.edits))
+	}
+	// empty value = NULL; a bad number is refused
+	press(m, key('u'))
+	answer(m, "")
+	if m.res.res.Rows[m.res.row][3] != db.Null {
+		t.Fatalf("NULL: %q", m.res.res.Rows[m.res.row][3])
+	}
+	press(m, key('u'))
+	answer(m, "abc")
+	if !m.statusErr || !strings.Contains(m.status, "not a number") {
+		t.Fatalf("bad number: %q", m.status)
+	}
+	press(m, key(tea.KeyF8))
 }
