@@ -226,3 +226,29 @@ func TestInCommentWholeCommentLines(t *testing.T) {
 		}
 	}
 }
+
+func TestSplitPackageSpecAndBody(t *testing.T) {
+	spec := "create or replace package p as\n  procedure x;\nend;"
+	body := "create or replace package body p as\n  procedure x is\n  begin\n    null;\n  end;\nend;"
+	want := []string{spec, body}
+	for name, script := range map[string]string{
+		"slash":        spec + "\n/\n" + body + "\n/",
+		"blank line":   spec + "\n\n" + body,
+		"no separator": spec + "\n" + body,
+		"comment":      spec + "\n-- the body\n" + body + "\n/",
+	} {
+		if got := SplitStatements(script); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: %#v", name, got)
+		}
+	}
+	// DDL inside a string (dynamic SQL) doesn't split a block
+	plsql := "begin\n  execute immediate '\ncreate table t (x number)';\nend;"
+	if got := SplitStatements(plsql + "\n/"); len(got) != 1 || got[0] != plsql {
+		t.Fatalf("dynamic SQL: %#v", got)
+	}
+	// a procedure followed by a plain DDL statement
+	proc := "create or replace procedure q is\nbegin\n  null;\nend;"
+	if got := SplitStatements(proc + "\ndrop table x;"); !reflect.DeepEqual(got, []string{proc, "drop table x;"}) {
+		t.Fatalf("procedure then drop: %#v", got)
+	}
+}

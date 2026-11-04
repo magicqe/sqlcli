@@ -445,6 +445,24 @@ sqlcli follows SQL\*Plus conventions:
   start with `DECLARE`, `BEGIN`, `CREATE [OR REPLACE] PROCEDURE | FUNCTION
   | PACKAGE | TRIGGER | TYPE`, or `WITH FUNCTION` / `WITH PROCEDURE` (a query
   with inline PL/SQL). This lets them contain blank lines and `;`.
+  A line starting with `CREATE`, `ALTER`, `DROP`, `GRANT` or `REVOKE` also
+  starts a new statement, even without a `/` before it, so a package spec and
+  its body (or several procedures) can follow each other directly.
+
+**Creating PL/SQL objects.** After `CREATE` of a procedure, function,
+package, package body, trigger or type, sqlcli reports `PACKAGE BODY X
+created.`, or, if Oracle found errors, `… created with compilation errors.`
+in red with the errors listed in the results pane, like SQL*Plus `SHOW
+ERRORS`:
+
+```
+── Compilation errors ──
+PACKAGE BODY SQLCLI_TEST_PKG created with compilation errors.
+  4/5  PLS-00201: identifier 'NO_SUCH_PROC' must be declared
+```
+
+`4/5` is the line and column inside the object. An F7 script continues after
+an object with errors and lists the errors of every statement.
 
 **Comments** (`-- …` and `/* … */`) before and after a statement are
 skipped: they are not sent to Oracle and not saved in the history. A part of

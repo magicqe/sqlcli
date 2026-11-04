@@ -381,3 +381,59 @@ func TestUIInsertsAroundComments(t *testing.T) {
 	}
 	press(m, key(tea.KeyF8))
 }
+
+func TestUIPackageSpecAndBody(t *testing.T) {
+	m := newTestModel(t, false)
+	defer m.conn.Execute(context.Background(), "drop package sqlcli_test_pkg", 1)
+	buf := `create or replace package sqlcli_test_pkg as
+  procedure hello;
+end;
+
+create or replace package body sqlcli_test_pkg as
+  procedure hello is
+  begin
+    dbms_output.put_line('hi');
+  end;
+end;`
+	status := func(name string) string {
+		r, _ := m.conn.Execute(context.Background(), "select status from user_objects where object_name = 'SQLCLI_TEST_PKG' and object_type = '"+name+"'", 1)
+		if len(r.Rows) == 0 {
+			return "missing"
+		}
+		return r.Rows[0][0]
+	}
+
+	// F5 on the spec creates only the spec; F5 on the body creates the body
+	m.ed.SetText(buf)
+	m.ed.SetCursor(1, 3)
+	m.focus = focusEditor
+	press(m, key(tea.KeyF5))
+	if m.status != "PACKAGE SQLCLI_TEST_PKG created." {
+		t.Fatalf("F5 on spec: %q", m.status)
+	}
+	m.ed.SetCursor(6, 3)
+	press(m, key(tea.KeyF5))
+	if m.status != "PACKAGE BODY SQLCLI_TEST_PKG created." || status("PACKAGE") != "VALID" || status("PACKAGE BODY") != "VALID" {
+		t.Fatalf("F5 on body: %q spec=%s body=%s", m.status, status("PACKAGE"), status("PACKAGE BODY"))
+	}
+
+	// F7 creates both
+	m.conn.Execute(context.Background(), "drop package sqlcli_test_pkg", 1)
+	m.ed.SetText(buf)
+	press(m, key(tea.KeyF7))
+	if !strings.HasPrefix(m.status, "2 statements OK") || status("PACKAGE BODY") != "VALID" {
+		t.Fatalf("F7: %q body=%s", m.status, status("PACKAGE BODY"))
+	}
+
+	// a body with an error: red status, errors in the results pane, ✗ in the footer
+	m.ed.SetText(strings.Replace(buf, "dbms_output.put_line('hi')", "no_such_proc", 1))
+	press(m, key(tea.KeyF7))
+	txt := m.res.view(true)
+	if !m.statusErr || !strings.Contains(m.status, "[2] PACKAGE BODY SQLCLI_TEST_PKG created with compilation errors.") ||
+		!strings.Contains(txt, "Compilation errors") || !strings.Contains(txt, "4/5  PLS-00201") {
+		t.Fatalf("compile errors: status %q\n%s", m.status, txt)
+	}
+	if !strings.Contains(screen(m), "✗ [2] PACKAGE BODY SQLCLI_TEST_PKG created with compilation errors") {
+		t.Fatalf("footer:\n%s", screen(m))
+	}
+}

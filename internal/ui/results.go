@@ -19,6 +19,7 @@ type resultView struct {
 	messages []string
 	err      string
 	output   []string // DBMS_OUTPUT lines
+	compile  []string // compilation errors of created PL/SQL objects
 
 	textMode bool // show the text view (always when there is no grid)
 
@@ -40,6 +41,7 @@ func (r *resultView) set(res *db.Result, messages, output []string, err string) 
 	r.row, r.top, r.colOff = 0, 0, 0
 	r.textTop, r.textLeft = 0, 0
 	r.rangeOn = false
+	r.compile = nil
 	r.widths = nil
 	r.textMode = !r.hasGrid()
 	if !r.hasGrid() {
@@ -162,6 +164,12 @@ func (r *resultView) textLines() []string {
 	}
 	if r.err != "" {
 		for _, l := range strings.Split(r.err, "\n") {
+			lines = append(lines, errStyle.Render(l))
+		}
+	}
+	if len(r.compile) > 0 {
+		lines = append(lines, errStyle.Render("── Compilation errors ──"))
+		for _, l := range r.compile {
 			lines = append(lines, errStyle.Render(l))
 		}
 	}

@@ -25,6 +25,7 @@ type Result struct {
 	IsQuery  bool
 	Message  string
 	Output   []string // DBMS_OUTPUT lines produced by the statement
+	Errors   []string // compilation errors of a created PL/SQL object ("LINE/COL text")
 	Duration time.Duration
 }
 
@@ -358,6 +359,13 @@ func (c *Conn) Execute(ctx context.Context, stmt string, maxRows int) (*Result, 
 	default:
 		res.Message = kw + " executed."
 	}
+	if kind, owner, name, ok := compiledObject(stmt); ok {
+		res.Message = fmt.Sprintf("%s %s created.", kind, name)
+		if errs := c.compileErrors(ex, kind, owner, name); len(errs) > 0 {
+			res.Message = fmt.Sprintf("%s %s created with compilation errors.", kind, name)
+			res.Errors = errs
+		}
+	}
 	if c.tx != nil && commitsImplicitly(kw) {
 		// Oracle committed the open transaction before running the DDL;
 		// close our handle so the TX state matches the server.
@@ -474,6 +482,10 @@ func RowsMessage(n int, more bool) string {
 // rePLSQLStart matches statements that contain PL/SQL and therefore end
 // only at a "/" line: blocks, stored code, and queries with inline
 // functions (WITH FUNCTION / WITH PROCEDURE, Oracle 12c+).
+// reDDLLine matches a line starting with a DDL keyword (reserved words that
+// can't begin a line of PL/SQL code).
+var reDDLLine = regexp.MustCompile(`(?i)^(CREATE|ALTER|DROP|GRANT|REVOKE)\b`)
+
 var rePLSQLStart = regexp.MustCompile(`(?i)^(DECLARE|BEGIN|CREATE\s+(OR\s+REPLACE\s+)?(EDITIONABLE\s+|NONEDITIONABLE\s+)?(PROCEDURE|FUNCTION|PACKAGE|TRIGGER|TYPE)\b|WITH\s+(FUNCTION|PROCEDURE)\b)`)
 
 // Statement is one statement of a script with its position (0-based rows
@@ -550,6 +562,12 @@ func ParseStatements(script string) []Statement {
 			if t == "/" {
 				flush()
 				continue
+			}
+			// A PL/SQL statement (package, procedure ...) normally ends at a
+			// "/" line. A line starting with DDL (CREATE, ALTER ...) can't be
+			// PL/SQL code, so it starts the next statement even without "/".
+			if started && hasCode && reDDLLine.MatchString(t) && isPLSQLText(text()) {
+				flush()
 			}
 			if t == "" && !isPLSQLText(text()) {
 				flush()
@@ -855,4 +873,53 @@ func inCommentAt(script string, row, col int) bool {
 		}
 	}
 	return false
+}
+
+var reCompiled = regexp.MustCompile(`(?is)^CREATE\s+(?:OR\s+REPLACE\s+)?(?:(?:NON)?EDITIONABLE\s+)?` +
+	`(PACKAGE\s+BODY|TYPE\s+BODY|PACKAGE|PROCEDURE|FUNCTION|TRIGGER|TYPE)\s+` +
+	`(?:("[^"]+"|[A-Za-z][\w$#]*)\s*\.\s*)?("[^"]+"|[A-Za-z][\w$#]*)`)
+
+// compiledObject recognises CREATE of stored PL/SQL and returns its type
+// (as in USER_ERRORS: "PACKAGE BODY" ...), owner ("" = current schema) and
+// name, upper-cased unless quoted.
+func compiledObject(stmt string) (kind, owner, name string, ok bool) {
+	m := reCompiled.FindStringSubmatch(reLeadingComments.ReplaceAllString(stmt, ""))
+	if m == nil {
+		return "", "", "", false
+	}
+	ident := func(s string) string {
+		if strings.HasPrefix(s, `"`) {
+			return strings.Trim(s, `"`)
+		}
+		return strings.ToUpper(s)
+	}
+	kind = strings.ToUpper(strings.Join(strings.Fields(m[1]), " "))
+	if m[2] != "" {
+		owner = ident(m[2])
+	}
+	return kind, owner, ident(m[3]), true
+}
+
+// compileErrors lists an object's compilation errors like SQL*Plus SHOW
+// ERRORS: "LINE/COL  text". Callers hold c.mu.
+func (c *Conn) compileErrors(q execer, kind, owner, name string) []string {
+	rows, err := q.QueryContext(context.Background(), `
+		select line, position, text from all_errors
+		 where owner = nvl(:1, sys_context('userenv', 'current_schema'))
+		   and name = :2 and type = :3
+		 order by sequence`, owner, name, kind)
+	if err != nil {
+		return []string{"(could not read the compilation errors: " + CleanError(err) + ")"}
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var line, pos int
+		var text string
+		if err := rows.Scan(&line, &pos, &text); err != nil {
+			break
+		}
+		out = append(out, fmt.Sprintf("%d/%d  %s", line, pos, strings.TrimSpace(text)))
+	}
+	return out
 }

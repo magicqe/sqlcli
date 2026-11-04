@@ -334,6 +334,7 @@ type execDoneMsg struct {
 	last     *db.Result
 	messages []string
 	output   []string // DBMS_OUTPUT of all statements
+	compile  []string // compilation errors (object line, then "LINE/COL text" lines)
 	err      error
 	elapsed  time.Duration
 }
@@ -426,6 +427,16 @@ func (m *Model) execute(stmts []string) tea.Cmd {
 			res, err := conn.Execute(ctx, s, maxRows)
 			if res != nil {
 				out.output = append(out.output, res.Output...)
+				if len(res.Errors) > 0 {
+					head := res.Message
+					if len(stmts) > 1 {
+						head = fmt.Sprintf("[%d] %s", i+1, head)
+					}
+					out.compile = append(out.compile, head)
+					for _, e := range res.Errors {
+						out.compile = append(out.compile, "  "+e)
+					}
+				}
 			}
 			e := history.Entry{Connection: conn.Name, SQL: db.Normalize(s), ExecutedAt: t0,
 				DurationMS: time.Since(t0).Milliseconds()}
@@ -747,6 +758,11 @@ func (m *Model) execDone(msg execDoneMsg) (cmd tea.Cmd) {
 		m.setStatus(st, false)
 	}
 	m.res.set(msg.last, msg.messages, msg.output, errText)
+	m.res.compile = msg.compile
+	m.res.textMode = m.res.textMode || len(msg.compile) > 0
+	if len(msg.compile) > 0 && msg.err == nil {
+		m.setStatus(msg.compile[0], true)
+	}
 	if n := len(msg.output); n > 0 {
 		hint := ""
 		if m.res.canToggle() {
@@ -2181,6 +2197,8 @@ func (m *Model) recordRun(msg execDoneMsg) {
 		m.runSummary = fmt.Sprintf("timed out after %ds (query.timeout_seconds)", m.cfg.Query.TimeoutSeconds)
 	case msg.err != nil:
 		m.runState, m.runSummary = runFailed, firstLine(db.CleanError(msg.err))
+	case len(msg.compile) > 0:
+		m.runState, m.runSummary = runFailed, msg.compile[0]
 	default:
 		m.runState = runOK
 		switch r := msg.last; {
