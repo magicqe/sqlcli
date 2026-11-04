@@ -415,6 +415,12 @@ sqlcli follows SQL\*Plus conventions:
   | PACKAGE | TRIGGER | TYPE`, or `WITH FUNCTION` / `WITH PROCEDURE` (a query
   with inline PL/SQL). This lets them contain blank lines and `;`.
 
+**Comments** (`-- …` and `/* … */`) before and after a statement are
+skipped: they are not sent to Oracle and not saved in the history. A part of
+the buffer that holds only comments is not a statement at all, so commented-out
+SQL never runs and never breaks an F7 script. Comments inside a statement stay,
+including optimizer hints (`/*+ … */`).
+
 **F5 runs exactly one statement: the one the cursor is in.** The position just
 after a statement's closing `;` still counts as inside it. If the cursor is on
 a blank line, the statement above it runs.

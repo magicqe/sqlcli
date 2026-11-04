@@ -501,16 +501,39 @@ func ParseStatements(script string) []Statement {
 		st                  Statement
 		lastR, lastC        int
 		inQuote, inBlockCmt bool
+		// first and last code character (not comment, not blank) of the
+		// statement, as (piece index, rune index in the piece)
+		hasCode            bool
+		firstP, firstC     int
+		lastCodeP, lastCod int
 	)
 	text := func() string { return strings.Join(pieces, "\n") }
 	flush := func() {
-		t := strings.TrimSpace(text())
-		if started && t != "" {
-			st.Text = t
+		if started && hasCode {
+			// keep only what lies between the first and the last code
+			// character: comments before and after the statement are
+			// skipped, comments inside it (and optimizer hints) stay
+			var b []rune
+			off := func(p, c int) int {
+				n := 0
+				for k := 0; k < p; k++ {
+					n += len([]rune(pieces[k])) + 1
+				}
+				return n + c
+			}
+			b = []rune(text())
+			st.Text = strings.TrimSpace(string(b[off(firstP, firstC) : off(lastCodeP, lastCod)+1]))
 			st.EndRow, st.EndCol = lastR, lastC
 			out = append(out, st)
 		}
-		pieces, started, st = nil, false, Statement{}
+		pieces, started, st, hasCode = nil, false, Statement{}, false
+	}
+	code := func(c, segStart int) { // record a code character of the current line
+		p, ci := len(pieces), c-segStart
+		if !hasCode {
+			hasCode, firstP, firstC = true, p, ci
+		}
+		lastCodeP, lastCod = p, ci
 	}
 	mark := func(r, c int) { // record non-blank content at r,c
 		if !started {
@@ -551,10 +574,12 @@ func ParseStatements(script string) []Statement {
 				continue
 			case inQuote:
 				mark(r, c)
+				code(c, segStart)
 				if ch == '\'' {
 					if next == '\'' { // escaped quote
 						c++
 						mark(r, c)
+						code(c, segStart)
 					} else {
 						inQuote = false
 					}
@@ -581,6 +606,7 @@ func ParseStatements(script string) []Statement {
 			}
 			if ch != ' ' && ch != '\t' {
 				mark(r, c)
+				code(c, segStart)
 			}
 			if ch == ';' {
 				seg := string(rs[segStart : c+1])

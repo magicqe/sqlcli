@@ -329,3 +329,23 @@ func contains(s []string, x string) bool {
 	}
 	return false
 }
+
+func TestUIScriptWithComments(t *testing.T) {
+	m := newTestModel(t, false)
+	m.ed.SetText(`-- daily check
+select 1 from dual;
+-- select * from not_there;
+/*
+  old query;
+*/
+select 'last' from dual;
+-- the end`)
+	m.focus = focusEditor
+	press(m, key(tea.KeyF7))
+	if m.res.err != "" || !m.res.hasGrid() || m.res.res.Rows[0][0] != "last" {
+		t.Fatalf("script with comments failed: err=%q status=%q", m.res.err, m.status)
+	}
+	if !strings.HasPrefix(m.status, "2 statements OK") {
+		t.Fatalf("status: %q", m.status)
+	}
+}

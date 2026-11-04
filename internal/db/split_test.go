@@ -28,7 +28,7 @@ end;
 		"select 1 from dual;",
 		"select 2\n  from dual",
 		"begin\n  null;\n  dbms_output.put_line('x');\nend;",
-		"-- comment\nupdate t set a = 1 where b = 2;",
+		"update t set a = 1 where b = 2;", // the comment line above it is skipped
 		"create or replace procedure p is\nbegin\n  null;\nend;",
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -96,7 +96,7 @@ end;
 
 func TestSplitComments(t *testing.T) {
 	got := SplitStatements("/* a; b */ select 1 from dual;\nselect 2 -- x;\nfrom dual;")
-	want := []string{"/* a; b */ select 1 from dual;", "select 2 -- x;\nfrom dual;"}
+	want := []string{"select 1 from dual;", "select 2 -- x;\nfrom dual;"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %#v", got)
 	}
@@ -111,5 +111,55 @@ func TestSplitWithFunction(t *testing.T) {
 	}
 	if n := Normalize(got[0]); !strings.HasSuffix(n, "from dual") {
 		t.Fatalf("Normalize kept the final ';': %q", n)
+	}
+}
+
+func TestCommentsSkipped(t *testing.T) {
+	script := `select * from a;
+-- select * from b;
+/*
+ old query;
+
+ still old
+*/
+select * from c;
+
+-- just a note
+
+/* header
+   text */ select 1 from dual;
+select /*+ index(t i) */ x,
+       -- inline comment stays
+       y from t -- trailing
+-- more trailing
+/
+
+begin
+  /* comment in PL/SQL */ null;
+end;
+/
+-- the end`
+	got := SplitStatements(script)
+	want := []string{
+		"select * from a;",
+		"select * from c;",
+		"select 1 from dual;",
+		"select /*+ index(t i) */ x,\n       -- inline comment stays\n       y from t",
+		"begin\n  /* comment in PL/SQL */ null;\nend;",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v", got)
+	}
+	// a script of comments only has no statements
+	if got := SplitStatements("-- a\n/* b\n\n c */\n-- d;"); len(got) != 0 {
+		t.Fatalf("comments only: %#v", got)
+	}
+	// a comment line right above a statement belongs to it (F5 runs the statement)
+	if st, _ := StatementAtCursor("-- get the count\nselect count(*) from t", 0, 3); st.Text != "select count(*) from t" {
+		t.Fatalf("cursor on leading comment: %q", st.Text)
+	}
+	// a stand-alone comment block runs the statement above it, never the comment
+	if st, _ := StatementAtCursor("select 1 from dual;\n\n-- note\n", 2, 2); st.Text != "select 1 from dual;" {
+		t.Fatalf("cursor on lone comment: %q", st.Text)
 	}
 }
