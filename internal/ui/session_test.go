@@ -354,3 +354,61 @@ func TestSessionNameAfterLoad(t *testing.T) {
 		t.Fatalf("Ctrl-S after load: mode=%v saved=%q", m.mode, se.Tabs[0].SQL)
 	}
 }
+
+func TestSaveSessionOnExit(t *testing.T) {
+	quitWith := func(m *Model) tea.Cmd {
+		_, cmd := m.Update(key('k', tea.ModCtrl))
+		_, cmd = m.Update(key('x'))
+		return cmd
+	}
+
+	// on (the default) with a current session: saved when quitting
+	m := sessionModel(t)
+	if !m.cfg.UI.SaveSessionOnExit {
+		t.Fatal("save_session_on_exit should default to on")
+	}
+	m.ed.SetText("v1")
+	if err := m.saveSession("daily"); err != nil {
+		t.Fatal(err)
+	}
+	m.ed.SetText("v2 edited")
+	m.openTab()
+	if cmd := quitWith(m); cmd == nil || !m.quitting {
+		t.Fatal("did not quit")
+	}
+	se, _ := m.hist.LoadSession("daily")
+	if len(se.Tabs) != 2 || se.Tabs[0].SQL != "v2 edited" || m.ExitMessage() != `session "daily" saved` {
+		t.Fatalf("on exit: %d tabs, %q, msg %q", len(se.Tabs), se.Tabs[0].SQL, m.ExitMessage())
+	}
+
+	// off: nothing saved
+	m = sessionModel(t)
+	m.cfg.UI.SaveSessionOnExit = false
+	m.ed.SetText("v1")
+	m.saveSession("daily")
+	m.ed.SetText("changed")
+	quitWith(m)
+	if se, _ := m.hist.LoadSession("daily"); se.Tabs[0].SQL != "v1" || m.ExitMessage() != "" {
+		t.Fatalf("off: saved %q msg %q", se.Tabs[0].SQL, m.ExitMessage())
+	}
+
+	// no current session: nothing saved, no session created
+	m = sessionModel(t)
+	m.ed.SetText("x")
+	quitWith(m)
+	if list, _ := m.hist.Sessions(); len(list) != 0 || m.ExitMessage() != "" {
+		t.Fatalf("no session: %v %q", list, m.ExitMessage())
+	}
+
+	// a cancelled quit doesn't save
+	m = sessionModel(t)
+	m.ed.SetText("v1")
+	m.saveSession("daily")
+	m.ed.SetText("changed")
+	m.running = true // makes quit ask first
+	quitWith(m)
+	answer(m, "n")
+	if se, _ := m.hist.LoadSession("daily"); se.Tabs[0].SQL != "v1" || m.quitting {
+		t.Fatalf("cancelled quit saved %q", se.Tabs[0].SQL)
+	}
+}

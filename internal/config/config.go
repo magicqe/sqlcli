@@ -79,9 +79,10 @@ type Query struct {
 }
 
 type UI struct {
-	Mouse           bool `toml:"mouse"`            // mouse wheel scrolls panes (hold Shift to select text)
-	ShowConnections bool `toml:"show_connections"` // connections panel visible at start (F4 toggles)
-	RecordPage      int  `toml:"record_page"`      // records PgUp/PgDn move in the record view
+	Mouse             bool `toml:"mouse"`                // mouse wheel scrolls panes (hold Shift to select text)
+	ShowConnections   bool `toml:"show_connections"`     // connections panel visible at start (F2 toggles)
+	RecordPage        int  `toml:"record_page"`          // records PgUp/PgDn move in the record view
+	SaveSessionOnExit Flag `toml:"save_session_on_exit"` // save the current session when quitting
 }
 
 type History struct {
@@ -110,7 +111,7 @@ func Default() *Config {
 		Editor:  Editor{TabWidth: 4, AutoIndent: true, SyntaxHighlight: true, Completion: true},
 		Query:   Query{MaxRows: 1000, TimeoutSeconds: 0, AutoCommit: false, DBMSOutput: true},
 		History: History{MaxEntries: 500},
-		UI:      UI{Mouse: true, ShowConnections: true, RecordPage: 10},
+		UI:      UI{Mouse: true, ShowConnections: true, RecordPage: 10, SaveSessionOnExit: true},
 	}
 }
 

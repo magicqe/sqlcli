@@ -705,7 +705,8 @@ second line</pre>
           <h3 id="sessions">Sessions (F10)</h3>
       <p>A session is the set of open SQL tabs: for each tab its connection and its SQL text, plus which tab was active. Sessions are stored in the same SQLite file as the history.</p>
       <p>Press <kbd>F10</kbd> or <kbd>^K</kbd> <kbd>E</kbd> to open the session window, or <kbd>Ctrl-S</kbd> to save the open tabs straight away.</p>
-      <p>Once a session is loaded or saved it's the <strong>current session</strong>: its name is shown in the top-left corner of the screen (before the tab list when several tabs are open), and <strong><kbd>Ctrl-S</kbd> saves it again at once</strong>, without asking. Without a current session Ctrl-S asks for a name. To save under another name, use <kbd>s</kbd> in the session window. Deleting the current session clears its name. It lists saved sessions, newest first, with the time they were saved, the number of tabs and their connections.</p>
+      <p>Once a session is loaded or saved it's the <strong>current session</strong>: its name is shown in the top-left corner of the screen (before the tab list when several tabs are open), and <strong><kbd>Ctrl-S</kbd> saves it again at once</strong>, without asking. Without a current session Ctrl-S asks for a name. To save under another name, use <kbd>s</kbd> in the session window. Deleting the current session clears its name.</p>
+      <p>With <code>ui.save_session_on_exit = true</code> (the default) the current session is also <strong>saved when you quit</strong> sqlcli (<kbd>^K</kbd> <kbd>X</kbd>, <kbd>Ctrl-C</kbd>, closing the last tab), and the terminal shows <code>sqlcli: session "NAME" saved</code> afterwards. Without a current session nothing is saved. Set it to <code>false</code> (or <code>"no"</code>) to turn this off. It lists saved sessions, newest first, with the time they were saved, the number of tabs and their connections.</p>
       <div class="tbl"><table>
         <thead><tr><th>Key</th><th>Action</th></tr></thead>
         <tbody>
@@ -744,6 +745,7 @@ second line</pre>
   <span class="k">mouse</span> = true           <span class="c"># wheel scrolls; hold Shift to select text</span>
   <span class="k">show_connections</span> = true <span class="c"># connections panel visible at start (F2 toggles)</span>
   <span class="k">record_page</span> = 10       <span class="c"># records PgUp / PgDn move in the record view</span>
+  <span class="k">save_session_on_exit</span> = true <span class="c"># save the current session when quitting; also "yes" / "no"</span>
 
 [history]
   <span class="k">path</span> = <span class="s">""</span>              <span class="c"># SQLite file; empty = ~/.local/state/sqlcli/history.db</span>

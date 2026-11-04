@@ -127,6 +127,7 @@ type Model struct {
 	sessSel      int
 	sessionName  string // last saved or loaded session, offered when saving
 	startSession string // session to load at start (-s)
+	exitMsg      string // shown after the program ends
 
 	histEntries []history.Entry
 	histSel     int
@@ -1086,16 +1087,32 @@ func (m *Model) quit() tea.Cmd {
 		}
 		m.ask(strings.Join(why, ", ")+". Quit? (y/N)", "", false, func(v string) tea.Cmd {
 			if strings.EqualFold(strings.TrimSpace(v), "y") {
-				m.quitting = true
-				return tea.Quit
+				return m.finishQuit()
 			}
 			return nil
 		})
 		return nil
 	}
+	return m.finishQuit()
+}
+
+// finishQuit ends the program, first saving the current session when
+// ui.save_session_on_exit is on.
+func (m *Model) finishQuit() tea.Cmd {
+	if m.cfg.UI.SaveSessionOnExit && m.sessionName != "" && m.hist != nil {
+		if err := m.saveSession(m.sessionName); err != nil {
+			m.exitMsg = fmt.Sprintf("warning: session %q not saved: %v", m.sessionName, err)
+		} else {
+			m.exitMsg = fmt.Sprintf("session %q saved", m.sessionName)
+		}
+	}
 	m.quitting = true
 	return tea.Quit
 }
+
+// ExitMessage is printed by main after the screen is closed (e.g. that the
+// session was saved), or "".
+func (m *Model) ExitMessage() string { return m.exitMsg }
 
 func (m *Model) updateConns(key string) tea.Cmd {
 	n := len(m.cfg.Connections)

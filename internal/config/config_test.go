@@ -102,3 +102,22 @@ func TestSyntaxHighlightFlag(t *testing.T) {
 		t.Fatalf("saved:\n%s", b)
 	}
 }
+
+func TestSaveSessionOnExitOption(t *testing.T) {
+	dir := t.TempDir()
+	for val, want := range map[string]bool{"": true, "true": true, "false": false, `"yes"`: true, `"no"`: false} {
+		p := filepath.Join(dir, "c.toml")
+		body := "[ui]\n"
+		if val != "" {
+			body += "save_session_on_exit = " + val + "\n"
+		}
+		os.WriteFile(p, []byte(body), 0o600)
+		cfg, err := Load(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bool(cfg.UI.SaveSessionOnExit) != want {
+			t.Errorf("%q: got %v, want %v", val, cfg.UI.SaveSessionOnExit, want)
+		}
+	}
+}

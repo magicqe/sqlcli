@@ -657,7 +657,13 @@ Once a session is loaded or saved it is the **current session**: its name is
 shown in the top-left corner of the screen (before the tab list when several
 tabs are open), and **Ctrl-S saves it again at once**, without asking. Without
 a current session Ctrl-S asks for a name. To save under another name, use `s`
-in the session window. Deleting the current session clears its name. It lists saved sessions, newest
+in the session window. Deleting the current session clears its name.
+
+With `ui.save_session_on_exit = true` (the default) the current session is
+also **saved when you quit** sqlcli (^K X, Ctrl-C, closing the last tab), and
+the terminal shows `sqlcli: session "NAME" saved` afterwards. Without a
+current session nothing is saved. Set it to `false` (or `"no"`) to turn this
+off. It lists saved sessions, newest
 first, with the time they were saved, the number of tabs and their
 connections.
 
@@ -706,6 +712,7 @@ Complete example with all settings:
   mouse = true           # mouse wheel scrolls; hold Shift to select text with the mouse
   show_connections = true  # connections panel visible at start (F2 toggles it)
   record_page = 10       # records PgUp / PgDn move in the record view
+  save_session_on_exit = true  # save the current session when quitting; also "yes" / "no"
 
 [history]
   path = ""              # SQLite file; empty = ~/.local/state/sqlcli/history.db

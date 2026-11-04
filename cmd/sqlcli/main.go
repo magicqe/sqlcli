@@ -88,6 +88,9 @@ func run(o options, out io.Writer) error {
 	}
 	_, err = tea.NewProgram(m).Run()
 	m.CloseAll() // rolls back any open transactions
+	if msg := m.ExitMessage(); msg != "" {
+		fmt.Fprintln(out, "sqlcli:", msg)
+	}
 	return err
 }
 
