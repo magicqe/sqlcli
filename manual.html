@@ -269,7 +269,7 @@ sqlcli -config ./my.toml    <span class="c"># use a different configuration file
 <span class="t-d">│                ││ 2 │</span> 2 <span class="t-d">│</span> row 2                                 <span class="t-d">│</span>
 <span class="t-d">╰────────────────╯╰───────────────────────────────────────────────╯</span>
  ora <span class="t-tx"> TX </span> │ Ln 2, Col 36 │ 25 row(s) selected.
- <span class="t-b">F1</span> help  <span class="t-b">F2</span> conns  <span class="t-b">F3</span> results  <span class="t-b">F4</span> sql  <span class="t-b">F5</span> run  <span class="t-b">F7</span> run all  <span class="t-b">F6</span> history  <span class="t-d">sqlcli 0.1</span></pre>
+ <span class="t-b">F1</span> help  <span class="t-b">F2</span> conns  <span class="t-b">F3</span> results  <span class="t-b">F4</span> sql  <span class="t-b">F5</span> run  <span class="t-b">F7</span> run all  <span class="t-b">F6</span> history  <span class="t-b">F8</span> commit  <span class="t-b">F9</span> rollback  <span class="t-b">F10</span> sessions  <span class="t-d">sqlcli 0.1</span></pre>
         </div>
         <figcaption>The focused pane has a blue border. Here the editor has focus and a transaction is open.</figcaption>
       </figure>
@@ -394,7 +394,7 @@ sqlcli -config ./my.toml    <span class="c"># use a different configuration file
           <tr><td><kbd>^B</kbd> <kbd>^F</kbd></td><td>Character left / right</td></tr>
           <tr><td><kbd>^P</kbd> <kbd>^N</kbd></td><td>Line up / down</td></tr>
           <tr><td><kbd>^Z</kbd> <kbd>^X</kbd></td><td>Word left / right (also Ctrl-← / Ctrl-→)</td></tr>
-          <tr><td><kbd>^A</kbd> <kbd>^E</kbd></td><td>Beginning / end of line</td></tr>
+          <tr><td><kbd>^A</kbd> <kbd>End</kbd></td><td class="wrap-ok">Beginning / end of line (<kbd>^E</kbd> opens the session list, see <a href="#sessions">Sessions</a>)</td></tr>
           <tr><td><kbd>Home</kbd></td><td class="wrap-ok">First non-blank character; press again for column 1</td></tr>
           <tr><td><kbd>^U</kbd> <kbd>^V</kbd></td><td>Page up / down</td></tr>
           <tr><td><kbd>^K</kbd> <kbd>U</kbd> &nbsp;<kbd>^K</kbd> <kbd>V</kbd></td><td class="wrap-ok">Top / end of buffer (also Ctrl-Home / Ctrl-End)</td></tr>
@@ -587,7 +587,7 @@ end;
           <tr><td><kbd>PgUp</kbd> <kbd>PgDn</kbd> &nbsp;<kbd>^U</kbd> <kbd>^V</kbd></td><td>Page</td></tr>
           <tr><td>Mouse wheel</td><td class="wrap-ok">Scroll three rows (works without focusing the pane)</td></tr>
           <tr><td><kbd>Home</kbd> &nbsp;<kbd>^A</kbd> &nbsp;<kbd>g</kbd></td><td>First row</td></tr>
-          <tr><td><kbd>End</kbd> &nbsp;<kbd>^E</kbd> &nbsp;<kbd>G</kbd></td><td class="wrap-ok">Last row. <strong>Fetches all remaining rows first.</strong></td></tr>
+          <tr><td><kbd>End</kbd> &nbsp;<kbd>G</kbd></td><td class="wrap-ok">Last row. <strong>Fetches all remaining rows first.</strong></td></tr>
           <tr><td><kbd>←</kbd> <kbd>→</kbd> &nbsp;<kbd>^B</kbd> <kbd>^F</kbd> &nbsp;<kbd>h</kbd> <kbd>l</kbd></td><td>Scroll one column left / right</td></tr>
           <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">Show the selected row as a record (see <a href="#record">Record view</a>)</td></tr>
           <tr><td><kbd>o</kbd></td><td class="wrap-ok">Switch between the grid and DBMS_OUTPUT (when a query produced both)</td></tr>
@@ -698,14 +698,14 @@ second line</pre>
       </table></div>
           <h3 id="sessions">Sessions (F10)</h3>
       <p>A session is the set of open SQL tabs: for each tab its connection, its SQL text and the cursor position, plus which tab was active. Sessions are stored in the same SQLite file as the history.</p>
-      <p>Press <kbd>F10</kbd> to open the session window. It lists saved sessions, newest first, with the time they were saved, the number of tabs and their connections.</p>
+      <p>Press <kbd>F10</kbd> or <kbd>Ctrl-E</kbd> to open the session window, or <kbd>Ctrl-S</kbd> to save the open tabs straight away (sqlcli asks for the name). It lists saved sessions, newest first, with the time they were saved, the number of tabs and their connections.</p>
       <div class="tbl"><table>
         <thead><tr><th>Key</th><th>Action</th></tr></thead>
         <tbody>
-          <tr><td><kbd>s</kbd></td><td class="wrap-ok">Save the open tabs as a session (asks for a name; offers the current session's name or the date and time; asks before overwriting)</td></tr>
+          <tr><td><kbd>s</kbd> / <kbd>Ctrl-S</kbd></td><td class="wrap-ok">Save the open tabs as a session (asks for a name; offers the current session's name or the date and time; asks before overwriting)</td></tr>
           <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">Load the selected session: it replaces the open tabs and reconnects each one</td></tr>
           <tr><td><kbd>d</kbd> / <kbd>Del</kbd></td><td>Delete the selected session (asks first)</td></tr>
-          <tr><td><kbd>Esc</kbd> / <kbd>F10</kbd></td><td>Close the window</td></tr>
+          <tr><td><kbd>Esc</kbd> / <kbd>F10</kbd> / <kbd>Ctrl-E</kbd></td><td>Close the window</td></tr>
         </tbody>
       </table></div>
       <p>Loading closes the current tabs' sessions. If a transaction is open, sqlcli asks first, because it will be rolled back; while a statement is running, loading is refused. A tab whose connection is no longer in the config file opens unconnected, and the status bar names the missing connection.</p>
@@ -807,7 +807,8 @@ second line</pre>
           <tr><td><kbd>F5</kbd></td><td>Run block or statement under cursor</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F7</kbd></td><td>Run whole buffer</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F6</kbd></td><td>History browser</td><td><span class="grp">Global</span></td></tr>
-          <tr><td><kbd>F10</kbd></td><td>Sessions: save / load all SQL tabs</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F10</kbd> / <kbd>Ctrl-E</kbd></td><td>Sessions: load / save / delete</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>Ctrl-S</kbd></td><td>Save the open tabs as a session</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F8</kbd> / <kbd>F9</kbd></td><td>Commit / rollback</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>Ctrl-C</kbd></td><td>Cancel running statement; otherwise quit</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>X</kbd></td><td>Quit</td><td><span class="grp">Global</span></td></tr>
@@ -817,7 +818,7 @@ second line</pre>
           <tr><td><kbd>Alt-1</kbd> … <kbd>Alt-9</kbd></td><td>Go to tab</td><td><span class="grp">Tabs</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>Q</kbd></td><td>Close tab (last tab: quit)</td><td><span class="grp">Tabs</span></td></tr>
           <tr><td><kbd>^B</kbd> <kbd>^F</kbd> <kbd>^P</kbd> <kbd>^N</kbd></td><td>Move left / right / up / down</td><td><span class="grp">Editor</span></td></tr>
-          <tr><td><kbd>^A</kbd> <kbd>^E</kbd></td><td>Line start / end</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^A</kbd> <kbd>End</kbd></td><td>Line start / end</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^Z</kbd> <kbd>^X</kbd></td><td>Word left / right</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^U</kbd> <kbd>^V</kbd></td><td>Page up / down</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>U</kbd> / <kbd>^K</kbd> <kbd>V</kbd></td><td>Top / end of buffer</td><td><span class="grp">Editor</span></td></tr>

@@ -85,7 +85,7 @@ transaction is open, sqlcli asks for confirmation and then rolls it back.
 │                ││ 2 │ 2 │ row 2                                   │
 ╰────────────────╯╰─────────────────────────────────────────────────╯
  ora  TX  │ Ln 2, Col 7 │ 25 row(s) selected.
- F1 help  F2 conns  F3 results  F4 sql  F5 run  F7 run all  F6 history …   sqlcli 0.1
+ F1 help  F2 conns  F3 results  F4 sql  F5 run  F7 run all  F6 history  F8 commit  F9 rollback  F10 sessions …   sqlcli 0.1
 ```
 
 * **Tab bar** (top, only with two or more tabs): one entry per SQL tab,
@@ -255,7 +255,7 @@ Pasting from the terminal (bracketed paste) inserts the whole text at once.
 | ^B / ^F | character left / right |
 | ^P / ^N | line up / down |
 | ^Z / ^X | word left / right (also Ctrl-← / Ctrl-→) |
-| ^A / ^E | beginning / end of line |
+| ^A / End | beginning / end of line (^E opens the session list, see [Sessions](#sessions-f10)) |
 | Home | first non-blank character; press again for column 1 |
 | ^U / ^V | page up / down |
 | ^K U / ^K V | top / end of buffer (also Ctrl-Home / Ctrl-End) |
@@ -478,7 +478,7 @@ to focus it, or press F3 twice.
 | PgUp / PgDn (^U / ^V) | page |
 | mouse wheel | scroll three rows (works without focusing the pane) |
 | Home (^A, g) | first row |
-| End (^E, G) | last row; **fetches all remaining rows first** |
+| End (G) | last row; **fetches all remaining rows first** |
 | ← / → (^B / ^F, h / l) | scroll one column left / right |
 | Enter | show the selected row as a record ([Record view](#record-view)) |
 | o | switch between the grid and DBMS_OUTPUT (when a query produced both) |
@@ -634,16 +634,17 @@ A session is the set of open SQL tabs: for each tab its connection, its SQL
 text and the cursor position, plus which tab was active. Sessions are stored
 in the same SQLite file as the history.
 
-Press **F10** to open the session window. It lists saved sessions, newest
+Press **F10** or **Ctrl-E** to open the session window, or **Ctrl-S** to save
+the open tabs straight away (sqlcli asks for the name). It lists saved sessions, newest
 first, with the time they were saved, the number of tabs and their
 connections.
 
 | Key | Action |
 |---|---|
-| s | save the open tabs as a session (asks for a name; offers the current session's name or the date and time; asks before overwriting) |
+| s / Ctrl-S | save the open tabs as a session (asks for a name; offers the current session's name or the date and time; asks before overwriting) |
 | Enter | load the selected session: it replaces the open tabs and reconnects each one |
 | d / Del | delete the selected session (asks first) |
-| Esc / F10 | close the window |
+| Esc / F10 / Ctrl-E | close the window |
 
 Loading closes the current tabs' sessions. If a transaction is open, sqlcli
 asks first, because it will be rolled back; while a statement is running,
@@ -742,7 +743,8 @@ Complete example with all settings:
 | F5 | run block or statement under cursor |
 | F7 | run whole buffer |
 | F6 | history browser |
-| F10 | sessions: save / load all SQL tabs |
+| F10 / Ctrl-E | sessions: load / save / delete |
+| Ctrl-S | save the open tabs as a session |
 | F8 / F9 | commit / rollback |
 | Ctrl-C | cancel running statement; otherwise quit |
 | ^K X | quit |
@@ -757,7 +759,7 @@ Complete example with all settings:
 | Key | Action | Key | Action |
 |---|---|---|---|
 | ^B ^F ^P ^N | move | ^D | delete char |
-| ^A ^E | line start / end | ^Y | delete line |
+| ^A End | line start / end | ^Y | delete line |
 | ^Z ^X | word left / right | ^W ^O | delete word right / left |
 | ^U ^V | page up / down | ^J | delete to end of line |
 | ^K U ^K V | top / end of buffer | ^_ ^^ | undo / redo |

@@ -113,3 +113,65 @@ func TestLoadSessionMissingConnection(t *testing.T) {
 		t.Fatalf("status: %q", m.status)
 	}
 }
+
+func TestSessionShortcuts(t *testing.T) {
+	m := sessionModel(t)
+	m.ed.SetText("select 1 from dual")
+
+	// Ctrl-S saves directly (asks for a name), from any pane
+	for _, f := range []focus{focusEditor, focusResults} {
+		m.focus = f
+		press(m, key('s', tea.ModCtrl))
+		if m.mode != modePrompt || !strings.HasPrefix(m.prompt.label, "Save session as") {
+			t.Fatalf("Ctrl-S (focus %v): mode=%v label=%q", f, m.mode, m.prompt.label)
+		}
+		press(m, key(tea.KeyEscape))
+	}
+	press(m, key('s', tea.ModCtrl))
+	answer(m, "quick")
+	if m.mode != modeNormal || !strings.Contains(m.status, `Session "quick" saved`) {
+		t.Fatalf("Ctrl-S save: mode=%v status=%q", m.mode, m.status)
+	}
+	// an empty name cancels and goes back to where Ctrl-S was pressed
+	press(m, key('s', tea.ModCtrl))
+	answer(m, "")
+	if m.mode != modeNormal {
+		t.Fatalf("empty name: mode %v", m.mode)
+	}
+
+	// Ctrl-E opens the session list from the editor, results and connections pane
+	for _, f := range []focus{focusEditor, focusResults, focusConns} {
+		m.focus = f
+		press(m, key('e', tea.ModCtrl))
+		if m.mode != modeSessions || !strings.Contains(screen(m), "quick") {
+			t.Fatalf("Ctrl-E (focus %v): mode=%v", f, m.mode)
+		}
+		press(m, key('e', tea.ModCtrl)) // closes it again
+		if m.mode != modeNormal {
+			t.Fatal("Ctrl-E should also close the session list")
+		}
+	}
+
+	// End still moves to the end of the line
+	m.focus = focusEditor
+	m.ed.SetCursor(0, 0)
+	press(m, key(tea.KeyEnd))
+	if m.ed.CursorCol() != len("select 1 from dual") {
+		t.Fatalf("End: col %d", m.ed.CursorCol())
+	}
+
+	// F10 comes right after F9 in the key hints
+	lines := strings.Split(screen(m), "\n")
+	if hints := lines[len(lines)-1]; !strings.Contains(hints, "F9 rollback  F10") {
+		t.Fatalf("key hints: %q", hints)
+	}
+}
+
+func TestCtrlEInRecordViewStillLastRecord(t *testing.T) {
+	m := recordModel(5)
+	press(m, key(tea.KeyEnter))
+	press(m, key('e', tea.ModCtrl))
+	if m.mode != modeRecord || m.res.row != 4 {
+		t.Fatalf("record view Ctrl-E: mode=%v row=%d", m.mode, m.res.row)
+	}
+}

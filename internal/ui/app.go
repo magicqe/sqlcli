@@ -848,8 +848,15 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "f6":
 		m.openHistory()
 		return nil
-	case "f10":
+	case "f10", "ctrl+e": // session window (load / save / delete)
 		m.openSessions()
+		return nil
+	case "ctrl+s": // save the open tabs as a session
+		if m.hist == nil {
+			m.setStatus("Sessions are not available (no history database)", true)
+			return nil
+		}
+		m.askSaveSession(modeNormal)
 		return nil
 	case "f8", "f9":
 		if m.conn == nil || m.running {
@@ -890,7 +897,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.res.toggleText()
 		case "e":
 			return m.askExport()
-		case "end", "ctrl+e", "G":
+		case "end", "G":
 			m.res.handleKey("end")
 			if !m.res.showText() && m.res.res.More {
 				m.jumpEnd = true
@@ -1582,7 +1589,7 @@ func (m *Model) bottomLine() string {
 		return hintKey.Render(p.label) + " " + before + lipgloss.NewStyle().Reverse(true).Render(curCh) + after
 	}
 	hints := [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F7", "run all"},
-		{"F6", "history"}, {"F10", "sessions"}, {"F8", "commit"}, {"F9", "rollback"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
+		{"F6", "history"}, {"F8", "commit"}, {"F9", "rollback"}, {"F10", "sessions"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
 	var parts []string
 	for _, h := range hints {
 		parts = append(parts, hintKey.Render(h[0])+" "+hintText.Render(h[1]))
@@ -1761,29 +1768,31 @@ func firstLine(s string) string {
 const helpText = `
  GLOBAL                                    EDITOR (JOE keys)
  F1          this help                     ^B ^F ^P ^N / arrows   move
- F2          show / hide connections pane  ^A / ^E                line start / end
+ F2          show / hide connections pane  ^A / End               line start / end
  F3 / F4     show / hide results / SQL     ^Z / ^X                word left / right
  Esc         back to editor                ^U / ^V                page up / down
  F5          run statement at cursor       ^K U / ^K V            top / bottom of buffer
              (or the marked block)         ^K L                   go to line
  F7          run whole buffer as script    ^D                     delete char
- F6 / F10    SQL history / sessions        ^Y                     delete line
+ F6          SQL history (SQLite)          ^Y                     delete line
  F8 / F9     commit / rollback             ^W / ^O                delete word right / left
- Ctrl-C      cancel running query / quit   ^J                     delete to end of line
- ^K X        quit                          ^_ / ^^                undo / redo
-                                           ^K B / ^K K            mark block begin / end
- CONNECTIONS PANE                          ^K C / ^K M / ^K Y     copy / move / delete block
- Enter       connect this tab              ^K A                   clear block marks
- a / e / d   add / edit / delete           ^K F / ^L              find / find next
- v           view connection settings
-                                           ^K D                   save buffer to file
- RESULTS PANE                              ^K R                   insert file
- arrows, PgUp/PgDn, wheel   scroll         ^K W                   write block to file
- End         fetch all rows, last row
- Ctrl-C      stop fetching                 RECORD VIEW (Enter on a row)
- Enter       show row as record            ↑↓ / Home End          previous, next / first, last
- o           grid / DBMS_OUTPUT            PgUp / PgDn            ± record_page records
- e           export to .csv/.tsv/.json     Shift-↑↓, wheel        scroll a long record
+ F10, ^E     sessions (load / save)        ^J                     delete to end of line
+ ^S          save session                  ^_ / ^^                undo / redo
+ Ctrl-C      cancel running query / quit   ^K B / ^K K            mark block begin / end
+ ^K X        quit                          ^K C / ^K M / ^K Y     copy / move / delete block
+                                           ^K A                   clear block marks
+ CONNECTIONS PANE                          ^K F / ^L              find / find next
+ Enter       connect this tab              ^K D                   save buffer to file
+ a / e / d   add / edit / delete           ^K R                   insert file
+ v           view connection settings      ^K W                   write block to file
+
+ RESULTS PANE                              RECORD VIEW (Enter on a row)
+ arrows, PgUp/PgDn, wheel   scroll         ↑↓ / Home End          previous, next / first, last
+ End         fetch all rows, last row      PgUp / PgDn            ± record_page records
+ Ctrl-C      stop fetching                 Shift-↑↓, wheel        scroll a long record
+ Enter       show row as record
+ o           grid / DBMS_OUTPUT
+ e           export to .csv/.tsv/.json
 
  TABS (each tab has its own editor, results and Oracle session)
  ^K O        new tab on the same connection      ^K N / ^K P   next / previous tab
@@ -2444,14 +2453,14 @@ func (m *Model) reloadSessions() {
 
 func (m *Model) updateSessions(key string) tea.Cmd {
 	switch key {
-	case "esc", "f10", "ctrl+c", "q":
+	case "esc", "f10", "ctrl+e", "ctrl+c", "q":
 		m.mode = modeNormal
 	case "up", "ctrl+p", "k":
 		m.sessSel = max(m.sessSel-1, 0)
 	case "down", "ctrl+n", "j":
 		m.sessSel = min(m.sessSel+1, max(len(m.sessList)-1, 0))
-	case "s":
-		m.askSaveSession()
+	case "s", "ctrl+s":
+		m.askSaveSession(modeSessions)
 	case "enter":
 		if len(m.sessList) > 0 {
 			return m.askLoadSession(m.sessList[m.sessSel].Name)
@@ -2477,8 +2486,9 @@ func (m *Model) updateSessions(key string) tea.Cmd {
 	return nil
 }
 
-// askSaveSession asks for a name and saves every tab under it.
-func (m *Model) askSaveSession() {
+// askSaveSession asks for a name and saves every tab under it; an empty
+// name cancels and returns to mode back.
+func (m *Model) askSaveSession(back mode) {
 	def := m.sessionName
 	if def == "" {
 		def = time.Now().Format("2006-01-02 15:04")
@@ -2486,7 +2496,7 @@ func (m *Model) askSaveSession() {
 	m.ask("Save session as:", def, false, func(v string) tea.Cmd {
 		name := strings.TrimSpace(v)
 		if name == "" {
-			m.mode = modeSessions
+			m.mode = back
 			return nil
 		}
 		save := func() tea.Cmd {
@@ -2626,7 +2636,7 @@ func (m *Model) sessionsView() string {
 		title += "  current: " + m.sessionName
 	}
 	b := box(title, strings.Join(lines, "\n"), m.w, m.h-1, true)
-	hint := " " + hintKey.Render("s") + hintText.Render(" save open tabs  ") + hintKey.Render("Enter") + hintText.Render(" load (replaces the open tabs)  ") +
+	hint := " " + hintKey.Render("s / ^S") + hintText.Render(" save open tabs  ") + hintKey.Render("Enter") + hintText.Render(" load (replaces the open tabs)  ") +
 		hintKey.Render("d") + hintText.Render(" delete  ") + hintKey.Render("Esc") + hintText.Render(" close")
 	return b + "\n" + ansi.Truncate(hint, m.w, "")
 }
