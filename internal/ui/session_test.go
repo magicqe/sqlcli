@@ -199,3 +199,18 @@ func TestCtrlEInRecordViewStillLastRecord(t *testing.T) {
 		t.Fatalf("record view Ctrl-E: mode=%v row=%d", m.mode, m.res.row)
 	}
 }
+
+func TestStartWithSession(t *testing.T) {
+	m := sessionModel(t)
+	m.hist.SaveSession("s", 1, []history.SessionTab{{SQL: "select 1 from dual"}, {SQL: "select 2 from dual"}})
+	n := New(m.cfg, m.hist, "")
+	n.StartWithSession("s")
+	n.Init()
+	n.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	if len(n.tabs) != 2 || n.tabIndex(n.tab) != 1 || n.ed.Text() != "select 2 from dual" || n.focus != focusEditor {
+		t.Fatalf("start: tabs=%d active=%d text=%q focus=%v", len(n.tabs), n.tabIndex(n.tab), n.ed.Text(), n.focus)
+	}
+	if !strings.Contains(screen(n), "SQL 2") || !strings.Contains(n.status, `Session "s" loaded`) {
+		t.Fatalf("screen / status: %q", n.status)
+	}
+}

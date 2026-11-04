@@ -123,9 +123,10 @@ type Model struct {
 	lastClickAt  time.Time // for double-click on a connection
 	lastClickRow int
 
-	sessList    []history.SessionInfo // F10 session window
-	sessSel     int
-	sessionName string // last saved or loaded session, offered when saving
+	sessList     []history.SessionInfo // F10 session window
+	sessSel      int
+	sessionName  string // last saved or loaded session, offered when saving
+	startSession string // session to load at start (-s)
 
 	histEntries []history.Entry
 	histSel     int
@@ -282,7 +283,19 @@ func (m *Model) closeTab() tea.Cmd {
 	return doClose()
 }
 
+// StartWithSession makes the program load a saved session when it starts,
+// instead of connecting a single tab.
+func (m *Model) StartWithSession(name string) {
+	m.startSession = name
+	m.showConns = m.cfg.UI.ShowConnections
+	m.focus = focusEditor
+	m.status = ""
+}
+
 func (m *Model) Init() tea.Cmd {
+	if m.startSession != "" {
+		return m.loadSession(m.startSession)
+	}
 	if m.focus != focusConns && len(m.cfg.Connections) > 0 {
 		return m.connect(m.connSel)
 	}

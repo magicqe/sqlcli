@@ -238,12 +238,16 @@ make build          <span class="c"># same as: go build -o sqlcli ./cmd/sqlcli</
       <h2><span class="n">03</span>Starting sqlcli</h2>
 <pre><code>sqlcli                      <span class="c"># choose a connection in the left pane</span>
 sqlcli -c ora               <span class="c"># connect to the saved connection "ora" at start</span>
-sqlcli -config ./my.toml    <span class="c"># use a different configuration file</span></code></pre>
+sqlcli -config ./my.toml    <span class="c"># use a different configuration file</span>
+sqlcli -l                   <span class="c"># list the saved sessions and exit</span>
+sqlcli -s "daily reports"   <span class="c"># start with a saved session (all its SQL tabs)</span></code></pre>
       <div class="tbl"><table>
         <thead><tr><th>Option</th><th>Meaning</th></tr></thead>
         <tbody>
           <tr><td><code>-c NAME</code></td><td class="wrap-ok">Connect to the saved connection <code>NAME</code> (case-insensitive) on startup. sqlcli exits with an error if no such connection exists.</td></tr>
           <tr><td><code>-config PATH</code></td><td class="wrap-ok">Configuration file to use. Default: <code>~/.config/sqlcli/config.toml</code>.</td></tr>
+          <tr><td><code>-l</code></td><td class="wrap-ok">List the saved sessions (name, time saved, number of tabs, connections) and exit.</td></tr>
+          <tr><td><code>-s NAME</code></td><td class="wrap-ok">Start with the saved session <code>NAME</code>: its tabs, their SQL and connections (see <a href="#sessions">Sessions</a>). sqlcli exits with an error if no such session exists. Can't be combined with <code>-c</code>.</td></tr>
           <tr><td><code>-version</code></td><td class="wrap-ok">Print the version (<code>sqlcli 0.1</code>) and exit.</td></tr>
         </tbody>
       </table></div>

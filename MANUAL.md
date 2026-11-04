@@ -56,12 +56,16 @@ The result is a single binary, `./sqlcli`. Copy it anywhere on your `PATH`.
 sqlcli                      # start; choose a connection in the left pane
 sqlcli -c ora               # connect to the saved connection "ora" at start
 sqlcli -config ./my.toml    # use a different configuration file
+sqlcli -l                   # list the saved sessions and exit
+sqlcli -s "daily reports"   # start with a saved session (all its SQL tabs)
 ```
 
 | Option | Meaning |
 |---|---|
 | `-c NAME` | Connect to the saved connection `NAME` (case-insensitive) on startup. sqlcli exits with an error if no such connection exists. |
 | `-config PATH` | Configuration file to use. Default: `~/.config/sqlcli/config.toml`. |
+| `-l` | List the saved sessions (name, time saved, number of tabs, connections) and exit. |
+| `-s NAME` | Start with the saved session `NAME`: its tabs, their SQL and connections (see [Sessions](#sessions-f10)). sqlcli exits with an error if no such session exists. Can't be combined with `-c`. |
 | `-version` | Print the version (`sqlcli 0.1`) and exit. |
 
 On first start, if the configuration file does not exist, sqlcli creates it
