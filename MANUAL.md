@@ -280,9 +280,18 @@ connection, and is loaded again after `CREATE`, `DROP`, `ALTER` or `RENAME`.
 | d | `DESC` the object |
 | s | `select * from` the table, view or synonym |
 | r | reload the tree |
+| Ctrl-D | open the object's **DDL** in a new SQL tab (see below) |
 | Esc | back to the editor |
 
 A click selects, a double-click opens, the mouse wheel scrolls.
+
+**Ctrl-D** opens a new SQL tab (with its own session on the same connection)
+holding the object's DDL from `DBMS_METADATA.GET_DDL`: for a package its
+specification and then its body, for a type its spec and body. Statements end
+with `;` or `/`, so the tab can be run as it is (F7). The title shows
+`DDL PACKAGE NAME`, and ^K D offers `name.sql` as the file name. On a column
+or a package member, Ctrl-D uses its table or package. Reading the DDL
+doesn't open a transaction.
 
 ## 6. The SQL editor (JOE keys)
 

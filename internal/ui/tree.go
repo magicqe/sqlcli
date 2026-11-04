@@ -300,6 +300,13 @@ func (m *Model) updateTree(key string) tea.Cmd {
 	case "r":
 		m.setStatus("Reloading the object tree...", false)
 		return m.loadTree(true)
+	case "ctrl+d": // DDL of the object in a new tab
+		obj := treeObject(n)
+		if obj == nil {
+			m.setStatus("Ctrl-D shows the DDL of an object: select one", true)
+			return nil
+		}
+		return m.fetchDDL(obj.objType, obj.name)
 	}
 	nodes, _ = t.visible()
 	t.sel = min(max(t.sel, 0), max(len(nodes)-1, 0))
@@ -462,4 +469,37 @@ func (m *Model) treeClick(y int, double bool) tea.Cmd {
 		return m.updateTree("enter")
 	}
 	return nil
+}
+
+// ---- DDL of an object (Ctrl-D) ----
+
+type ddlMsg struct {
+	conn, objType, name, text string
+	err                       error
+}
+
+// fetchDDL reads an object's DDL in the background; it opens in a new tab.
+func (m *Model) fetchDDL(objType, name string) tea.Cmd {
+	if m.conn == nil {
+		return nil
+	}
+	m.setStatus(fmt.Sprintf("Reading the DDL of %s %s...", strings.ToLower(objType), name), false)
+	conn := m.conn
+	return func() tea.Msg {
+		text, err := conn.DDL(context.Background(), objType, name)
+		return ddlMsg{conn: conn.Name, objType: objType, name: name, text: text, err: err}
+	}
+}
+
+// ddlLoaded opens a new tab on the same connection with the DDL.
+func (m *Model) ddlLoaded(msg ddlMsg) tea.Cmd {
+	if msg.err != nil {
+		m.setStatus(fmt.Sprintf("DDL of %s: %s", msg.name, db.CleanError(msg.err)), true)
+		return nil
+	}
+	cmd := m.openTab() // connects a new session to the same connection
+	m.ed.SetText(strings.TrimSuffix(msg.text, "\n"))
+	m.ddlName = msg.objType + " " + msg.name
+	m.setStatus(fmt.Sprintf("DDL of %s %s (from DBMS_METADATA)", strings.ToLower(msg.objType), msg.name), false)
+	return cmd
 }

@@ -607,3 +607,52 @@ func TestUIObjectTree(t *testing.T) {
 		}
 	}
 }
+
+func TestUIObjectDDL(t *testing.T) {
+	m := newTestModel(t, false)
+	ctx := context.Background()
+	defer m.conn.Execute(ctx, "drop package sqlcli_test_pkg7", 1)
+	run(m, "create or replace package sqlcli_test_pkg7 as\n  function f return number;\nend;")
+	run(m, "create or replace package body sqlcli_test_pkg7 as\n  function f return number is begin return 7; end;\nend;")
+	drain(m, m.loadTree(true))
+	tr := m.tree()
+	nodes, _ := tr.visible()
+	for i, n := range nodes {
+		if n.label == "Packages" {
+			tr.sel = i
+		}
+	}
+	m.focus = focusTree
+	press(m, key(tea.KeyEnter))
+	nodes, _ = tr.visible()
+	for i, n := range nodes {
+		if n.name == "SQLCLI_TEST_PKG7" {
+			tr.sel = i
+		}
+	}
+	press(m, key('d', tea.ModCtrl)) // drain: DDL, new tab, its connection
+	if len(m.tabs) != 2 || m.tabIndex(m.tab) != 1 || m.conn == nil || m.conn.Name != "it" {
+		t.Fatalf("new tab: tabs=%d active=%d conn=%v status=%q", len(m.tabs), m.tabIndex(m.tab), m.conn, m.status)
+	}
+	text := m.ed.Text()
+	if !strings.Contains(text, "PACKAGE \"") || !strings.Contains(text, "PACKAGE BODY") || m.ddlName != "PACKAGE SQLCLI_TEST_PKG7" {
+		t.Fatalf("DDL tab:\n%s", text)
+	}
+	if !strings.Contains(screen(m), "· DDL PACKAGE SQLCLI_TEST_PKG7") {
+		t.Fatalf("title:\n%s", screen(m))
+	}
+	if m.tabs[0].conn.InTransaction() {
+		t.Fatal("reading DDL opened a transaction")
+	}
+	// the DDL runs as it is in the new tab
+	press(m, key(tea.KeyF7))
+	if !strings.HasPrefix(m.status, "2 statements OK") {
+		t.Fatalf("running the DDL: %q", m.status)
+	}
+	// ^K D offers the object's name as the file name
+	ctrlK(m, 'd')
+	if string(m.prompt.input) != "sqlcli_test_pkg7.sql" {
+		t.Fatalf("save name: %q", string(m.prompt.input))
+	}
+	press(m, key(tea.KeyEscape))
+}

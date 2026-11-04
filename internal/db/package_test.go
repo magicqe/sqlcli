@@ -106,3 +106,53 @@ end;`) {
 		t.Fatalf("DUAL: %v", ms)
 	}
 }
+
+func TestIntegrationDDL(t *testing.T) {
+	c := testConn(t)
+	ctx := context.Background()
+	defer c.Execute(ctx, "drop table sqlcli_test_ddl purge", 1)
+	defer c.Execute(ctx, "drop package sqlcli_test_pkg6", 1)
+	defer c.Execute(ctx, "drop package sqlcli_test_spec_only", 1)
+	for _, s := range SplitStatements(`create table sqlcli_test_ddl (id number(5) not null, name varchar2(10));
+create or replace package sqlcli_test_pkg6 as
+  function f return number;
+end;
+/
+create or replace package body sqlcli_test_pkg6 as
+  function f return number is begin return 1; end;
+end;
+/
+create or replace package sqlcli_test_spec_only as
+  c constant number := 1;
+end;
+/`) {
+		if _, err := c.Execute(ctx, s, 1); err != nil {
+			t.Fatal(CleanError(err))
+		}
+	}
+	ddl, err := c.DDL(ctx, "TABLE", "SQLCLI_TEST_DDL")
+	if err != nil || !strings.Contains(ddl, `CREATE TABLE "`) || !strings.Contains(ddl, `"SQLCLI_TEST_DDL"`) || !strings.Contains(ddl, ";") {
+		t.Fatalf("table: %v\n%s", err, ddl)
+	}
+	if c.InTransaction() {
+		t.Fatal("DDL opened a transaction")
+	}
+	ddl, err = c.DDL(ctx, "PACKAGE", "SQLCLI_TEST_PKG6")
+	t.Logf("package DDL:\n%s", ddl)
+	spec := strings.Index(ddl, "PACKAGE \"")
+	body := strings.Index(ddl, "PACKAGE BODY")
+	if err != nil || spec < 0 || body < spec || strings.Count(ddl, "\n/") < 2 {
+		t.Fatalf("package: %v\n%s", err, ddl)
+	}
+	// the DDL runs as it is (spec and body, separated by "/")
+	if got := SplitStatements(ddl); len(got) != 2 {
+		t.Fatalf("DDL splits into %d statements", len(got))
+	}
+	ddl, err = c.DDL(ctx, "PACKAGE", "SQLCLI_TEST_SPEC_ONLY")
+	if err != nil || strings.Contains(ddl, "PACKAGE BODY") || !strings.Contains(ddl, "SQLCLI_TEST_SPEC_ONLY") {
+		t.Fatalf("spec only: %v\n%s", err, ddl)
+	}
+	if _, err := c.DDL(ctx, "TABLE", "NO_SUCH_TABLE_XYZ"); err == nil || !strings.Contains(err.Error(), "ORA-31603") {
+		t.Fatalf("missing: %v", err)
+	}
+}

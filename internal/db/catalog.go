@@ -194,3 +194,53 @@ func (c *Conn) ColumnInfos(ctx context.Context, table string) ([]ColumnInfo, err
 	}
 	return out, nil
 }
+
+// metadataTypes maps an object type to the DBMS_METADATA object types whose
+// DDL makes it up (a package is its spec, then its body).
+var metadataTypes = map[string][]string{
+	"TABLE": {"TABLE"}, "VIEW": {"VIEW"}, "MATERIALIZED VIEW": {"MATERIALIZED_VIEW"},
+	"PACKAGE": {"PACKAGE_SPEC", "PACKAGE_BODY"}, "TYPE": {"TYPE_SPEC", "TYPE_BODY"},
+	"PROCEDURE": {"PROCEDURE"}, "FUNCTION": {"FUNCTION"}, "SEQUENCE": {"SEQUENCE"},
+	"SYNONYM": {"SYNONYM"}, "TRIGGER": {"TRIGGER"}, "INDEX": {"INDEX"},
+}
+
+// DDL returns the DDL of an object of the current schema from
+// DBMS_METADATA.GET_DDL, with statement terminators (";" and "/") so it can
+// be run as it is. A package (or type) is its spec followed by its body; a
+// missing body is left out. It doesn't open a transaction.
+func (c *Conn) DDL(ctx context.Context, objectType, name string) (string, error) {
+	parts, ok := metadataTypes[objectType]
+	if !ok {
+		return "", fmt.Errorf("no DDL for a %s", strings.ToLower(objectType))
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed || c.sc == nil {
+		return "", sql.ErrConnDone
+	}
+	var q execer = c.sc
+	if c.tx != nil {
+		q = c.tx
+	}
+	// session settings for GET_DDL: end statements with ; and /
+	if _, err := q.ExecContext(ctx, `begin
+		dbms_metadata.set_transform_param(dbms_metadata.session_transform, 'SQLTERMINATOR', true);
+		dbms_metadata.set_transform_param(dbms_metadata.session_transform, 'PRETTY', true);
+	end;`); err != nil {
+		return "", err
+	}
+	var out []string
+	for i, mt := range parts {
+		rows, err := queryRows(ctx, q, `select dbms_metadata.get_ddl(:1, :2) from dual`, mt, name)
+		if err != nil {
+			if i > 0 && strings.Contains(err.Error(), "ORA-31603") { // e.g. a package without a body
+				continue
+			}
+			return "", err
+		}
+		if len(rows) > 0 {
+			out = append(out, strings.Trim(strings.TrimLeft(rows[0][0], "\n"), "\n "))
+		}
+	}
+	return strings.Join(out, "\n\n") + "\n", nil
+}

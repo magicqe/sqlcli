@@ -88,6 +88,7 @@ type tab struct {
 
 	afterFetch func() tea.Cmd // runs when a fetch-all completes (export)
 	file       string         // file the SQL was last saved to (^K D)
+	ddlName    string         // "PACKAGE TESTPKG" for a tab opened with the DDL of an object
 	env        *script.Env    // substitution variables and SET DEFINE (SQL*Plus)
 	spool      *spooler       // SPOOL file of this tab
 	pendingRow int            // row to select once enough rows are fetched
@@ -779,6 +780,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.treeChildrenLoaded(msg)
 		return m, nil
 
+	case ddlMsg:
+		return m, m.ddlLoaded(msg)
+
 	case objectsMsg:
 		if cat := m.catalogs[msg.conn]; cat != nil {
 			cat.loading = false
@@ -1448,6 +1452,8 @@ func (m *Model) sqlTitle() string {
 	}
 	if m.file != "" {
 		t += " · " + filepath.Base(m.file)
+	} else if m.ddlName != "" {
+		t += " · DDL " + m.ddlName
 	}
 	if m.ed.PrefixPending() {
 		t += "  ^K-"
@@ -2062,6 +2068,7 @@ const helpText = `
  e           export to .csv/.tsv/.json
 
  OBJECT TREE (below the connections)  Enter/→ open · ← close · i insert name · d DESC · s select * · r reload
+                                      Ctrl-D DDL in a new tab (package: spec and body)
  TABS (each tab has its own editor, results and Oracle session)
  ^K O        new tab on the same connection      ^K N / ^K P   next / previous tab
  ^K Q        close tab (last tab: quit)          Ctrl-PgDn / Ctrl-PgUp, Alt-1..9   switch tab
@@ -2978,6 +2985,10 @@ func (m *Model) sessionsView() string {
 // the SQL panel's text to it, asking before replacing another existing file.
 func (m *Model) askSaveSQL() {
 	def := m.file
+	if def == "" && m.ddlName != "" { // "PACKAGE TESTPKG" -> testpkg.sql
+		f := strings.Fields(m.ddlName)
+		def = strings.ToLower(f[len(f)-1]) + ".sql"
+	}
 	if def == "" {
 		def = "query.sql"
 	}

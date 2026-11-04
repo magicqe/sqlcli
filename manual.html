@@ -403,10 +403,12 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
           <tr><td><kbd>d</kbd></td><td><code>DESC</code> the object</td></tr>
           <tr><td><kbd>s</kbd></td><td><code>select * from</code> the table, view or synonym</td></tr>
           <tr><td><kbd>r</kbd></td><td>Reload the tree</td></tr>
+          <tr><td><kbd>Ctrl-D</kbd></td><td class="wrap-ok">Open the object's <strong>DDL</strong> in a new SQL tab (see below)</td></tr>
           <tr><td><kbd>Esc</kbd></td><td>Back to the editor</td></tr>
         </tbody>
       </table></div>
       <p>A click selects, a double-click opens, the mouse wheel scrolls.</p>
+      <p><kbd>Ctrl-D</kbd> opens a new SQL tab (with its own session on the same connection) holding the object's DDL from <code>DBMS_METADATA.GET_DDL</code>: for a package its specification and then its body, for a type its spec and body. Statements end with <code>;</code> or <code>/</code>, so the tab can be run as it is (<kbd>F7</kbd>). The title shows <code>DDL PACKAGE NAME</code>, and <kbd>^K</kbd> <kbd>D</kbd> offers <code>name.sql</code> as the file name. On a column or a package member, Ctrl-D uses its table or package. Reading the DDL doesn't open a transaction.</p>
     </section>
 
     <!-- 6 -->
