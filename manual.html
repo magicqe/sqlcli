@@ -273,7 +273,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
 <span class="t-d">│                ││ 2 │</span> 2 <span class="t-d">│</span> row 2                                 <span class="t-d">│</span>
 <span class="t-d">╰────────────────╯╰───────────────────────────────────────────────╯</span>
  ora <span class="t-tx"> TX </span> │ Ln 2, Col 36 │ 25 row(s) selected.
- <span class="t-b">F1</span> help  <span class="t-b">F2</span> conns  <span class="t-b">F3</span> results  <span class="t-b">F4</span> sql  <span class="t-b">F5</span> run  <span class="t-b">F7</span> run all  <span class="t-b">F6</span> history  <span class="t-b">F8</span> commit  <span class="t-b">F9</span> rollback  <span class="t-b">F10</span> sessions  <span class="t-d">sqlcli 0.1</span></pre>
+ <span class="t-b">F1</span> help  <span class="t-b">F2</span> conns  <span class="t-b">F3</span> results  <span class="t-b">F4</span> sql  <span class="t-b">F5</span> run  <span class="t-b">F7</span> run all  <span class="t-b">F6</span> history  <span class="t-b">F8</span> rollback  <span class="t-b">F9</span> commit  <span class="t-b">F10</span> sessions  <span class="t-d">sqlcli 0.1</span></pre>
         </div>
         <figcaption>The focused pane has a blue border. Here the editor has focus and a transaction is open.</figcaption>
       </figure>
@@ -356,7 +356,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
       <p>Nothing is saved until the last answer; <kbd>Esc</kbd> at any question cancels without changes. A name another connection already uses is refused. Connected tabs keep their old settings until you reconnect them (<kbd>Enter</kbd>).</p>
       <p><kbd>v</kbd> shows the selected connection's settings: name, user, connect string (and whether it's a TNS alias, Easy Connect string or descriptor), where the password comes from (never the password itself), read-only, SYSDBA, which tabs have it open, and the config file. Any key closes it.</p>
 
-      <p>Switching connections is refused while a transaction is open: commit (<kbd>F8</kbd>) or roll back (<kbd>F9</kbd>) first. Read-only connections (<code>read_only = true</code> in the config file) allow only <code>SELECT</code>, <code>WITH</code>, <code>EXPLAIN</code> and <code>DESC</code>.</p>
+      <p>Switching connections is refused while a transaction is open: roll back (<kbd>F8</kbd>) or commit (<kbd>F9</kbd>) first. Read-only connections (<code>read_only = true</code> in the config file) allow only <code>SELECT</code>, <code>WITH</code>, <code>EXPLAIN</code> and <code>DESC</code>.</p>
       <div class="note warn"><span class="lbl">Passwords</span><p>A password typed in the wizard is stored in plain text in the configuration file. sqlcli writes that file with mode <code>0600</code>, so only you can read it. With <code>password_env</code> the password never touches the file.</p></div>
 
       <h3 id="tabs">Tabs: several SQL panels and connections</h3>
@@ -574,7 +574,7 @@ end;
       <p>By default (<code>query.auto_commit = false</code>) changes are <strong>not</strong> committed automatically.</p>
       <ul>
         <li><code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>, <code>MERGE</code>, PL/SQL blocks and <code>CALL</code> start a transaction if none is open. The status bar shows <b>TX</b>.</li>
-        <li><kbd>F8</kbd> commits and <kbd>F9</kbd> rolls back. You can also run <code>COMMIT</code> or <code>ROLLBACK</code> as statements.</li>
+        <li><kbd>F8</kbd> rolls back and <kbd>F9</kbd> commits. You can also run <code>COMMIT</code> or <code>ROLLBACK</code> as statements.</li>
         <li>Quitting with an open transaction asks for confirmation and rolls it back. Switching connections is refused until you commit or roll back.</li>
       </ul>
       <div class="note warn"><span class="lbl">DDL commits</span><p>DDL (<code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>, <code>TRUNCATE</code>, <code>GRANT</code> and similar) makes Oracle <strong>commit the open transaction</strong> before it runs. sqlcli says so in the message and clears the TX marker.</p></div>
@@ -623,7 +623,7 @@ end;
         <li><kbd>Ctrl-C</kbd> stops a fetch. Rows already fetched stay in the grid; the rest are discarded.</li>
         <li>To always get every row, set <code>query.fetch_all = true</code>. Every query then fetches all its rows right away, and Ctrl-C stops it the same way.</li>
       </ul>
-      <p>Running another statement, commit (<kbd>F8</kbd>) or rollback (<kbd>F9</kbd>) closes the open query. The rows in the grid stay, but no more can be fetched.</p>
+      <p>Running another statement, rollback (<kbd>F8</kbd>) or commit (<kbd>F9</kbd>) closes the open query. The rows in the grid stay, but no more can be fetched.</p>
       <div class="note warn"><span class="lbl">Memory</span><p>Every fetched row is held in memory. Millions of wide rows can take gigabytes, so prefer a <code>WHERE</code> clause, or watch the counter and press <kbd>Ctrl-C</kbd>.</p></div>
       <h3 id="export">Exporting</h3>
       <p>Press <kbd>e</kbd> in the results pane to save the result to a file. sqlcli asks for the file name (it offers <code>result.csv</code>, then the last name you used); the extension picks the format.</p>
@@ -814,7 +814,7 @@ second line</pre>
           <tr><td><kbd>F6</kbd></td><td>History browser</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F10</kbd> / <kbd>^K</kbd> <kbd>E</kbd></td><td>Sessions: load / save / delete</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>Ctrl-S</kbd></td><td>Save the open tabs as a session</td><td><span class="grp">Global</span></td></tr>
-          <tr><td><kbd>F8</kbd> / <kbd>F9</kbd></td><td>Commit / rollback</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F8</kbd> / <kbd>F9</kbd></td><td>Rollback / commit</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>Ctrl-C</kbd></td><td>Cancel running statement; otherwise quit</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>X</kbd></td><td>Quit</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>O</kbd></td><td>New tab on the same connection</td><td><span class="grp">Tabs</span></td></tr>

@@ -83,5 +83,5 @@ func TestUIScriptCollectsOutput(t *testing.T) {
 	if !strings.Contains(txt, "DBMS_OUTPUT (2 line(s))") || !strings.Contains(txt, "[2] PL/SQL") {
 		t.Fatalf("script output:\n%s", txt)
 	}
-	press(m, key(tea.KeyF9)) // roll back the transaction PL/SQL opened
+	press(m, key(tea.KeyF8)) // roll back the transaction PL/SQL opened
 }

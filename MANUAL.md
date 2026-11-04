@@ -89,7 +89,7 @@ transaction is open, sqlcli asks for confirmation and then rolls it back.
 │                ││ 2 │ 2 │ row 2                                   │
 ╰────────────────╯╰─────────────────────────────────────────────────╯
  ora  TX  │ Ln 2, Col 7 │ 25 row(s) selected.
- F1 help  F2 conns  F3 results  F4 sql  F5 run  F7 run all  F6 history  F8 commit  F9 rollback  F10 sessions …   sqlcli 0.1
+ F1 help  F2 conns  F3 results  F4 sql  F5 run  F7 run all  F6 history  F8 rollback  F9 commit  F10 sessions …   sqlcli 0.1
 ```
 
 * **Tab bar** (top, only with two or more tabs): one entry per SQL tab,
@@ -206,8 +206,8 @@ connected keep their old settings until you reconnect them (Enter).
 the password comes from (never the password itself), read-only, SYSDBA,
 which tabs have it open, and the config file. Any key closes it.
 
-Switching connections is refused while a transaction is open: commit (F8) or
-roll back (F9) first. Read-only connections (`read_only = true`, set in the
+Switching connections is refused while a transaction is open: roll back (F8)
+or commit (F9) first. Read-only connections (`read_only = true`, set in the
 config file) allow only `SELECT`, `WITH`, `EXPLAIN` and `DESC`.
 
 **Passwords**: a password typed in the wizard is stored in plain text in the
@@ -465,7 +465,7 @@ automatically:
 
 * `INSERT`, `UPDATE`, `DELETE`, `MERGE`, PL/SQL blocks and `CALL` start a
   transaction if none is open. The status bar shows **TX**.
-* **F8** commits, **F9** rolls back. You can also run `COMMIT` or `ROLLBACK`
+* **F8** rolls back, **F9** commits. You can also run `COMMIT` or `ROLLBACK`
   as statements.
 * DDL (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`, `GRANT`, ...) makes Oracle
   **commit the open transaction** implicitly. sqlcli reports this in the
@@ -529,7 +529,7 @@ the query stays open on the server, the status says
 * To always get every row, set `query.fetch_all = true`. Every query then
   fetches all its rows right away, and Ctrl-C stops it in the same way.
 
-Running another statement, commit (F8) or rollback (F9) closes the open query.
+Running another statement, rollback (F8) or commit (F9) closes the open query.
 The rows already in the grid stay; no more can be fetched.
 
 Every fetched row is held in memory. Fetching millions of wide rows can use
@@ -755,7 +755,7 @@ Complete example with all settings:
 | F6 | history browser |
 | F10 / ^K E | sessions: load / save / delete |
 | Ctrl-S | save the open tabs as a session |
-| F8 / F9 | commit / rollback |
+| F8 / F9 | rollback / commit |
 | Ctrl-C | cancel running statement; otherwise quit |
 | ^K X | quit |
 | ^K O | new tab on the same connection |

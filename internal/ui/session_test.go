@@ -178,7 +178,7 @@ func TestSessionShortcuts(t *testing.T) {
 
 	// F10 comes right after F9 in the key hints
 	lines := strings.Split(screen(m), "\n")
-	if hints := lines[len(lines)-1]; !strings.Contains(hints, "F9 rollback  F10") {
+	if hints := lines[len(lines)-1]; !strings.Contains(hints, "F9 commit  F10") {
 		t.Fatalf("key hints: %q", hints)
 	}
 }

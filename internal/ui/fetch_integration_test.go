@@ -251,7 +251,7 @@ func TestUIRunFooter(t *testing.T) {
 	if !strings.Contains(screen(m), "✓ PL/SQL OK · ") {
 		t.Fatal("PL/SQL footer")
 	}
-	press(m, key(tea.KeyF9))
+	press(m, key(tea.KeyF8))
 
 	// Ctrl-C during a long statement
 	m.ed.SetText("begin dbms_session.sleep(30); end;")

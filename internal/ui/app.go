@@ -363,7 +363,7 @@ func (m *Model) connect(i int) tea.Cmd {
 	}
 	c := m.cfg.Connections[i]
 	if m.conn != nil && m.conn.InTransaction() {
-		m.setStatus("Commit (F8) or roll back (F9) the open transaction before switching connections", true)
+		m.setStatus("Roll back (F8) or commit (F9) the open transaction before switching connections", true)
 		return nil
 	}
 	m.connecting = true
@@ -872,12 +872,13 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		m.askSaveSession(modeNormal)
 		return nil
-	case "f8", "f9":
+	case "f8", "f9": // F8 rollback, F9 commit
 		if m.conn == nil || m.running {
 			return nil
 		}
+		commit := key == "f9"
 		var err error
-		if key == "f8" {
+		if commit {
 			err = m.conn.Commit()
 		} else {
 			err = m.conn.Rollback()
@@ -888,7 +889,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		if err != nil {
 			m.setStatus(err.Error(), true)
-		} else if key == "f8" {
+		} else if commit {
 			m.setStatus("Commit complete", false)
 		} else {
 			m.setStatus("Rollback complete", false)
@@ -1605,7 +1606,7 @@ func (m *Model) bottomLine() string {
 		return hintKey.Render(p.label) + " " + before + lipgloss.NewStyle().Reverse(true).Render(curCh) + after
 	}
 	hints := [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F7", "run all"},
-		{"F6", "history"}, {"F8", "commit"}, {"F9", "rollback"}, {"F10", "sessions"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
+		{"F6", "history"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
 	var parts []string
 	for _, h := range hints {
 		parts = append(parts, hintKey.Render(h[0])+" "+hintText.Render(h[1]))
@@ -1791,7 +1792,7 @@ const helpText = `
              (or the marked block)         ^K L                   go to line
  F7          run whole buffer as script    ^D                     delete char
  F6          SQL history (SQLite)          ^Y                     delete line
- F8 / F9     commit / rollback             ^W / ^O                delete word right / left
+ F8 / F9     rollback / commit             ^W / ^O                delete word right / left
  F10, ^K E   sessions (load / save)        ^J                     delete to end of line
  ^S          save session                  ^_ / ^^                undo / redo
  Ctrl-C      cancel running query / quit   ^K B / ^K K            mark block begin / end

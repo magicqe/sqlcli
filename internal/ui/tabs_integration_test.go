@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -45,7 +46,7 @@ func TestUITabsSeparateSessions(t *testing.T) {
 	if !strings.Contains(m.tabBar(), "2 it TX") {
 		t.Errorf("tab bar should mark TX: %q", m.tabBar())
 	}
-	press(m, key(tea.KeyF9))
+	press(m, key(tea.KeyF8))
 }
 
 func TestUITabsRunConcurrently(t *testing.T) {
@@ -180,5 +181,28 @@ func TestUISessionReconnects(t *testing.T) {
 	run(m, m.ed.Text())
 	if !m.res.hasGrid() || m.res.res.Rows[0][0] != "tab two" {
 		t.Fatalf("query in restored tab: %s", m.res.err)
+	}
+}
+
+func TestUIF8RollbackF9Commit(t *testing.T) {
+	m := newTestModel(t, false)
+	run(m, "create private temporary table ora$ptt_keys (n number) on commit preserve definition")
+	defer m.conn.Execute(context.Background(), "drop table ora$ptt_keys", 1)
+	count := func() string {
+		run(m, "select count(*) from ora$ptt_keys")
+		return m.res.res.Rows[0][0]
+	}
+	run(m, "insert into ora$ptt_keys values (1)")
+	press(m, key(tea.KeyF8))
+	if m.status != "Rollback complete" || m.conn.InTransaction() || count() != "0" {
+		t.Fatalf("F8 should roll back: status=%q", m.status)
+	}
+	run(m, "insert into ora$ptt_keys values (2)")
+	press(m, key(tea.KeyF9))
+	if m.status != "Commit complete" || m.conn.InTransaction() || count() != "1" {
+		t.Fatalf("F9 should commit: status=%q", m.status)
+	}
+	if hints := strings.Split(screen(m), "\n"); !strings.Contains(hints[len(hints)-1], "F8 rollback  F9 commit") {
+		t.Fatalf("key hints: %q", hints[len(hints)-1])
 	}
 }
