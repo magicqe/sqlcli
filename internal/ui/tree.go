@@ -371,9 +371,6 @@ func quoteIdent(s string) string {
 // the left column; the object tree gets the rest.
 func (m *Model) connBoxHeight() int {
 	want := len(m.cfg.Connections) + 2
-	if m.focus == focusConns {
-		want += 4 // key hints
-	}
 	return min(max(want, 4), max(m.paneH()/2, 4))
 }
 

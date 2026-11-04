@@ -1350,9 +1350,6 @@ func (m *Model) updateConns(key string) tea.Cmd {
 		})
 	case "tab": // on to the next panel (the object tree)
 		m.cyclePanel(1)
-		if m.focus == focusTree {
-			m.setStatus("Objects: Enter open · i insert name · d DESC · s select * · Ctrl-D DDL · r reload", false)
-		}
 	case "esc":
 		m.focusEditor()
 	}
@@ -1787,9 +1784,6 @@ func (m *Model) View() tea.View {
 	if len(cl) == 0 {
 		cl = append(cl, hintText.Render("none — press a"))
 	}
-	if m.focus == focusConns {
-		cl = append(cl, "", hintText.Render("Enter connect"), hintText.Render("a add  e edit"), hintText.Render("v view  d delete"))
-	}
 	ch := m.connBoxHeight()
 	left := lipgloss.JoinVertical(lipgloss.Left,
 		box("Connections", strings.Join(cl, "\n"), cw, ch, m.focus == focusConns),
@@ -1872,8 +1866,7 @@ func (m *Model) bottomLine() string {
 		}
 		return hintKey.Render(p.label) + " " + before + lipgloss.NewStyle().Reverse(true).Render(curCh) + after
 	}
-	hints := [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F6", "history"},
-		{"F7", "run all"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K D/I", "save/load sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
+	hints := m.keyHints()
 	var parts []string
 	for _, h := range hints {
 		parts = append(parts, hintKey.Render(h[0])+" "+hintText.Render(h[1]))
@@ -3393,4 +3386,32 @@ func (m *Model) jumpDirection(dir string) {
 	if f, ok := next[m.focus][dir]; ok {
 		m.jumpTo(f)
 	}
+}
+
+// keyHints are the keys shown on the bottom line: those of the focused
+// panel, or the general ones in the editor.
+func (m *Model) keyHints() [][2]string {
+	switch m.focus {
+	case focusConns:
+		return [][2]string{{"Enter", "connect"}, {"a", "add"}, {"e", "edit"}, {"v", "view"}, {"d", "delete"},
+			{"Tab", "tree"}, {"Esc", "editor"}, {"F2", "hide"}, {"F1", "help"}}
+	case focusTree:
+		return [][2]string{{"Enter", "open"}, {"←", "close"}, {"i", "insert name"}, {"d", "desc"}, {"s", "select"},
+			{"^D", "ddl"}, {"r", "reload"}, {"Tab", "results"}, {"Esc", "editor"}, {"F1", "help"}}
+	case focusResults:
+		if m.res.showText() {
+			h := [][2]string{{"↑↓ PgUp PgDn", "scroll"}, {"←→", "sideways"}}
+			if m.res.canToggle() {
+				h = append(h, [2]string{"o", "grid"})
+			}
+			return append(h, [2]string{"Tab", "editor"}, [2]string{"Esc", "editor"}, [2]string{"F1", "help"})
+		}
+		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Enter", "record"}, {"e", "export"}, {"End", "all rows"}}
+		if m.res.canToggle() {
+			h = append(h, [2]string{"o", "output"})
+		}
+		return append(h, [2]string{"Tab", "editor"}, [2]string{"F8/F9", "rollback/commit"}, [2]string{"F1", "help"})
+	}
+	return [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F6", "history"},
+		{"F7", "run all"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K D/I", "save/load sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
 }

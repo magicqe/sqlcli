@@ -119,8 +119,9 @@ transaction is open, sqlcli asks for confirmation and then rolls it back.
 * **Status bar**: active connection, a **TX** marker when a transaction is
   open, the cursor position, and the last message (red for errors). Running
   times are shown in the SQL panel's bottom border, not here.
-* **Bottom line**: key hints, or the input line when sqlcli asks you something
-  (file name, search text, confirmation, ...).
+* **Bottom line**: the keys of the focused panel (connections, object tree,
+  results; the general keys in the editor), or the input line when sqlcli asks
+  you something (file name, search text, confirmation, ...).
 
 The focused pane has a blue border. Switch panes with:
 

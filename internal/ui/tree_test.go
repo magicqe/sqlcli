@@ -116,3 +116,36 @@ func TestObjectTreeClick(t *testing.T) {
 		t.Fatalf("connection click: focus %v sel %d", m.focus, m.connSel)
 	}
 }
+
+func TestPanelKeyHints(t *testing.T) {
+	m := treeModel(t)
+	bottom := func() string {
+		lines := strings.Split(screen(m), "\n")
+		return lines[len(lines)-1]
+	}
+	h := m.connBoxHeight()
+	m.focus = focusConns
+	if m.connBoxHeight() != h || strings.Contains(screen(m), "a add") && !strings.Contains(bottom(), "a add") {
+		t.Fatal("the connections box should not grow or show hints when focused")
+	}
+	m.res.set(&db.Result{IsQuery: true, Columns: []string{"N"}, Rows: [][]string{{"1"}}}, nil, nil, "") // a grid
+	for f, want := range map[focus]string{
+		focusConns:   "Enter connect  a add  e edit  v view  d delete",
+		focusTree:    "Enter open  ← close  i insert name  d desc  s select  ^D ddl",
+		focusResults: "Enter record  e export",
+		focusEditor:  "F1 help  F2 conns  F3 results",
+	} {
+		m.focus = f
+		if !strings.Contains(bottom(), want) {
+			t.Errorf("focus %v: bottom line %q lacks %q", f, bottom(), want)
+		}
+	}
+	// the connections box shows only connections
+	m.focus = focusConns
+	lines := strings.Split(screen(m), "\n")
+	for _, l := range lines[:h] {
+		if strings.Contains(l, "Enter connect") {
+			t.Fatal("key hints still inside the connections box")
+		}
+	}
+}

@@ -284,7 +284,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
         <dt>SQL footer</dt><dd>The SQL panel's bottom border shows how the tab's last statement went: <code>● running 3.2s</code> while it runs (also <code>● fetching 12000 rows</code>, <code>● exporting</code>); <code>✓ 25 rows · 12ms · at 14:02:31</code> when it finished, with the row count following later fetches; <code>✓ 3 row(s) updated</code>, <code>✓ PL/SQL OK</code>, <code>✓ 4 statements, last: 25 rows</code>; <code>✗ ORA-00942: …</code> when it failed; <code>✗ timed out after 30s</code>; <code>■ cancelled after 2.1s</code> after Ctrl-C. Each tab keeps its own.</dd>
         <dt>Results</dt><dd>Query results, messages and errors. The title shows the selected row and first visible column.</dd>
         <dt>Status bar</dt><dd>Active connection, a <b>TX</b> marker when a transaction is open, cursor position, and the last message (red for errors). Running times are shown in the SQL panel's bottom border, not here.</dd>
-        <dt>Bottom line</dt><dd>Key hints, or the input line when sqlcli asks for something: a file name, search text or a confirmation.</dd>
+        <dt>Bottom line</dt><dd>The keys of the focused panel (connections, object tree, results; the general keys in the editor), or the input line when sqlcli asks for something: a file name, search text or a confirmation.</dd>
       </dl>
       <div class="tbl"><table>
         <thead><tr><th>Key</th><th>Goes to</th></tr></thead>
