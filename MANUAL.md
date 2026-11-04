@@ -95,9 +95,10 @@ transaction is open, sqlcli asks for confirmation and then rolls it back.
 * **Tab bar** (top, only with two or more tabs): one entry per SQL tab,
   showing its connection, `TX` for an open transaction and `…` while a
   statement runs. See [Tabs](#tabs-several-sql-panels-and-connections).
-* **Connections** (left): saved connections. `●` marks the active tab's
+* **Connections** (left, top): saved connections. `●` marks the active tab's
   connection, `○` one open in another tab, `(ro)` a read-only connection. **F2** hides or shows this panel; when
-  hidden, the editor and results use the full width.
+  hidden, the editor and results use the full width. Below the connections
+  is the **object tree** of the current schema (see [Object tree](#object-tree)).
 * **SQL** (top right): the editor. The title names the active connection
   (`SQL · ora`), adding `(read-only)` for read-only connections, or says
   `not connected`. It shows `^K-` while a ^K command is waiting for its
@@ -258,6 +259,30 @@ ones, all at the same time.
 * Closing a tab with an open transaction asks first and rolls it back.
   Quitting lists every open transaction and running statement before it
   asks.
+
+### Object tree
+
+The bottom of the connections panel shows the objects of the current tab's
+schema, grouped: Tables, Views, Materialized views, Packages, Procedures,
+Functions, Types, Sequences, Synonyms, Triggers and Indexes (with counts).
+Tables and views open to their columns with types (`ID  NUMBER(5) NOT
+NULL`), packages to their functions and procedures. Invalid objects are
+marked `✗`. The tree loads when a tab connects, follows the active tab's
+connection, and is loaded again after `CREATE`, `DROP`, `ALTER` or `RENAME`.
+
+| Key | Action |
+|---|---|
+| Tab (in the connections list) | go to the tree; Tab again goes to the editor |
+| ↑ / ↓, PgUp / PgDn, Home / End | move |
+| Enter / → | open a group or object (Enter on a leaf inserts its name) |
+| ← | close, or go to the parent |
+| i | insert the name at the editor cursor (`package.member` for members) |
+| d | `DESC` the object |
+| s | `select * from` the table, view or synonym |
+| r | reload the tree |
+| Esc | back to the editor |
+
+A click selects, a double-click opens, the mouse wheel scrolls.
 
 ## 6. The SQL editor (JOE keys)
 

@@ -36,6 +36,7 @@ const (
 	focusEditor focus = iota
 	focusResults
 	focusConns
+	focusTree // object tree under the connections
 )
 
 type mode int
@@ -131,6 +132,7 @@ type Model struct {
 	lastExport  string // file name offered by the next export
 
 	catalogs map[string]*catalog // completion data per connection name
+	trees    map[string]*objTree // object tree per connection name
 
 	helpTop      int       // first visible line of the help screen
 	recTop       int       // first visible line of the record view
@@ -266,7 +268,7 @@ func (m *Model) switchTab(i int) {
 	}
 	i = (i%len(m.tabs) + len(m.tabs)) % len(m.tabs)
 	m.tab = m.tabs[i]
-	if m.focus == focusConns && !m.showConns {
+	if (m.focus == focusConns || m.focus == focusTree) && !m.showConns {
 		m.focusMain()
 	}
 }
@@ -760,7 +762,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.inBg {
 				m.focusEditor()
 			}
-			return m.loadObjects(false)
+			return tea.Batch(m.loadObjects(false), m.loadTree(false))
 		})
 
 	case execDoneMsg:
@@ -768,6 +770,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case fetchMsg:
 		return m, m.onTab(msg.tab, func() tea.Cmd { return m.fetchDone(msg) })
+
+	case treeObjectsMsg:
+		m.treeObjectsLoaded(msg)
+		return m, nil
+
+	case treeChildrenMsg:
+		m.treeChildrenLoaded(msg)
+		return m, nil
 
 	case objectsMsg:
 		if cat := m.catalogs[msg.conn]; cat != nil {
@@ -858,7 +868,7 @@ func (m *Model) execDone(msg execDoneMsg) (cmd tea.Cmd) {
 	m.cancel = nil
 	m.recordRun(msg)
 	if msg.ddl && msg.err == nil { // new or changed objects: reload completion data
-		reload := m.loadObjects(true)
+		reload := tea.Batch(m.loadObjects(true), m.loadTree(true))
 		defer func() { cmd = tea.Batch(cmd, reload) }()
 	}
 	errText := ""
@@ -1011,7 +1021,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.showConns = !m.showConns
 		if m.showConns {
 			m.focus = focusConns
-		} else if m.focus == focusConns {
+		} else if m.focus == focusConns || m.focus == focusTree {
 			m.focusMain()
 		}
 		m.layout()
@@ -1079,6 +1089,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch m.focus {
 	case focusConns:
 		return m.updateConns(key)
+	case focusTree:
+		return m.updateTree(key)
 	case focusResults:
 		m.res.rangeOn = false // a key ends a mouse selection
 		switch key {
@@ -1321,7 +1333,10 @@ func (m *Model) updateConns(key string) tea.Cmd {
 			}
 			return nil
 		})
-	case "esc", "tab":
+	case "tab": // on to the object tree
+		m.focus = focusTree
+		m.setStatus("Objects: Enter open · i insert name · d DESC · s select * · r reload · Tab editor", false)
+	case "esc":
 		m.focusEditor()
 	}
 	return nil
@@ -1411,7 +1426,7 @@ func (m *Model) connWidth() int {
 	if !m.showConns {
 		return 0
 	}
-	return min(max(m.w/5, 18), 30)
+	return min(max(m.w/5, 18), 40) // wide screens: room for column types in the object tree
 }
 
 // sqlTitle is the SQL panel title: "SQL · <connection>".
@@ -1756,8 +1771,10 @@ func (m *Model) View() tea.View {
 	if m.focus == focusConns {
 		cl = append(cl, "", hintText.Render("Enter connect"), hintText.Render("a add  e edit"), hintText.Render("v view  d delete"))
 	}
-	avail := m.paneH()
-	left := box("Connections", strings.Join(cl, "\n"), cw, avail, m.focus == focusConns)
+	ch := m.connBoxHeight()
+	left := lipgloss.JoinVertical(lipgloss.Left,
+		box("Connections", strings.Join(cl, "\n"), cw, ch, m.focus == focusConns),
+		m.treeView(cw, m.paneH()-ch))
 
 	edH := m.ed.View()
 	edTitle := m.sqlTitle()
@@ -2033,6 +2050,7 @@ const helpText = `
  Enter       connect this tab              ^K D                   save buffer to file
  a / e / d   add / edit / delete           ^K R                   insert file
  v           view connection settings      ^K W                   write block to file
+ Tab         object tree (below)
                                            ^K I                   load file (replace text)
 
  RESULTS PANE                              RECORD VIEW (Enter on a row)
@@ -2043,6 +2061,7 @@ const helpText = `
  o           grid / DBMS_OUTPUT
  e           export to .csv/.tsv/.json
 
+ OBJECT TREE (below the connections)  Enter/→ open · ← close · i insert name · d DESC · s select * · r reload
  TABS (each tab has its own editor, results and Oracle session)
  ^K O        new tab on the same connection      ^K N / ^K P   next / previous tab
  ^K Q        close tab (last tab: quit)          Ctrl-PgDn / Ctrl-PgUp, Alt-1..9   switch tab
@@ -2085,6 +2104,17 @@ func (m *Model) wheel(msg tea.MouseWheelMsg) tea.Cmd {
 		return nil
 	}
 	if msg.X < m.connWidth() {
+		if t := m.tree(); t != nil && msg.Y-m.tabBarH() >= m.connBoxHeight() {
+			for i := 0; i < 3; i++ {
+				if key == "up" {
+					t.sel--
+				} else {
+					t.sel++
+				}
+			}
+			nodes, _ := t.visible()
+			t.sel = min(max(t.sel, 0), max(len(nodes)-1, 0))
+		}
 		return nil
 	}
 	if msg.Y < m.tabBarH() {
@@ -2222,6 +2252,15 @@ func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 	edOuter, _ := m.paneHeights()
 
 	switch {
+	case msg.X < cw && y >= m.connBoxHeight(): // object tree
+		row := y - m.connBoxHeight() - 1
+		double := row == m.lastClickRow-100000 && time.Since(m.lastClickAt) < 400*time.Millisecond
+		m.lastClickRow, m.lastClickAt = row+100000, time.Now()
+		if double {
+			m.lastClickAt = time.Time{}
+		}
+		return m.treeClick(row, double)
+
 	case msg.X < cw: // connections
 		m.focus = focusConns
 		row := y - 1

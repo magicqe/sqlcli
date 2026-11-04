@@ -148,3 +148,49 @@ func (c *Conn) Members(ctx context.Context, owner, pkg string) ([]Member, error)
 	rows, err = c.metaQuery(ctx, fmt.Sprintf(query, ":1", 2), syn[0][0], syn[0][1])
 	return toMembers(rows), err
 }
+
+// SchemaObject is an object of the current schema for the object tree.
+type SchemaObject struct {
+	Type, Name string
+	Valid      bool
+}
+
+// SchemaObjects lists the current schema's objects for the object tree.
+func (c *Conn) SchemaObjects(ctx context.Context) ([]SchemaObject, error) {
+	rows, err := c.metaQuery(ctx, `
+		select object_type, object_name, status from user_objects
+		 where object_type in ('TABLE', 'VIEW', 'MATERIALIZED VIEW', 'PACKAGE', 'PROCEDURE', 'FUNCTION',
+		                       'TYPE', 'SEQUENCE', 'SYNONYM', 'TRIGGER', 'INDEX')
+		   and object_name not like 'BIN$%'
+		 order by object_name`)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SchemaObject, len(rows))
+	for i, r := range rows {
+		out[i] = SchemaObject{Type: r[0], Name: r[1], Valid: r[2] == "VALID"}
+	}
+	return out, nil
+}
+
+// ColumnInfo is a column with its type as SQL*Plus DESCRIBE shows it.
+type ColumnInfo struct {
+	Name, Type string
+	NotNull    bool
+}
+
+// ColumnInfos returns the columns of a table or view of the current schema.
+func (c *Conn) ColumnInfos(ctx context.Context, table string) ([]ColumnInfo, error) {
+	rows, err := c.metaQuery(ctx, `
+		select column_name, nullable, data_type, to_char(data_length), to_char(data_precision),
+		       to_char(data_scale), to_char(char_length), char_used
+		  from user_tab_columns where table_name = :1 order by column_id`, table)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ColumnInfo, len(rows))
+	for i, r := range rows {
+		out[i] = ColumnInfo{Name: r[0], NotNull: r[1] == "N", Type: columnType(r[2], r[3], r[4], r[5], r[6], r[7])}
+	}
+	return out, nil
+}

@@ -538,3 +538,72 @@ func TestUIDescribeAndExec(t *testing.T) {
 	}
 	press(m, key(tea.KeyF8))
 }
+
+func TestUIObjectTree(t *testing.T) {
+	m := newTestModel(t, false)
+	ctx := context.Background()
+	defer m.conn.Execute(ctx, "drop table sqlcli_test_tree purge", 1)
+	defer m.conn.Execute(ctx, "drop package sqlcli_test_pkg5", 1)
+	run(m, "create table sqlcli_test_tree (id number(5) not null, name varchar2(10 char))")
+	run(m, "create or replace package sqlcli_test_pkg5 as\n  function f return number;\n  procedure p;\nend;")
+	drain(m, m.loadTree(true))
+	tr := m.tree()
+	find := func(typ, name string) (*treeNode, int) {
+		nodes, _ := tr.visible()
+		for i, n := range nodes {
+			if n.objType == typ && (n.name == name || (name == "" && n.name == "")) {
+				return n, i
+			}
+		}
+		return nil, -1
+	}
+	g, gi := find("TABLE", "")
+	if g == nil {
+		t.Fatal("no Tables group")
+	}
+	m.focus = focusTree
+	tr.sel = gi
+	press(m, key(tea.KeyEnter))
+	obj, oi := find("TABLE", "SQLCLI_TEST_TREE")
+	if obj == nil {
+		t.Fatal("table not in the tree")
+	}
+	tr.sel = oi
+	press(m, key(tea.KeyEnter)) // drain loads the columns
+	if len(obj.children) != 2 || obj.children[0].label != "ID" || obj.children[0].extra != "NUMBER(5) NOT NULL" || obj.children[1].extra != "VARCHAR2(10 CHAR)" {
+		t.Fatalf("columns: %+v", obj.children)
+	}
+	press(m, key('s')) // select * from the table
+	if !m.res.hasGrid() || m.res.res.Columns[0] != "ID" {
+		t.Fatalf("s: %q %+v", m.status, m.res.res)
+	}
+	m.focus = focusTree
+	press(m, key('d'))
+	if !m.res.hasGrid() || m.res.res.Rows[0][2] != "NUMBER(5)" {
+		t.Fatalf("d: %q %+v", m.status, m.res.res)
+	}
+
+	g, gi = find("PACKAGE", "")
+	m.focus = focusTree
+	tr.sel = gi
+	press(m, key(tea.KeyEnter))
+	pkg, pi := find("PACKAGE", "SQLCLI_TEST_PKG5")
+	tr.sel = pi
+	press(m, key(tea.KeyEnter))
+	if len(pkg.children) != 2 || pkg.children[0].label != "F" || pkg.children[0].extra != "function" || pkg.children[1].extra != "procedure" {
+		t.Fatalf("members: %+v", pkg.children)
+	}
+	press(m, key(tea.KeyDown))
+	press(m, key('i'))
+	if !strings.HasPrefix(m.ed.Text(), "SQLCLI_TEST_PKG5.F") { // inserted at the cursor
+		t.Fatalf("insert member: %q", m.ed.Text())
+	}
+
+	// DDL reloads the tree
+	run(m, "drop package sqlcli_test_pkg5")
+	if pkg, _ := find("PACKAGE", "SQLCLI_TEST_PKG5"); pkg != nil {
+		if tr2 := m.tree(); tr2 == tr {
+			t.Fatal("tree not reloaded after DDL")
+		}
+	}
+}

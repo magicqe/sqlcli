@@ -279,7 +279,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
       </figure>
       <dl class="parts">
         <dt>Tab bar</dt><dd>Shown with two or more tabs: one entry per SQL tab with its connection, <code>TX</code> for an open transaction and <code>…</code> while a statement runs. See <a href="#tabs">Tabs</a>.</dd>
-        <dt>Connections</dt><dd>Saved connections. <code>●</code> marks the active tab's connection, <code>○</code> one open in another tab, <code>(ro)</code> a read-only one. <kbd>F2</kbd> hides or shows the panel; while it's hidden, the editor and results use the full width.</dd>
+        <dt>Connections</dt><dd>Top of the left panel: saved connections. Below them is the <a href="#tree">object tree</a> of the current schema. <code>●</code> marks the active tab's connection, <code>○</code> one open in another tab, <code>(ro)</code> a read-only one. <kbd>F2</kbd> hides or shows the panel; while it's hidden, the editor and results use the full width.</dd>
         <dt>SQL</dt><dd>The editor. The title names the active connection (<code>SQL · ora</code>), adds <code>(read-only)</code> for read-only connections, or says <code>not connected</code>. It shows <code>^K-</code> while a ^K command waits for its second key.</dd>
         <dt>SQL footer</dt><dd>The SQL panel's bottom border shows how the tab's last statement went: <code>● running 3.2s</code> while it runs (also <code>● fetching 12000 rows</code>, <code>● exporting</code>); <code>✓ 25 rows · 12ms · at 14:02:31</code> when it finished, with the row count following later fetches; <code>✓ 3 row(s) updated</code>, <code>✓ PL/SQL OK</code>, <code>✓ 4 statements, last: 25 rows</code>; <code>✗ ORA-00942: …</code> when it failed; <code>✗ timed out after 30s</code>; <code>■ cancelled after 2.1s</code> after Ctrl-C. Each tab keeps its own.</dd>
         <dt>Results</dt><dd>Query results, messages and errors. The title shows the selected row and first visible column.</dd>
@@ -390,6 +390,23 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
         <li><kbd>Ctrl-C</kbd> cancels the statement in the current tab only.</li>
         <li>Closing a tab with an open transaction asks first and rolls it back. Quitting lists every open transaction and running statement before it asks.</li>
       </ul>
+          <h3 id="tree">Object tree</h3>
+      <p>The bottom of the connections panel shows the objects of the current tab's schema, grouped: Tables, Views, Materialized views, Packages, Procedures, Functions, Types, Sequences, Synonyms, Triggers and Indexes (with counts). Tables and views open to their columns with types (<code>ID  NUMBER(5) NOT NULL</code>), packages to their functions and procedures. Invalid objects are marked <code>✗</code>. The tree loads when a tab connects, follows the active tab's connection, and is loaded again after <code>CREATE</code>, <code>DROP</code>, <code>ALTER</code> or <code>RENAME</code>.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>Tab</kbd> (in the connections list)</td><td class="wrap-ok">Go to the tree; Tab again goes to the editor</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd>, <kbd>PgUp</kbd> <kbd>PgDn</kbd>, <kbd>Home</kbd> <kbd>End</kbd></td><td>Move</td></tr>
+          <tr><td><kbd>Enter</kbd> / <kbd>→</kbd></td><td class="wrap-ok">Open a group or object (Enter on a leaf inserts its name)</td></tr>
+          <tr><td><kbd>←</kbd></td><td>Close, or go to the parent</td></tr>
+          <tr><td><kbd>i</kbd></td><td class="wrap-ok">Insert the name at the editor cursor (<code>package.member</code> for members)</td></tr>
+          <tr><td><kbd>d</kbd></td><td><code>DESC</code> the object</td></tr>
+          <tr><td><kbd>s</kbd></td><td><code>select * from</code> the table, view or synonym</td></tr>
+          <tr><td><kbd>r</kbd></td><td>Reload the tree</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Back to the editor</td></tr>
+        </tbody>
+      </table></div>
+      <p>A click selects, a double-click opens, the mouse wheel scrolls.</p>
     </section>
 
     <!-- 6 -->
