@@ -77,7 +77,8 @@ type Query struct {
 	FetchAll       bool `toml:"fetch_all"`       // fetch all rows of every query right away
 	TimeoutSeconds int  `toml:"timeout_seconds"` // 0 = no timeout
 	AutoCommit     bool `toml:"auto_commit"`
-	DBMSOutput     bool `toml:"dbms_output"` // show DBMS_OUTPUT in the results pane
+	DBMSOutput     bool `toml:"dbms_output"`  // show DBMS_OUTPUT in the results pane
+	Substitution   Flag `toml:"substitution"` // SQL*Plus &variables (SET DEFINE ON at start)
 }
 
 type UI struct {
@@ -112,7 +113,7 @@ type Config struct {
 func Default() *Config {
 	return &Config{
 		Editor:  Editor{TabWidth: 4, AutoIndent: true, SyntaxHighlight: true, Completion: true},
-		Query:   Query{MaxRows: 1000, TimeoutSeconds: 0, AutoCommit: false, DBMSOutput: true},
+		Query:   Query{MaxRows: 1000, TimeoutSeconds: 0, AutoCommit: false, DBMSOutput: true, Substitution: true},
 		History: History{MaxEntries: 500},
 		UI:      UI{Mouse: true, ShowConnections: true, RecordPage: 10, SaveSessionOnExit: true, SelectionColor: "24"},
 	}

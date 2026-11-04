@@ -13,7 +13,8 @@ import (
 // read as written (quotes and ';' inside are just text).
 var (
 	reLineCommand = regexp.MustCompile(`(?i)^(@|(DESC|DESCRIBE|EXEC|EXECUTE|SHOW|SHO|SET|PROMPT|PRO|SPOOL|SPO|` +
-		`DEFINE|DEF|UNDEFINE|UNDEF|START|STA|REM|REMARK)(\s|;|$))`)
+		`DEFINE|DEF|UNDEFINE|UNDEF|START|STA|REM|REMARK|ACCEPT|ACC|EXIT|QUIT|WHENEVER|COLUMN|COL|` +
+		`TTITLE|BTITLE|BREAK|COMPUTE|CLEAR|PAUSE|TIMING|HOST)(\s|;|$))`)
 	// SET statements that are SQL, not SQL*Plus
 	reSQLSet = regexp.MustCompile(`(?i)^SET\s+(TRANSACTION|ROLE|CONSTRAINTS?)\b`)
 )

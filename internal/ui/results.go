@@ -174,7 +174,7 @@ func (r *resultView) textLines() []string {
 		}
 	}
 	if len(r.output) > 0 {
-		lines = append(lines, sepStyle.Render(fmt.Sprintf("── DBMS_OUTPUT (%d line(s)) ──", len(r.output))))
+		lines = append(lines, sepStyle.Render(fmt.Sprintf("── Output (%d line(s)) ──", len(r.output))))
 		for _, l := range r.output {
 			lines = append(lines, strings.ReplaceAll(l, "\t", "    "))
 		}

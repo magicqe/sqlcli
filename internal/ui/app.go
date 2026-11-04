@@ -26,6 +26,7 @@ import (
 	"sqlcli/internal/editor"
 	"sqlcli/internal/export"
 	"sqlcli/internal/history"
+	"sqlcli/internal/script"
 	"sqlcli/internal/version"
 )
 
@@ -86,6 +87,8 @@ type tab struct {
 
 	afterFetch func() tea.Cmd // runs when a fetch-all completes (export)
 	file       string         // file the SQL was last saved to (^K D)
+	env        *script.Env    // substitution variables and SET DEFINE (SQL*Plus)
+	spool      *spooler       // SPOOL file of this tab
 	pendingRow int            // row to select once enough rows are fetched
 	hasPending bool
 
@@ -174,7 +177,7 @@ func (m *Model) newTab() *tab {
 	ed.TabWidth = m.cfg.Editor.TabWidth
 	ed.AutoIndent = m.cfg.Editor.AutoIndent
 	ed.Highlight = bool(m.cfg.Editor.SyntaxHighlight)
-	t := &tab{id: m.nextTabID, ed: ed}
+	t := &tab{id: m.nextTabID, ed: ed, env: script.NewEnv(bool(m.cfg.Query.Substitution)), spool: &spooler{}}
 	m.nextTabID++
 	m.tabs = append(m.tabs, t)
 	return t
@@ -227,6 +230,7 @@ func (m *Model) CloseAll() {
 		if t.conn != nil {
 			_ = t.conn.Close()
 		}
+		t.spool.close()
 	}
 }
 
@@ -404,10 +408,6 @@ func (m *Model) connect(i int) tea.Cmd {
 }
 
 func (m *Model) execute(stmts []string) tea.Cmd {
-	if m.conn == nil {
-		m.setStatus("Not connected: choose a connection in the connections panel (F2 shows it)", true)
-		return nil
-	}
 	if m.running {
 		m.setStatus("A statement is already running (Ctrl-C cancels)", true)
 		return nil
@@ -416,6 +416,58 @@ func (m *Model) execute(stmts []string) tea.Cmd {
 		m.setStatus("Nothing to execute", true)
 		return nil
 	}
+	return m.runScript(stmts, nil)
+}
+
+// runScript expands SQL*Plus commands and substitution variables (asking for
+// missing values first), then runs the resulting steps.
+func (m *Model) runScript(stmts []string, answers map[string]string) tea.Cmd {
+	cwd, _ := os.Getwd()
+	steps, env, missing, err := script.Expand(stmts, m.env, cwd, answers)
+	if err != nil {
+		m.setStatus(err.Error(), true)
+		return nil
+	}
+	if len(missing) > 0 {
+		m.askVariables(stmts, answers, missing)
+		return nil
+	}
+	m.env = env
+	needsDB := false
+	for _, st := range steps {
+		needsDB = needsDB || st.Kind == script.SQL
+	}
+	if needsDB && m.conn == nil {
+		m.setStatus("Not connected: choose a connection in the connections panel (F2 shows it)", true)
+		return nil
+	}
+	return m.runSteps(steps)
+}
+
+// askVariables asks for the values of substitution variables one by one,
+// then runs the statements again with the answers.
+func (m *Model) askVariables(stmts []string, answers map[string]string, missing []script.Var) {
+	ans := map[string]string{}
+	for k, v := range answers {
+		ans[k] = v
+	}
+	v := missing[0]
+	label := v.Prompt
+	if label == "" {
+		label = "Enter value for " + strings.ToLower(v.Name) + ":"
+	}
+	m.ask(label, "", false, func(val string) tea.Cmd {
+		ans[v.Name] = val
+		if len(missing) > 1 {
+			m.askVariables(stmts, ans, missing[1:])
+			return nil
+		}
+		return m.runScript(stmts, ans)
+	})
+}
+
+// runSteps runs expanded steps in the background.
+func (m *Model) runSteps(steps []script.Step) tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	if t := m.cfg.Query.TimeoutSeconds; t > 0 {
 		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(t)*time.Second)
@@ -424,22 +476,62 @@ func (m *Model) execute(stmts []string) tea.Cmd {
 	m.running = true
 	m.runStart = time.Now()
 	m.setStatus("Running...", false)
-	conn, hist, maxRows, id := m.conn, m.hist, m.cfg.Query.MaxRows, m.id
+	if m.spool == nil {
+		m.spool = &spooler{}
+	}
+	conn, hist, maxRows, id, spool := m.conn, m.hist, m.cfg.Query.MaxRows, m.id, m.spool
+	var sqlTexts []string
+	for _, st := range steps {
+		if st.Kind == script.SQL {
+			sqlTexts = append(sqlTexts, st.Text)
+		}
+	}
+	many := len(steps) > 1
 	return tea.Batch(tick(), func() tea.Msg {
 		defer cancel()
-		out := execDoneMsg{tab: id, ddl: changesSchema(stmts)}
+		out := execDoneMsg{tab: id, ddl: changesSchema(sqlTexts)}
 		start := time.Now()
-		for i, s := range stmts {
+		label := func(i int, msg string) string {
+			if many {
+				return fmt.Sprintf("[%d] %s", i+1, msg)
+			}
+			return msg
+		}
+		for i, st := range steps {
+			switch st.Kind {
+			case script.Output:
+				out.output = append(out.output, st.Text)
+				spool.write(st.Text)
+				continue
+			case script.Info:
+				out.messages = append(out.messages, label(i, st.Text))
+				spool.write(st.Text)
+				continue
+			case script.Table:
+				res := &db.Result{IsQuery: true, Columns: st.Columns, Rows: st.Rows,
+					Message: fmt.Sprintf("%d variable(s) defined.", len(st.Rows))}
+				out.messages = append(out.messages, label(i, res.Message))
+				out.last = res
+				spool.result(res)
+				continue
+			case script.Spool:
+				msg, err := spool.command(st.Text)
+				if err != nil {
+					out.err = fmt.Errorf("SPOOL: %w", err)
+					out.elapsed = time.Since(start)
+					return out
+				}
+				out.messages = append(out.messages, label(i, msg))
+				continue
+			}
+			s := st.Text
+			spool.statement(s)
 			t0 := time.Now()
 			res, err := conn.Execute(ctx, s, maxRows)
 			if res != nil {
 				out.output = append(out.output, res.Output...)
 				if len(res.Errors) > 0 {
-					head := res.Message
-					if len(stmts) > 1 {
-						head = fmt.Sprintf("[%d] %s", i+1, head)
-					}
-					out.compile = append(out.compile, head)
+					out.compile = append(out.compile, label(i, res.Message))
 					for _, e := range res.Errors {
 						out.compile = append(out.compile, "  "+e)
 					}
@@ -458,17 +550,16 @@ func (m *Model) execute(stmts []string) tea.Cmd {
 				_ = hist.Add(e)
 			}
 			if err != nil {
-				if len(stmts) > 1 {
+				spool.write(db.CleanError(err))
+				spool.write("")
+				if many {
 					err = fmt.Errorf("statement %d: %w", i+1, err)
 				}
 				out.err = err
 				break
 			}
-			msg := res.Message
-			if len(stmts) > 1 {
-				msg = fmt.Sprintf("[%d] %s", i+1, msg)
-			}
-			out.messages = append(out.messages, fmt.Sprintf("%s  (%s)", msg, res.Duration.Round(time.Millisecond)))
+			spool.result(res)
+			out.messages = append(out.messages, fmt.Sprintf("%s  (%s)", label(i, res.Message), res.Duration.Round(time.Millisecond)))
 			if res.IsQuery || out.last == nil {
 				out.last = res
 			}
@@ -795,7 +886,7 @@ func (m *Model) execDone(msg execDoneMsg) (cmd tea.Cmd) {
 		if m.res.canToggle() {
 			hint = ", o in results shows it"
 		}
-		m.setStatus(fmt.Sprintf("%s  (%d line(s) of DBMS_OUTPUT%s)", m.status, n, hint), m.statusErr)
+		m.setStatus(fmt.Sprintf("%s  (%d line(s) of output%s)", m.status, n, hint), m.statusErr)
 	}
 	if msg.err == nil && msg.last != nil && msg.last.More {
 		if len(msg.messages) == 1 {

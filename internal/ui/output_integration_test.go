@@ -13,12 +13,12 @@ func TestUIDBMSOutputShown(t *testing.T) {
 	m := newTestModel(t, false)
 	run(m, "begin\n  dbms_output.put_line('Hello from PL/SQL');\n  dbms_output.put_line('second line');\nend;\n/")
 	txt := resultsText(m)
-	for _, want := range []string{"PL/SQL procedure successfully completed.", "DBMS_OUTPUT (2 line(s))", "Hello from PL/SQL", "second line"} {
+	for _, want := range []string{"PL/SQL procedure successfully completed.", "Output (2 line(s))", "Hello from PL/SQL", "second line"} {
 		if !strings.Contains(txt, want) {
 			t.Fatalf("results pane lacks %q:\n%s", want, txt)
 		}
 	}
-	if !strings.Contains(m.status, "2 line(s) of DBMS_OUTPUT") {
+	if !strings.Contains(m.status, "2 line(s) of output") {
 		t.Errorf("status: %q", m.status)
 	}
 }
@@ -80,7 +80,7 @@ func TestUIScriptCollectsOutput(t *testing.T) {
 	m.ed.SetText("begin dbms_output.put_line('A'); end;\n/\nbegin dbms_output.put_line('B'); end;\n/\n")
 	press(m, key(tea.KeyF7))
 	txt := resultsText(m)
-	if !strings.Contains(txt, "DBMS_OUTPUT (2 line(s))") || !strings.Contains(txt, "[2] PL/SQL") {
+	if !strings.Contains(txt, "Output (2 line(s))") || !strings.Contains(txt, "[2] PL/SQL") {
 		t.Fatalf("script output:\n%s", txt)
 	}
 	press(m, key(tea.KeyF8)) // roll back the transaction PL/SQL opened

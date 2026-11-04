@@ -530,22 +530,56 @@ To run several statements with one key, mark them as a block
 
 ### SQL*Plus commands
 
-Two SQL*Plus commands work in the SQL panel. Like in SQL*Plus they end at the
-end of their line (a `;` is optional):
+sqlcli understands the SQL*Plus commands used most, typed in the SQL panel
+or in scripts. Each takes one line and is read as written, so quotes and `;`
+in it are just text (a trailing `;` is optional). Commands can be shortened
+like in SQL*Plus (`DESC`, `SHO ERR`, `PRO`, `DEF`, `SPO`, `STA`).
 
-* **`DESC name`** (or `DESCRIBE`) shows in the results grid:
-  * for a **table, view or synonym**: each column with `NULL?` and its type as
-    SQL*Plus shows it (`NUMBER(10,2)`, `VARCHAR2(30 CHAR)`, `NOT NULL`);
-  * for a **package**: every function and procedure (also those without
-    arguments) with its arguments, their types, `IN` / `OUT`, whether they have
-    a default, and the return type;
-  * for a standalone **procedure or function**: its arguments the same way.
+| Command | What it does |
+|---|---|
+| `DESC name` | Columns of a table/view/synonym, or functions and procedures of a package / standalone subprogram with arguments, in the results grid (see below) |
+| `EXEC proc(args)` | Runs `BEGIN proc(args); END;` |
+| `SHOW ERRORS` | Compilation errors of the last object created in this tab's session; `SHOW ERRORS PACKAGE BODY name` for a given one |
+| `SHOW USER` | The database user |
+| `SET SERVEROUTPUT ON` / `OFF` | Collect DBMS_OUTPUT or not (`ON` is the start value, see `query.dbms_output`) |
+| `SET DEFINE ON` / `OFF` | Switch `&` substitution on or off |
+| `DEFINE name = value` | Set a substitution variable; `DEFINE name` shows one, `DEFINE` alone lists all |
+| `UNDEFINE name …` | Remove variables |
+| `ACCEPT name [PROMPT 'text']` | Ask for a value (with your text) and keep it as a variable |
+| `PROMPT text` | Print text in the output section |
+| `@file [args]`, `START file [args]` | Run a script (`.sql` is added when there's no extension); `args` become `&1`, `&2` … |
+| `@@file [args]` | Run a script from the folder of the script that calls it |
+| `SPOOL file [APPEND\|REPLACE\|CREATE]` / `SPOOL OFF` | Write what runs to a text file (`.lst` when there's no extension) |
+| `REM text` | A comment line |
+| `EXIT` / `QUIT` | In a script: end the script (sqlcli keeps running) |
+| `SET LINESIZE`, `PAGESIZE`, `ECHO`, `FEEDBACK` …, `COLUMN`, `BREAK`, `TTITLE`, `WHENEVER` … | Accepted without effect, so SQL*Plus scripts run unchanged |
 
-  `owner.name` works, and synonyms are followed (`desc dual`,
-  `desc dbms_output`). An unknown name gives `ORA-04043: object … does not
-  exist`. `DESC` is allowed on read-only connections.
-* **`EXEC proc(args)`** (or `EXECUTE`) runs `BEGIN proc(args); END;`; its
-  DBMS_OUTPUT is shown as usual.
+`SET TRANSACTION`, `SET ROLE` and `SET CONSTRAINTS` are SQL and go to Oracle.
+`HOST` is not supported.
+
+**DESC** shows, for a table, view or synonym, each column with `NULL?` and
+its type as SQL*Plus shows it (`NUMBER(10,2)`, `VARCHAR2(30 CHAR)`,
+`NOT NULL`); for a package every function and procedure with its arguments,
+types, `IN` / `OUT`, defaults and return type. `owner.name` works and
+synonyms are followed (`desc dual`, `desc dbms_output`).
+
+**Substitution variables.** `&name` and `&&name` are replaced by the value
+of a `DEFINE`d variable, also inside strings (`where ename = '&who'`); a `.`
+right after the name ends it (`&tab._history`). Comments are left alone. A
+variable without a value makes sqlcli ask for it before anything runs
+(`Enter value for city:`); `&&name` and `ACCEPT` keep the answer for later
+statements, `&name` uses it for this run only. Variables belong to the tab.
+Substitution is on at start (`query.substitution = true`); text like
+`'A&B'` then asks for `B`, so use `SET DEFINE OFF` (or set
+`substitution = false`) when your SQL contains `&`.
+
+**Scripts** can call scripts (`@@` relative to the caller), up to 20 deep.
+Their statements run one after another like F7, and stop at the first error.
+
+**SPOOL** writes each statement (as `SQL> …`), query results as a text table,
+messages, compilation errors and output to the file until `SPOOL OFF` (or
+until sqlcli ends). Only rows fetched when the query ran are written
+(`query.max_rows`).
 
 ## 8. Transactions
 
@@ -671,7 +705,7 @@ statement's message, like `SET SERVEROUTPUT ON` in SQL*Plus:
 
 ```
 PL/SQL procedure successfully completed.  (3ms)
-── DBMS_OUTPUT (2 line(s)) ──
+── Output (2 line(s)) ──
 Hello from PL/SQL
 second line
 ```
@@ -795,6 +829,7 @@ Complete example with all settings:
   timeout_seconds = 0    # cancel statements after N seconds; 0 = never
   auto_commit = false    # true = commit every statement immediately
   dbms_output = true     # show DBMS_OUTPUT in the results pane
+  substitution = true    # SQL*Plus &variables (SET DEFINE ON at start); also "yes" / "no"
 
 [ui]
   mouse = true           # mouse wheel scrolls; hold Shift to select text with the mouse
