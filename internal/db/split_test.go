@@ -196,3 +196,33 @@ func TestInComment(t *testing.T) {
 		}
 	}
 }
+
+func TestInCommentWholeCommentLines(t *testing.T) {
+	script := "insert into t values(1,'abc');\n" + // 0
+		"   -- indented comment\n" + // 1
+		"/* more coments\n" + // 2
+		"line\n" + // 3
+		"*/\n" + // 4
+		"insert into t values(2,'klm') -- x\n" + // 5
+		"\n" + // 6
+		"/* a */ select 1 from dual /* b */" // 7
+	cases := []struct {
+		row, col int
+		want     bool
+	}{
+		{0, 30, false}, // end of the first insert
+		{1, 0, true},   // indentation before "--"
+		{4, 2, true},   // just after the closing "*/"
+		{5, 0, false},  // second insert
+		{5, 29, false}, // the space before the trailing comment
+		{5, 33, true},  // in the trailing comment
+		{6, 0, false},  // blank line: not a comment (runs the statement above)
+		{7, 8, false},  // code between two comments
+		{7, 3, true},   // inside /* a */
+	}
+	for _, c := range cases {
+		if got := InComment(script, c.row, c.col); got != c.want {
+			t.Errorf("(%d,%d) %q: got %v, want %v", c.row, c.col, strings.Split(script, "\n")[c.row], got, c.want)
+		}
+	}
+}

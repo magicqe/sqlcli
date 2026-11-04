@@ -719,9 +719,72 @@ func FormatValue(v any) string {
 }
 
 // InComment reports whether the cursor at (row, col) is inside a comment:
-// within /* ... */ (including on the opening "/*") or anywhere from "--"
-// to the end of that line. Quotes are respected.
+// within /* ... */ (including on its delimiters), anywhere from "--" to the
+// end of that line, or anywhere on a line that holds nothing but comments
+// (e.g. on the indentation before "-- note", or just after a closing "*/").
+// Quotes are respected.
 func InComment(script string, row, col int) bool {
+	if commentOnlyLine(script, row) {
+		return true
+	}
+	return inCommentAt(script, row, col)
+}
+
+// scanLine walks one line from the given state and returns the state at its
+// end and whether the line has any code (not blank, not inside a comment).
+func scanLine(rs []rune, inBlock, inQuote bool) (bool, bool, bool) {
+	hasCode := false
+	for c := 0; c < len(rs); c++ {
+		next := rune(0)
+		if c+1 < len(rs) {
+			next = rs[c+1]
+		}
+		switch {
+		case inBlock:
+			if rs[c] == '*' && next == '/' {
+				inBlock = false
+				c++
+			}
+		case inQuote:
+			hasCode = true
+			if rs[c] == '\'' {
+				if next == '\'' {
+					c++
+				} else {
+					inQuote = false
+				}
+			}
+		case rs[c] == '-' && next == '-':
+			return inBlock, inQuote, hasCode
+		case rs[c] == '/' && next == '*':
+			inBlock = true
+			c++
+		case rs[c] == '\'':
+			hasCode, inQuote = true, true
+		case rs[c] != ' ' && rs[c] != '\t':
+			hasCode = true
+		}
+	}
+	return inBlock, inQuote, hasCode
+}
+
+// commentOnlyLine reports whether line row is non-blank and holds only
+// comments.
+func commentOnlyLine(script string, row int) bool {
+	lines := strings.Split(script, "\n")
+	if row < 0 || row >= len(lines) || strings.TrimSpace(lines[row]) == "" {
+		return false
+	}
+	inBlock, inQuote := false, false
+	for r := 0; r < row; r++ {
+		inBlock, inQuote, _ = scanLine([]rune(lines[r]), inBlock, inQuote)
+	}
+	_, _, hasCode := scanLine([]rune(lines[row]), inBlock, inQuote)
+	return !hasCode
+}
+
+// inCommentAt is the character-level part of InComment.
+func inCommentAt(script string, row, col int) bool {
 	lines := strings.Split(script, "\n")
 	if row < 0 || row >= len(lines) {
 		return false

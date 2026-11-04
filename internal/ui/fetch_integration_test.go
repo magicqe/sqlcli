@@ -349,3 +349,35 @@ select 'last' from dual;
 		t.Fatalf("status: %q", m.status)
 	}
 }
+
+// The user's example: two inserts around a line comment and a block comment.
+func TestUIInsertsAroundComments(t *testing.T) {
+	m := newTestModel(t, false)
+	run(m, "create private temporary table ora$ptt_stest (n number, s varchar2(10)) on commit preserve definition")
+	defer m.conn.Execute(context.Background(), "drop table ora$ptt_stest", 1)
+	buf := "insert into ora$ptt_stest values(1,'abc');\n-- comment\n/* more coments\nline\n*/\ninsert into ora$ptt_stest values(2,'klm')"
+	lines := strings.Split(buf, "\n")
+	for row, line := range lines {
+		for _, col := range []int{0, len(line)} {
+			m.ed.SetText(buf)
+			m.ed.SetCursor(row, col)
+			m.focus = focusEditor
+			press(m, key(tea.KeyF5))
+			want := "The cursor is in a comment: nothing to run"
+			if row == 0 || row == 5 {
+				want = "1 row(s) inserted."
+			}
+			if m.status != want {
+				t.Fatalf("F5 on line %d col %d %q: %q, want %q", row+1, col, line, m.status, want)
+			}
+		}
+	}
+	press(m, key(tea.KeyF8))
+	m.ed.SetText(buf)
+	press(m, key(tea.KeyF7))
+	run(m, "select n || s from ora$ptt_stest order by n")
+	if m.res.err != "" || len(m.res.res.Rows) != 2 || m.res.res.Rows[0][0] != "1abc" || m.res.res.Rows[1][0] != "2klm" {
+		t.Fatalf("F7: %v %q", m.res.res, m.res.err)
+	}
+	press(m, key(tea.KeyF8))
+}
