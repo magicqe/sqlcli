@@ -213,4 +213,19 @@ func TestStartWithSession(t *testing.T) {
 	if !strings.Contains(screen(n), "SQL 2") || !strings.Contains(n.status, `Session "s" loaded`) {
 		t.Fatalf("screen / status: %q", n.status)
 	}
+	// started with -s: the connections panel is hidden, F2 brings it back
+	if n.showConns || strings.Contains(screen(n), "Connections") {
+		t.Fatal("connections panel should be hidden after -s")
+	}
+	n.Update(key(tea.KeyF2))
+	if !n.showConns || !strings.Contains(screen(n), "Connections") {
+		t.Fatal("F2 should show the connections panel")
+	}
+
+	// loading from inside sqlcli (F10) leaves the panel as it is
+	n.Update(key(tea.KeyF10))
+	n.Update(key(tea.KeyEnter))
+	if !n.showConns {
+		t.Fatal("F10 load should not hide the connections panel")
+	}
 }
