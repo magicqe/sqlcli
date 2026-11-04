@@ -112,3 +112,13 @@ func TestVersionInKeyHints(t *testing.T) {
 		}
 	}
 }
+
+func TestKeyHintOrder(t *testing.T) {
+	cfg := config.Default()
+	m := New(cfg, nil, "x")
+	m.Update(tea.WindowSizeMsg{Width: 250, Height: 30})
+	lines := strings.Split(screen(m), "\n")
+	if !strings.Contains(lines[len(lines)-1], "F5 run  F6 history  F7 run all  F8 rollback  F9 commit  F10 sessions") {
+		t.Fatalf("key hints: %q", lines[len(lines)-1])
+	}
+}

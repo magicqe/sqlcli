@@ -1740,8 +1740,8 @@ func (m *Model) bottomLine() string {
 		}
 		return hintKey.Render(p.label) + " " + before + lipgloss.NewStyle().Reverse(true).Render(curCh) + after
 	}
-	hints := [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F7", "run all"},
-		{"F6", "history"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K D/I", "save/load sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
+	hints := [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F6", "history"},
+		{"F7", "run all"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K D/I", "save/load sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
 	var parts []string
 	for _, h := range hints {
 		parts = append(parts, hintKey.Render(h[0])+" "+hintText.Render(h[1]))
