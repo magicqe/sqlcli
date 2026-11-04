@@ -445,9 +445,15 @@ sqlcli follows SQL\*Plus conventions:
   start with `DECLARE`, `BEGIN`, `CREATE [OR REPLACE] PROCEDURE | FUNCTION
   | PACKAGE | TRIGGER | TYPE`, or `WITH FUNCTION` / `WITH PROCEDURE` (a query
   with inline PL/SQL). This lets them contain blank lines and `;`.
-  A line starting with `CREATE`, `ALTER`, `DROP`, `GRANT` or `REVOKE` also
-  starts a new statement, even without a `/` before it, so a package spec and
-  its body (or several procedures) can follow each other directly.
+  sqlcli also follows the block structure (`BEGIN … END`, nested
+  procedures and functions, `CASE`, `END IF` / `END LOOP`, a package's
+  initialisation section), so a unit also ends at its last `END …;` without a
+  `/`: a package spec, its body and a `SELECT` using it can follow each other
+  directly. A line starting with `CREATE`, `ALTER`, `DROP`, `GRANT` or
+  `REVOKE` always starts a new statement. Type specs, external (`LANGUAGE
+  JAVA` / `C`) procedures and `WITH FUNCTION` queries still need the `/`.
+* Strings may use Oracle's `q'[…]'` quoting (`[]`, `()`, `{}`, `<>` or any
+  other delimiter); `;`, `'` and comment marks inside are just text.
 
 **Creating PL/SQL objects.** After `CREATE` of a procedure, function,
 package, package body, trigger or type, sqlcli reports `PACKAGE BODY X

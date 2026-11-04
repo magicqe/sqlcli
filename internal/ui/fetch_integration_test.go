@@ -437,3 +437,52 @@ end;`
 		t.Fatalf("footer:\n%s", screen(m))
 	}
 }
+
+// The user's example: a package body followed directly by a query using it.
+func TestUIPackageBodyThenSelect(t *testing.T) {
+	m := newTestModel(t, false)
+	defer m.conn.Execute(context.Background(), "drop package sqlcli_test_pkg2", 1)
+	buf := `create or replace package sqlcli_test_pkg2 as
+function call1 (v_num in number) return number;
+function call2 (v_txt in varchar2) return varchar2;
+end;
+
+CREATE OR REPLACE package body sqlcli_test_pkg2 as
+
+function call1 (v_num in number) return number is
+begin
+ return v_num+19;
+end;
+
+function call2 (v_txt in varchar2) return varchar2 is
+begin
+ return 'abcd: '||v_txt;
+end;
+
+end;
+
+select sqlcli_test_pkg2.call1(1) a, sqlcli_test_pkg2.call2('x') b from dual;`
+	m.ed.SetText(buf)
+	m.focus = focusEditor
+	press(m, key(tea.KeyF7))
+	if m.res.err != "" || !m.res.hasGrid() || m.res.res.Rows[0][0] != "20" || m.res.res.Rows[0][1] != "abcd: x" {
+		t.Fatalf("F7: status %q err %q", m.status, m.res.err)
+	}
+	if !strings.HasPrefix(m.status, "3 statements OK") {
+		t.Fatalf("status: %q", m.status)
+	}
+	// F5 on the query runs only the query
+	lines := strings.Split(buf, "\n")
+	m.ed.SetText(buf)
+	m.ed.SetCursor(len(lines)-1, 5)
+	press(m, key(tea.KeyF5))
+	if m.status != "1 row(s) selected." || m.res.res.Rows[0][0] != "20" {
+		t.Fatalf("F5 on query: %q", m.status)
+	}
+	// F5 inside the body runs only the body
+	m.ed.SetCursor(8, 2)
+	press(m, key(tea.KeyF5))
+	if m.status != "PACKAGE BODY SQLCLI_TEST_PKG2 created." {
+		t.Fatalf("F5 in body: %q", m.status)
+	}
+}

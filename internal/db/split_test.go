@@ -252,3 +252,22 @@ func TestSplitPackageSpecAndBody(t *testing.T) {
 		t.Fatalf("procedure then drop: %#v", got)
 	}
 }
+
+func TestQQuotes(t *testing.T) {
+	got := SplitStatements("select q'[it's; -- not /* a comment]' from dual;\nselect Q'{x}' , q'!a;b!' from dual;")
+	want := []string{"select q'[it's; -- not /* a comment]' from dual;", "select Q'{x}' , q'!a;b!' from dual;"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v", got)
+	}
+	script := "select q'[ -- x ]' a\n  from dual"
+	if InComment(script, 0, 12) {
+		t.Fatal("-- inside q'[...]' is not a comment")
+	}
+	if !commentOnlyLine("x\n  -- c", 1) || commentOnlyLine("select q'[--]' from dual", 0) {
+		t.Fatal("commentOnlyLine with q-quotes")
+	}
+	// a word ending in q before a quote is not a q-string: seq'1' is seq followed by '1'
+	if got := SplitStatements("select seq'x;' from dual;"); len(got) != 1 {
+		t.Fatalf("seq'...': %#v", got)
+	}
+}

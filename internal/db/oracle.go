@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/godror/godror"
 	"github.com/godror/godror/dsn"
@@ -518,7 +519,17 @@ func ParseStatements(script string) []Statement {
 		hasCode            bool
 		firstP, firstC     int
 		lastCodeP, lastCod int
+
+		qClose rune       // closing delimiter of a q'X...X' string (0: ordinary '...')
+		blk    plsqlBlock // where a PL/SQL unit ends (see plsqlblock.go)
+		word   []rune     // the word being read, outside strings and comments
 	)
+	feedWord := func() {
+		if len(word) > 0 {
+			blk.feed(strings.ToUpper(string(word)))
+			word = word[:0]
+		}
+	}
 	text := func() string { return strings.Join(pieces, "\n") }
 	flush := func() {
 		if started && hasCode {
@@ -539,6 +550,7 @@ func ParseStatements(script string) []Statement {
 			out = append(out, st)
 		}
 		pieces, started, st, hasCode = nil, false, Statement{}, false
+		blk, word = plsqlBlock{}, word[:0]
 	}
 	code := func(c, segStart int) { // record a code character of the current line
 		p, ci := len(pieces), c-segStart
@@ -593,7 +605,15 @@ func ParseStatements(script string) []Statement {
 			case inQuote:
 				mark(r, c)
 				code(c, segStart)
-				if ch == '\'' {
+				switch {
+				case qClose != 0:
+					if ch == qClose && next == '\'' {
+						c++
+						mark(r, c)
+						code(c, segStart)
+						inQuote, qClose = false, 0
+					}
+				case ch == '\'':
 					if next == '\'' { // escaped quote
 						c++
 						mark(r, c)
@@ -603,7 +623,18 @@ func ParseStatements(script string) []Statement {
 					}
 				}
 				continue
+			case (ch == 'q' || ch == 'Q') && next == '\'' && c+2 < len(rs) && (c == 0 || !isIdentRune(rs[c-1])):
+				// q'[...]' string: ends at the matching delimiter followed by '
+				feedWord()
+				mark(r, c)
+				code(c, segStart)
+				qClose, inQuote = qDelimiter(rs[c+2]), true
+				c += 2
+				mark(r, c)
+				code(c, segStart)
+				continue
 			case ch == '-' && next == '-': // line comment: rest of line
+				feedWord()
 				if !started && segStart > 0 {
 					// trailing comment after a statement on this line:
 					// don't carry it into the next statement
@@ -614,28 +645,39 @@ func ParseStatements(script string) []Statement {
 				c = len(rs)
 				continue
 			case ch == '/' && next == '*':
+				feedWord()
 				inBlockCmt = true
 				mark(r, c)
 				c++
 				mark(r, c)
 				continue
 			case ch == '\'':
+				feedWord()
 				inQuote = true
 			}
 			if ch != ' ' && ch != '\t' {
 				mark(r, c)
 				code(c, segStart)
 			}
+			if isIdentRune(ch) && !inQuote {
+				word = append(word, ch)
+			} else {
+				feedWord()
+				if ch == '(' || ch == ')' || ch == ';' {
+					blk.feed(string(ch))
+				}
+			}
 			if ch == ';' {
 				seg := string(rs[segStart : c+1])
 				cand := strings.Join(append(append([]string{}, pieces...), seg), "\n")
-				if !isPLSQLText(cand) {
+				if !isPLSQLText(cand) || blk.done {
 					pieces = append(pieces, seg)
 					flush()
 					segStart = c + 1
 				}
 			}
 		}
+		feedWord() // words don't continue on the next line
 		rest := string(rs[segStart:])
 		if started || strings.TrimSpace(rest) != "" {
 			pieces = append(pieces, rest)
@@ -750,7 +792,7 @@ func InComment(script string, row, col int) bool {
 
 // scanLine walks one line from the given state and returns the state at its
 // end and whether the line has any code (not blank, not inside a comment).
-func scanLine(rs []rune, inBlock, inQuote bool) (bool, bool, bool) {
+func scanLine(rs []rune, inBlock, inQuote bool, qClose *rune) (bool, bool, bool) {
 	hasCode := false
 	for c := 0; c < len(rs); c++ {
 		next := rune(0)
@@ -763,6 +805,12 @@ func scanLine(rs []rune, inBlock, inQuote bool) (bool, bool, bool) {
 				inBlock = false
 				c++
 			}
+		case inQuote && *qClose != 0:
+			hasCode = true
+			if rs[c] == *qClose && next == '\'' {
+				inQuote, *qClose = false, 0
+				c++
+			}
 		case inQuote:
 			hasCode = true
 			if rs[c] == '\'' {
@@ -772,6 +820,9 @@ func scanLine(rs []rune, inBlock, inQuote bool) (bool, bool, bool) {
 					inQuote = false
 				}
 			}
+		case (rs[c] == 'q' || rs[c] == 'Q') && next == '\'' && c+2 < len(rs) && (c == 0 || !isIdentRune(rs[c-1])):
+			hasCode, inQuote, *qClose = true, true, qDelimiter(rs[c+2])
+			c += 2
 		case rs[c] == '-' && next == '-':
 			return inBlock, inQuote, hasCode
 		case rs[c] == '/' && next == '*':
@@ -794,10 +845,11 @@ func commentOnlyLine(script string, row int) bool {
 		return false
 	}
 	inBlock, inQuote := false, false
+	var q rune
 	for r := 0; r < row; r++ {
-		inBlock, inQuote, _ = scanLine([]rune(lines[r]), inBlock, inQuote)
+		inBlock, inQuote, _ = scanLine([]rune(lines[r]), inBlock, inQuote, &q)
 	}
-	_, _, hasCode := scanLine([]rune(lines[row]), inBlock, inQuote)
+	_, _, hasCode := scanLine([]rune(lines[row]), inBlock, inQuote, &q)
 	return !hasCode
 }
 
@@ -808,6 +860,7 @@ func inCommentAt(script string, row, col int) bool {
 		return false
 	}
 	inBlock, inQuote := false, false
+	var qClose rune
 	for r := 0; r <= row; r++ {
 		rs := []rune(lines[r])
 		end := len(rs)
@@ -836,13 +889,25 @@ func inCommentAt(script string, row, col int) bool {
 				if atCursor {
 					return false
 				}
-				if rs[c] == '\'' {
+				switch {
+				case qClose != 0:
+					if rs[c] == qClose && next == '\'' {
+						inQuote, qClose = false, 0
+						c++
+					}
+				case rs[c] == '\'':
 					if next == '\'' {
 						c++
 					} else {
 						inQuote = false
 					}
 				}
+			case (rs[c] == 'q' || rs[c] == 'Q') && next == '\'' && c+2 < len(rs) && (c == 0 || !isIdentRune(rs[c-1])):
+				if atCursor || (r == row && c < end && end <= c+2) {
+					return false
+				}
+				inQuote, qClose = true, qDelimiter(rs[c+2])
+				c += 2
 			case rs[c] == '-' && next == '-':
 				if r == row && end >= c {
 					return true // cursor on or after "--" on this line
@@ -922,4 +987,23 @@ func (c *Conn) compileErrors(q execer, kind, owner, name string) []string {
 		out = append(out, fmt.Sprintf("%d/%d  %s", line, pos, strings.TrimSpace(text)))
 	}
 	return out
+}
+
+func isIdentRune(r rune) bool {
+	return r == '_' || r == '$' || r == '#' || unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// qDelimiter returns the closing delimiter of a q'X...X' string.
+func qDelimiter(open rune) rune {
+	switch open {
+	case '[':
+		return ']'
+	case '(':
+		return ')'
+	case '{':
+		return '}'
+	case '<':
+		return '>'
+	}
+	return open
 }
