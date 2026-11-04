@@ -121,3 +121,25 @@ func TestSaveSessionOnExitOption(t *testing.T) {
 		}
 	}
 }
+
+func TestSelectionColor(t *testing.T) {
+	dir := t.TempDir()
+	for val, ok := range map[string]bool{"": true, `"24"`: true, `"255"`: true, `"#3a5f9e"`: true, `"256"`: false, `"blue"`: false, `"#12345"`: false} {
+		p := filepath.Join(dir, "c.toml")
+		body := "[ui]\n"
+		if val != "" {
+			body += "selection_color = " + val + "\n"
+		}
+		os.WriteFile(p, []byte(body), 0o600)
+		cfg, err := Load(p)
+		if ok && err != nil {
+			t.Errorf("%s: %v", val, err)
+		}
+		if !ok && (err == nil || !strings.Contains(err.Error(), "selection_color")) {
+			t.Errorf("%s: want an error, got %v", val, err)
+		}
+		if val == "" && err == nil && cfg.UI.SelectionColor != "24" {
+			t.Errorf("default %q", cfg.UI.SelectionColor)
+		}
+	}
+}

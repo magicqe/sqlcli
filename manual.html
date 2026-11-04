@@ -642,6 +642,7 @@ end;
         <li>Duplicate column names (<code>select a.id, b.id …</code>) become <code>ID</code> and <code>ID_2</code> in JSON.</li>
         <li>An existing file is only replaced after you confirm. The file is written under a temporary name first, so a failed export never leaves half a file.</li>
       </ul>
+      <p>The selected row is shown in blue (<code>ui.selection_color</code>, a 256-colour number or <code>"#rrggbb"</code>); while the results pane doesn't have focus it stays marked in dim grey.</p>
       <h3>How values are shown</h3>
       <ul>
         <li>NULL appears as a grey <code>(null)</code>. In Oracle an empty string is NULL.</li>
@@ -746,6 +747,7 @@ second line</pre>
   <span class="k">show_connections</span> = true <span class="c"># connections panel visible at start (F2 toggles)</span>
   <span class="k">record_page</span> = 10       <span class="c"># records PgUp / PgDn move in the record view</span>
   <span class="k">save_session_on_exit</span> = true <span class="c"># save the current session when quitting; also "yes" / "no"</span>
+  <span class="k">selection_color</span> = <span class="s">"24"</span> <span class="c"># selected result row background: 0-255 or "#rrggbb"</span>
 
 [history]
   <span class="k">path</span> = <span class="s">""</span>              <span class="c"># SQLite file; empty = ~/.local/state/sqlcli/history.db</span>

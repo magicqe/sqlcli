@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -79,10 +81,11 @@ type Query struct {
 }
 
 type UI struct {
-	Mouse             bool `toml:"mouse"`                // mouse wheel scrolls panes (hold Shift to select text)
-	ShowConnections   bool `toml:"show_connections"`     // connections panel visible at start (F2 toggles)
-	RecordPage        int  `toml:"record_page"`          // records PgUp/PgDn move in the record view
-	SaveSessionOnExit Flag `toml:"save_session_on_exit"` // save the current session when quitting
+	Mouse             bool   `toml:"mouse"`                // mouse wheel scrolls panes (hold Shift to select text)
+	ShowConnections   bool   `toml:"show_connections"`     // connections panel visible at start (F2 toggles)
+	RecordPage        int    `toml:"record_page"`          // records PgUp/PgDn move in the record view
+	SaveSessionOnExit Flag   `toml:"save_session_on_exit"` // save the current session when quitting
+	SelectionColor    string `toml:"selection_color"`      // background of the selected result row: 0-255 or "#rrggbb"
 }
 
 type History struct {
@@ -111,7 +114,7 @@ func Default() *Config {
 		Editor:  Editor{TabWidth: 4, AutoIndent: true, SyntaxHighlight: true, Completion: true},
 		Query:   Query{MaxRows: 1000, TimeoutSeconds: 0, AutoCommit: false, DBMSOutput: true},
 		History: History{MaxEntries: 500},
-		UI:      UI{Mouse: true, ShowConnections: true, RecordPage: 10, SaveSessionOnExit: true},
+		UI:      UI{Mouse: true, ShowConnections: true, RecordPage: 10, SaveSessionOnExit: true, SelectionColor: "24"},
 	}
 }
 
@@ -165,6 +168,9 @@ func Load(path string) (*Config, error) {
 	if cfg.UI.RecordPage <= 0 {
 		cfg.UI.RecordPage = 10
 	}
+	if !validColor(cfg.UI.SelectionColor) {
+		return nil, fmt.Errorf("config %s: selection_color %q: use a number 0-255 or \"#rrggbb\"", path, cfg.UI.SelectionColor)
+	}
 	return cfg, nil
 }
 
@@ -200,4 +206,16 @@ func (c *Config) OracleLibDir() string {
 		return c.Oracle.LibDir
 	}
 	return os.Getenv("ORACLE_HOME")
+}
+
+var reHexColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// validColor accepts "", a 256-colour number or "#rrggbb".
+func validColor(c string) bool {
+	c = strings.TrimSpace(c)
+	if c == "" || reHexColor.MatchString(c) {
+		return true
+	}
+	n, err := strconv.Atoi(c)
+	return err == nil && n >= 0 && n <= 255
 }

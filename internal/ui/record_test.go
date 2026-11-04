@@ -135,3 +135,20 @@ func TestRecordPageKeys(t *testing.T) {
 		t.Fatal("title not updated")
 	}
 }
+
+func TestSelectedRowColour(t *testing.T) {
+	m := recordModel(3)
+	m.res.row = 1
+	view := m.res.view(true)
+	if !strings.Contains(view, "48;5;24") { // blue background on the selected row
+		t.Fatalf("focused selection colour missing:\n%q", view)
+	}
+	if v := m.res.view(false); !strings.Contains(v, "48;5;237") || strings.Contains(v, "48;5;24") {
+		t.Fatalf("unfocused selection should be dim grey:\n%q", v)
+	}
+	SetSelectionColor("#3a5f9e")
+	defer SetSelectionColor("24")
+	if v := m.res.view(true); !strings.Contains(v, "48;2;58;95;158") {
+		t.Fatalf("custom colour not used:\n%q", v)
+	}
+}

@@ -142,7 +142,8 @@ func (r *resultView) selectedRow() []string {
 var (
 	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
 	sepStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	selStyle    = lipgloss.NewStyle().Background(lipgloss.Color("237"))
+	selStyle    = lipgloss.NewStyle().Background(lipgloss.Color("24")).Foreground(lipgloss.Color("255")).Bold(true)
+	selDimStyle = lipgloss.NewStyle().Background(lipgloss.Color("237")) // selected row, pane not focused
 	nullStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Italic(true)
 	errStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 	okStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("114"))
@@ -251,8 +252,12 @@ func (r *resultView) view(focused bool) string {
 			line.WriteString(" ")
 		}
 		s := ansi.Truncate(line.String(), r.w, "")
-		if focused && i == r.row {
-			s = selStyle.Render(ansi.Strip(s) + strings.Repeat(" ", max(r.w-ansi.StringWidth(s), 0)))
+		if i == r.row {
+			st := selDimStyle
+			if focused {
+				st = selStyle
+			}
+			s = st.Render(ansi.Strip(s) + strings.Repeat(" ", max(r.w-ansi.StringWidth(s), 0)))
 		}
 		b.WriteString(s)
 	}
@@ -311,4 +316,13 @@ func (r *resultView) summary() string {
 		s += "  o: DBMS_OUTPUT"
 	}
 	return s
+}
+
+// SetSelectionColor sets the background of the selected result row: a
+// 256-colour number ("24") or "#rrggbb". The text turns white and bold.
+func SetSelectionColor(c string) {
+	if strings.TrimSpace(c) == "" {
+		return
+	}
+	selStyle = lipgloss.NewStyle().Background(lipgloss.Color(strings.TrimSpace(c))).Foreground(lipgloss.Color("255")).Bold(true)
 }

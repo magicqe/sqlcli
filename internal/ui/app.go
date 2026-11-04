@@ -139,6 +139,7 @@ type Model struct {
 // New builds the UI model. initialConn, if non-empty, is connected at start.
 func New(cfg *config.Config, hist *history.Store, initialConn string) *Model {
 	m := &Model{cfg: cfg, hist: hist, showConns: cfg.UI.ShowConnections, showResults: true, showSQL: true}
+	SetSelectionColor(cfg.UI.SelectionColor)
 	m.tab = m.newTab()
 	for i, c := range cfg.Connections {
 		if strings.EqualFold(c.Name, initialConn) {

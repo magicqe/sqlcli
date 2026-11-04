@@ -564,6 +564,10 @@ extension picks the format:
 * An existing file is only replaced after you confirm. The file is written
   to a temporary name first, so a failed export never leaves half a file.
 
+The selected row is shown in blue (`ui.selection_color`, a 256-colour number
+or `"#rrggbb"`); while the results pane doesn't have focus it stays marked in
+dim grey.
+
 ### Display rules
 
 * NULL is shown as a grey `(null)`. In Oracle an empty string is NULL.
@@ -713,6 +717,7 @@ Complete example with all settings:
   show_connections = true  # connections panel visible at start (F2 toggles it)
   record_page = 10       # records PgUp / PgDn move in the record view
   save_session_on_exit = true  # save the current session when quitting; also "yes" / "no"
+  selection_color = "24" # selected result row background: 0-255 or "#rrggbb"
 
 [history]
   path = ""              # SQLite file; empty = ~/.local/state/sqlcli/history.db
