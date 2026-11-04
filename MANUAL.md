@@ -675,6 +675,14 @@ rolls back**, and after a rollback the edited cells show their old values
 again (with `query.auto_commit = true` each change is committed at once).
 Numbers may use `.` or `,`; dates are typed as `YYYY-MM-DD [HH:MI[:SS]]`.
 
+**CLOB columns** (CLOB, NCLOB) open in a full-screen **text editor panel**
+instead of the one-line prompt, with the current value and the editor's JOE
+keys (blocks, ^Y, undo, paste). **^K X** or **Ctrl-S** saves and runs the
+UPDATE; **Esc** cancels — with unsaved changes the first Esc warns and the
+second discards them. Saving an empty text sets NULL. The same panel asks for
+CLOB columns when inserting a row (**i**). Values are sent as LOBs, so they
+may be longer than 32 KB.
+
 Rows are found by their **ROWID**, so the result must come from one table and
 include a `ROWID` column. **s** in the object tree adds it for tables
 (`select rowid, t.* from table t`); in your own SQL write e.g.

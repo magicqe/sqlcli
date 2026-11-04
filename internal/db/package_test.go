@@ -253,3 +253,31 @@ func TestIntegrationInsertDeleteRow(t *testing.T) {
 		t.Fatalf("rollback of insert+delete: %v", r.Rows)
 	}
 }
+
+func TestIntegrationClobEdit(t *testing.T) {
+	c := testConn(t)
+	ctx := context.Background()
+	defer c.Execute(ctx, "drop table sqlcli_test_clob purge", 1)
+	if _, err := c.Execute(ctx, "create table sqlcli_test_clob (id number(5), doc clob)", 1); err != nil {
+		t.Fatal(CleanError(err))
+	}
+	long := strings.Repeat("line of text, Žofia\n", 3000) + "end" // 60k: over a string bind's 32k
+	rowid, err := c.InsertRow(ctx, "", "SQLCLI_TEST_CLOB", []string{"ID", "DOC"}, []string{"NUMBER", "CLOB"}, []string{"1", "short"})
+	if err != nil {
+		t.Fatal(CleanError(err))
+	}
+	if err := c.UpdateCell(ctx, "", "SQLCLI_TEST_CLOB", "DOC", "CLOB", long, false, rowid); err != nil {
+		t.Fatal(CleanError(err))
+	}
+	r, err := c.Execute(ctx, "select doc from sqlcli_test_clob where id = 1", 1)
+	if err != nil || len(r.Rows) != 1 || r.Rows[0][0] != long {
+		t.Fatalf("CLOB after update: %v (%d chars)", err, len(r.Rows[0][0]))
+	}
+	if _, err := c.InsertRow(ctx, "", "SQLCLI_TEST_CLOB", []string{"ID", "DOC"}, []string{"NUMBER", "CLOB"}, []string{"2", long}); err != nil {
+		t.Fatal(CleanError(err))
+	}
+	if r, _ := c.Execute(ctx, "select dbms_lob.getlength(doc) from sqlcli_test_clob where id = 2", 1); r.Rows[0][0] != fmt.Sprint(len([]rune(long))) {
+		t.Fatalf("inserted CLOB length: %v", r.Rows)
+	}
+	c.Rollback()
+}

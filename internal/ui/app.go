@@ -49,6 +49,7 @@ const (
 	modeRecord
 	modeConnView
 	modeSessions
+	modeText // the text editor panel (CLOB values)
 )
 
 type prompt struct {
@@ -127,6 +128,7 @@ type Model struct {
 	mode  mode
 
 	prompt      prompt
+	text        *textEdit // the text editor panel, in modeText
 	connSel     int
 	showConns   bool   // connections panel visible (F2)
 	showResults bool   // results panel visible (F3)
@@ -740,6 +742,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
 		m.layout()
+		m.layoutText()
 		return m, nil
 
 	case tickMsg:
@@ -881,6 +884,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusEditor {
 				m.ed.InsertText(msg.Content)
 			}
+		case modeText:
+			m.text.ed.InsertText(msg.Content)
 		}
 		return m, nil
 
@@ -991,6 +996,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch m.mode {
 	case modePrompt:
 		return m.updatePrompt(key, text)
+	case modeText:
+		return m.updateText(key, text)
 	case modeHelp:
 		if !m.scrollHelp(key) {
 			m.mode = modeNormal
@@ -1787,6 +1794,9 @@ func (m *Model) View() tea.View {
 	case modeSessions:
 		v.SetContent(m.sessionsView())
 		return v
+	case modeText:
+		v.SetContent(m.textView())
+		return v
 	}
 
 	cw := m.connWidth()
@@ -2137,6 +2147,7 @@ const helpText = `
  End         fetch all rows, last row      PgUp / PgDn            ± record_page records
  ←→ / u      cell cursor / edit the cell (needs ROWID; F9 commit, F8 rollback)
  i / d       insert a row / delete the row (also in the record view; Tab moves between fields there)
+ CLOB values open in a text editor panel: ^K X or Ctrl-S saves, Esc cancels (twice if changed)
  Ctrl-C      stop fetching                 Shift-↑↓, wheel        scroll a long record
  Enter       show row as record
  o           grid / DBMS_OUTPUT
@@ -3556,7 +3567,7 @@ func (m *Model) askCellValue(msg editReadyMsg) tea.Cmd {
 	if cur == db.Null {
 		cur = ""
 	}
-	m.ask(fmt.Sprintf("%s (%s, empty = NULL):", col, strings.ToLower(msg.colTy)), cur, false, func(v string) tea.Cmd {
+	save := func(v string) tea.Cmd {
 		if v == cur && msg.current != db.Null {
 			m.setStatus("Not changed", false)
 			return nil
@@ -3571,7 +3582,12 @@ func (m *Model) askCellValue(msg editReadyMsg) tea.Cmd {
 			}
 			return cellUpdatedMsg{tab: id, row: msg.row, col: msg.col, value: shown, err: err}
 		}
-	})
+	}
+	if isLongText(msg.colTy) { // CLOB: in the text editor panel
+		m.openTextEdit(fmt.Sprintf("%s.%s (%s) — empty = NULL", msg.table, col, strings.ToLower(msg.colTy)), cur, save)
+		return nil
+	}
+	m.ask(fmt.Sprintf("%s (%s, empty = NULL):", col, strings.ToLower(msg.colTy)), cur, false, save)
 	return nil
 }
 
@@ -3701,7 +3717,7 @@ func (m *Model) askInsertValues(msg insertReadyMsg, k int, values []string) tea.
 		return nil
 	}
 	label := fmt.Sprintf("New row: %s (%s, empty = NULL) [%d/%d]:", msg.cols[k], strings.ToLower(msg.types[k]), k+1, len(msg.cols))
-	m.ask(label, "", false, func(v string) tea.Cmd {
+	next := func(v string) tea.Cmd {
 		values := append(append([]string{}, values...), v)
 		if k+1 < len(msg.cols) {
 			return m.askInsertValues(msg, k+1, values)
@@ -3712,7 +3728,12 @@ func (m *Model) askInsertValues(msg insertReadyMsg, k int, values []string) tea.
 			rowid, err := conn.InsertRow(context.Background(), msg.table.Owner, msg.table.Name, msg.cols, msg.types, values)
 			return rowInsertedMsg{tab: id, at: msg.at, cols: msg.cols, values: values, rowid: rowid, rowidCol: msg.rowidCol, err: err}
 		}
-	})
+	}
+	if isLongText(msg.types[k]) { // CLOB: in the text editor panel
+		m.openTextEdit(strings.TrimSuffix(label, ":"), "", next)
+		return nil
+	}
+	m.ask(label, "", false, next)
 	return nil
 }
 

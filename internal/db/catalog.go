@@ -322,7 +322,9 @@ func bindValue(colType, value string) (any, error) {
 			}
 		}
 		return nil, fmt.Errorf("%q is not a date: use YYYY-MM-DD [HH:MI[:SS]]", value)
-	case strings.Contains(t, "CHAR") || strings.HasSuffix(t, "CLOB"):
+	case strings.HasSuffix(t, "CLOB"): // as a LOB: a string bind is limited to 32k
+		return godror.Lob{IsClob: true, Reader: strings.NewReader(value)}, nil
+	case strings.Contains(t, "CHAR"):
 		return value, nil
 	}
 	return nil, fmt.Errorf("columns of type %s can't be edited here", colType)
