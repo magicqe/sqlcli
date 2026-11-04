@@ -856,6 +856,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.toggleSQL()
 		return nil
 	case "f5", "ctrl+enter", "alt+enter":
+		if !m.ed.HasBlock() && db.InComment(m.ed.Text(), m.ed.CursorRow(), m.ed.CursorCol()) {
+			m.setStatus("The cursor is in a comment: nothing to run", true)
+			return nil
+		}
 		return m.execute(m.currentStatements())
 	case "f7":
 		return m.execute(db.SplitStatements(m.ed.Text()))

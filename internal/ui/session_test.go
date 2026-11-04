@@ -229,3 +229,35 @@ func TestStartWithSession(t *testing.T) {
 		t.Fatal("F10 load should not hide the connections panel")
 	}
 }
+
+func TestF5InCommentRunsNothing(t *testing.T) {
+	m := mouseModel()
+	m.conn = nil // would say "Not connected" if it tried to run
+	m.focus = focusEditor
+	m.ed.SetText("-- count rows\nselect count(*) from t;\n/* old\nselect 1 from dual;\n*/")
+	for _, pos := range [][2]int{{0, 0}, {0, 5}, {2, 2}, {3, 4}, {4, 1}} {
+		m.ed.SetCursor(pos[0], pos[1])
+		press(m, key(tea.KeyF5))
+		if m.status != "The cursor is in a comment: nothing to run" || m.running {
+			t.Fatalf("cursor %v: status %q", pos, m.status)
+		}
+	}
+	// on the statement itself it tries to run (and reports the missing connection)
+	m.ed.SetCursor(1, 3)
+	press(m, key(tea.KeyF5))
+	if !strings.HasPrefix(m.status, "Not connected") {
+		t.Fatalf("on the statement: %q", m.status)
+	}
+	// a marked block runs whatever the cursor is on
+	m.ed.SetCursor(1, 0)
+	m.ed.HandleKey("ctrl+k", "")
+	m.ed.HandleKey("b", "b")
+	m.ed.SetCursor(2, 0)
+	m.ed.HandleKey("ctrl+k", "")
+	m.ed.HandleKey("k", "k")
+	m.ed.SetCursor(3, 2) // inside the comment
+	press(m, key(tea.KeyF5))
+	if !strings.HasPrefix(m.status, "Not connected") {
+		t.Fatalf("block: %q", m.status)
+	}
+}

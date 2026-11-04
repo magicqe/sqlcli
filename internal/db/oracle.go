@@ -717,3 +717,79 @@ func FormatValue(v any) string {
 		return fmt.Sprint(x)
 	}
 }
+
+// InComment reports whether the cursor at (row, col) is inside a comment:
+// within /* ... */ (including on the opening "/*") or anywhere from "--"
+// to the end of that line. Quotes are respected.
+func InComment(script string, row, col int) bool {
+	lines := strings.Split(script, "\n")
+	if row < 0 || row >= len(lines) {
+		return false
+	}
+	inBlock, inQuote := false, false
+	for r := 0; r <= row; r++ {
+		rs := []rune(lines[r])
+		end := len(rs)
+		if r == row {
+			end = min(max(col, 0), len(rs))
+		}
+		for c := 0; c < len(rs); c++ {
+			atCursor := r == row && c == end
+			next := rune(0)
+			if c+1 < len(rs) {
+				next = rs[c+1]
+			}
+			switch {
+			case inBlock:
+				if atCursor {
+					return true
+				}
+				if rs[c] == '*' && next == '/' {
+					if r == row && c+1 == end { // cursor on the closing '/'
+						return true
+					}
+					inBlock = false
+					c++
+				}
+			case inQuote:
+				if atCursor {
+					return false
+				}
+				if rs[c] == '\'' {
+					if next == '\'' {
+						c++
+					} else {
+						inQuote = false
+					}
+				}
+			case rs[c] == '-' && next == '-':
+				if r == row && end >= c {
+					return true // cursor on or after "--" on this line
+				}
+				c = len(rs) // rest of an earlier line
+			case rs[c] == '/' && next == '*':
+				if atCursor || (r == row && c+1 == end) {
+					return true
+				}
+				inBlock = true
+				c++
+			case rs[c] == '\'':
+				if atCursor {
+					return false
+				}
+				inQuote = true
+			default:
+				if atCursor {
+					return false
+				}
+			}
+			if r == row && c >= end {
+				break
+			}
+		}
+		if r == row {
+			return inBlock // cursor at the end of the line
+		}
+	}
+	return false
+}

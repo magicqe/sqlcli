@@ -163,3 +163,36 @@ end;
 		t.Fatalf("cursor on lone comment: %q", st.Text)
 	}
 }
+
+func TestInComment(t *testing.T) {
+	script := "select 1 from dual; -- note\n" + // 0
+		"/* block\n" + // 1
+		"   still */ select 'a -- b /* c' from dual\n" + // 2
+		"-- whole line\n" + // 3
+		"select 2 from dual"
+	cases := []struct {
+		row, col int
+		want     bool
+	}{
+		{0, 0, false},  // select
+		{0, 19, false}, // the space after ';'
+		{0, 20, true},  // on "--"
+		{0, 24, true},  // in the note
+		{0, 27, true},  // end of the line after "--"
+		{1, 0, true},   // on "/*"
+		{1, 1, true},   // on the '*' of "/*"
+		{1, 8, true},   // end of a line inside the block
+		{2, 3, true},   // inside the block
+		{2, 10, true},  // on the closing '/'
+		{2, 11, false}, // just after "*/"
+		{2, 20, false}, // "--" inside a string
+		{2, 26, false}, // "/*" inside a string
+		{3, 5, true},
+		{4, 3, false},
+	}
+	for _, c := range cases {
+		if got := InComment(script, c.row, c.col); got != c.want {
+			t.Errorf("(%d,%d) %q: got %v, want %v", c.row, c.col, strings.Split(script, "\n")[c.row], got, c.want)
+		}
+	}
+}
