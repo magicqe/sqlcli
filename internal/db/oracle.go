@@ -305,6 +305,9 @@ func (c *Conn) Execute(ctx context.Context, stmt string, maxRows int) (*Result, 
 	}
 	kw := FirstKeyword(stmt)
 	start := time.Now()
+	if kw == "EXEC" || kw == "EXECUTE" { // SQL*Plus EXEC proc(...): run as a PL/SQL block
+		stmt, kw = execAsBlock(stmt), "BEGIN"
+	}
 
 	switch kw {
 	case "COMMIT":
@@ -316,8 +319,21 @@ func (c *Conn) Execute(ctx context.Context, stmt string, maxRows int) (*Result, 
 	}
 
 	isQuery := kw == "SELECT" || kw == "WITH"
-	if c.ReadOnly && !isQuery && kw != "EXPLAIN" && kw != "DESC" {
+	if c.ReadOnly && !isQuery && kw != "EXPLAIN" && kw != "DESC" && kw != "DESCRIBE" {
 		return nil, fmt.Errorf("connection %q is read-only; %s refused", c.Name, kw)
+	}
+
+	if kw == "DESC" || kw == "DESCRIBE" { // SQL*Plus DESCRIBE, from the data dictionary
+		var q execer = c.sc
+		if c.tx != nil {
+			q = c.tx
+		}
+		res, err := c.describe(ctx, q, stmt)
+		if err != nil {
+			return nil, err
+		}
+		res.Duration = time.Since(start)
+		return res, nil
 	}
 
 	var ex execer = c.sc
@@ -681,6 +697,10 @@ func ParseStatements(script string) []Statement {
 		rest := string(rs[segStart:])
 		if started || strings.TrimSpace(rest) != "" {
 			pieces = append(pieces, rest)
+		}
+		// SQL*Plus commands (DESC, EXEC) end at the end of their line
+		if started && hasCode && !inQuote && !inBlockCmt && isLineCommand(text()) {
+			flush()
 		}
 	}
 	flush()

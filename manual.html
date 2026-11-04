@@ -580,6 +580,12 @@ end;
         <li><kbd>F7</kbd>: runs all six statements in order.</li>
       </ul>
       <p>To run several statements with one key, mark them as a block (<kbd>^K</kbd> <kbd>B</kbd> … <kbd>^K</kbd> <kbd>K</kbd>) and press <kbd>F5</kbd>, or press <kbd>F7</kbd> for the whole buffer.</p>
+          <h3 id="sqlplus">SQL*Plus commands</h3>
+      <p>Two SQL*Plus commands work in the SQL panel. As in SQL*Plus they end at the end of their line (a <code>;</code> is optional):</p>
+      <ul>
+        <li><strong><code>DESC name</code></strong> (or <code>DESCRIBE</code>) shows in the results grid: for a <strong>table, view or synonym</strong> each column with <code>NULL?</code> and its type as SQL*Plus shows it (<code>NUMBER(10,2)</code>, <code>VARCHAR2(30 CHAR)</code>, <code>NOT NULL</code>); for a <strong>package</strong> every function and procedure (also those without arguments) with its arguments, their types, <code>IN</code>/<code>OUT</code>, defaults and the return type; for a standalone <strong>procedure or function</strong> its arguments the same way. <code>owner.name</code> works and synonyms are followed (<code>desc dual</code>, <code>desc dbms_output</code>). An unknown name gives <code>ORA-04043</code>. <code>DESC</code> is allowed on read-only connections.</li>
+        <li><strong><code>EXEC proc(args)</code></strong> (or <code>EXECUTE</code>) runs <code>BEGIN proc(args); END;</code>; its DBMS_OUTPUT is shown as usual.</li>
+      </ul>
     </section>
 
     <!-- 8 -->

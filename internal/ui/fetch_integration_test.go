@@ -514,3 +514,27 @@ func TestUICompletePackageMembers(t *testing.T) {
 		t.Fatalf("dbms_output.put: %v", got)
 	}
 }
+
+func TestUIDescribeAndExec(t *testing.T) {
+	m := newTestModel(t, false)
+	m.ed.SetText("desc dual\nselect dummy from dual;\nexec dbms_output.put_line('hello')")
+	m.focus = focusEditor
+	press(m, key(tea.KeyF5)) // cursor on line 1: only the DESC
+	if !m.res.hasGrid() || m.res.res.Columns[0] != "NAME" || m.res.res.Rows[0][0] != "DUMMY" || m.res.res.Rows[0][2] != "VARCHAR2(1)" {
+		t.Fatalf("desc: %q %+v", m.status, m.res.res)
+	}
+	if !strings.Contains(m.status, "SYS.DUAL: 1 column(s)") {
+		t.Fatalf("status %q", m.status)
+	}
+	m.ed.SetCursor(1, 3)
+	press(m, key(tea.KeyF5))
+	if m.res.res.Columns[0] != "DUMMY" {
+		t.Fatalf("select after desc: %+v", m.res.res)
+	}
+	m.ed.SetCursor(2, 3)
+	press(m, key(tea.KeyF5))
+	if !strings.Contains(m.res.view(true), "hello") {
+		t.Fatalf("exec output:\n%s", m.res.view(true))
+	}
+	press(m, key(tea.KeyF8))
+}

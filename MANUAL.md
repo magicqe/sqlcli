@@ -528,6 +528,25 @@ end;
 To run several statements with one key, mark them as a block
 (^K B ... ^K K) and press F5, or press F7 for the whole buffer.
 
+### SQL*Plus commands
+
+Two SQL*Plus commands work in the SQL panel. Like in SQL*Plus they end at the
+end of their line (a `;` is optional):
+
+* **`DESC name`** (or `DESCRIBE`) shows in the results grid:
+  * for a **table, view or synonym**: each column with `NULL?` and its type as
+    SQL*Plus shows it (`NUMBER(10,2)`, `VARCHAR2(30 CHAR)`, `NOT NULL`);
+  * for a **package**: every function and procedure (also those without
+    arguments) with its arguments, their types, `IN` / `OUT`, whether they have
+    a default, and the return type;
+  * for a standalone **procedure or function**: its arguments the same way.
+
+  `owner.name` works, and synonyms are followed (`desc dual`,
+  `desc dbms_output`). An unknown name gives `ORA-04043: object … does not
+  exist`. `DESC` is allowed on read-only connections.
+* **`EXEC proc(args)`** (or `EXECUTE`) runs `BEGIN proc(args); END;`; its
+  DBMS_OUTPUT is shown as usual.
+
 ## 8. Transactions
 
 By default (`query.auto_commit = false`) changes are **not** committed
