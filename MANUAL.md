@@ -651,7 +651,13 @@ SQL text, plus which tab was active. Sessions are stored
 in the same SQLite file as the history.
 
 Press **F10** or **^K E** to open the session window, or **Ctrl-S** to save
-the open tabs straight away (sqlcli asks for the name). It lists saved sessions, newest
+the open tabs straight away.
+
+Once a session is loaded or saved it is the **current session**: its name is
+shown in the top-left corner of the screen (before the tab list when several
+tabs are open), and **Ctrl-S saves it again at once**, without asking. Without
+a current session Ctrl-S asks for a name. To save under another name, use `s`
+in the session window. Deleting the current session clears its name. It lists saved sessions, newest
 first, with the time they were saved, the number of tabs and their
 connections.
 

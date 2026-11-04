@@ -704,7 +704,8 @@ second line</pre>
       </table></div>
           <h3 id="sessions">Sessions (F10)</h3>
       <p>A session is the set of open SQL tabs: for each tab its connection and its SQL text, plus which tab was active. Sessions are stored in the same SQLite file as the history.</p>
-      <p>Press <kbd>F10</kbd> or <kbd>^K</kbd> <kbd>E</kbd> to open the session window, or <kbd>Ctrl-S</kbd> to save the open tabs straight away (sqlcli asks for the name). It lists saved sessions, newest first, with the time they were saved, the number of tabs and their connections.</p>
+      <p>Press <kbd>F10</kbd> or <kbd>^K</kbd> <kbd>E</kbd> to open the session window, or <kbd>Ctrl-S</kbd> to save the open tabs straight away.</p>
+      <p>Once a session is loaded or saved it's the <strong>current session</strong>: its name is shown in the top-left corner of the screen (before the tab list when several tabs are open), and <strong><kbd>Ctrl-S</kbd> saves it again at once</strong>, without asking. Without a current session Ctrl-S asks for a name. To save under another name, use <kbd>s</kbd> in the session window. Deleting the current session clears its name. It lists saved sessions, newest first, with the time they were saved, the number of tabs and their connections.</p>
       <div class="tbl"><table>
         <thead><tr><th>Key</th><th>Action</th></tr></thead>
         <tbody>

@@ -874,6 +874,14 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.setStatus("Sessions are not available (no history database)", true)
 			return nil
 		}
+		if m.sessionName != "" { // a session is loaded: save it again, no questions
+			if err := m.saveSession(m.sessionName); err != nil {
+				m.setStatus("Saving session: "+err.Error(), true)
+			} else {
+				m.setStatus(fmt.Sprintf("Session %q saved: %d tab(s)", m.sessionName, len(m.tabs)), false)
+			}
+			return nil
+		}
 		m.askSaveSession(modeNormal)
 		return nil
 	case "f8", "f9": // F8 rollback, F9 commit
@@ -1238,11 +1246,23 @@ func (m *Model) sqlTitle() string {
 }
 
 // tabBarH is the height of the tab bar: shown only with several tabs.
+// tabBarH is the height of the top line: shown with several tabs or when a
+// session is loaded (its name sits in the top-left corner).
 func (m *Model) tabBarH() int {
-	if len(m.tabs) > 1 {
+	if len(m.tabs) > 1 || m.sessionName != "" {
 		return 1
 	}
 	return 0
+}
+
+var sessionStyle = lipgloss.NewStyle().Background(lipgloss.Color("130")).Foreground(lipgloss.Color("255")).Bold(true)
+
+// sessionLabel is the session name shown in the top-left corner, or "".
+func (m *Model) sessionLabel() string {
+	if m.sessionName == "" {
+		return ""
+	}
+	return " " + m.sessionName + " "
 }
 
 // paneH is the height available to the panes.
@@ -1361,6 +1381,12 @@ func (m *Model) tabLabels() []string {
 
 func (m *Model) tabBar() string {
 	var parts []string
+	if l := m.sessionLabel(); l != "" {
+		parts = append(parts, sessionStyle.Render(l))
+	}
+	if len(m.tabs) == 1 && len(parts) > 0 {
+		return ansi.Truncate(parts[0], m.w, "…") // session name only
+	}
 	for i, label := range m.tabLabels() {
 		if m.tabs[i] == m.tab {
 			parts = append(parts, tabActive.Render(label))
@@ -1373,7 +1399,13 @@ func (m *Model) tabBar() string {
 
 // tabAt returns the index of the tab whose label is at column x, or -1.
 func (m *Model) tabAt(x int) int {
+	if len(m.tabs) == 1 {
+		return -1 // only the session name is shown
+	}
 	pos := 0
+	if l := m.sessionLabel(); l != "" {
+		pos = ansi.StringWidth(l) + 1 // session name and separator
+	}
 	for i, label := range m.tabLabels() {
 		w := ansi.StringWidth(label)
 		if x >= pos && x < pos+w {
@@ -2500,6 +2532,10 @@ func (m *Model) updateSessions(key string) tea.Cmd {
 					m.setStatus(err.Error(), true)
 				} else {
 					m.setStatus("Deleted session "+name, false)
+					if name == m.sessionName { // no longer a current session
+						m.sessionName = ""
+						m.layout()
+					}
 				}
 				m.reloadSessions()
 			}
@@ -2561,6 +2597,7 @@ func (m *Model) saveSession(name string) error {
 		return err
 	}
 	m.sessionName = name
+	m.layout() // the top line with the session name may have appeared
 	return nil
 }
 
@@ -2625,8 +2662,8 @@ func (m *Model) loadSession(name string) tea.Cmd {
 	m.tab = m.tabs[min(max(se.Active, 0), len(m.tabs)-1)]
 	m.mode = modeNormal
 	m.focusMain()
-	m.layout()
 	m.sessionName = name
+	m.layout()
 	msg := fmt.Sprintf("Session %q loaded: %d tab(s)", name, len(m.tabs))
 	if len(missing) > 0 {
 		msg += "; not in the config: " + strings.Join(missing, ", ")

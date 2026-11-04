@@ -140,12 +140,14 @@ func TestSessionShortcuts(t *testing.T) {
 	if m.mode != modeNormal || !strings.Contains(m.status, `Session "quick" saved`) {
 		t.Fatalf("Ctrl-S save: mode=%v status=%q", m.mode, m.status)
 	}
-	// an empty name cancels and goes back to where Ctrl-S was pressed
+	// with no current session, an empty name cancels
+	m.sessionName = ""
 	press(m, key('s', tea.ModCtrl))
 	answer(m, "")
 	if m.mode != modeNormal {
 		t.Fatalf("empty name: mode %v", m.mode)
 	}
+	m.sessionName = "quick"
 
 	// ^K E opens the session list from the editor, results and connections pane
 	for _, f := range []focus{focusEditor, focusResults, focusConns} {
@@ -259,5 +261,96 @@ func TestF5InCommentRunsNothing(t *testing.T) {
 	press(m, key(tea.KeyF5))
 	if !strings.HasPrefix(m.status, "Not connected") {
 		t.Fatalf("block: %q", m.status)
+	}
+}
+
+// topLine returns the first screen line.
+func topLine(m *Model) string { return strings.Split(screen(m), "\n")[0] }
+
+func TestSessionNameTopLeftAndQuickSave(t *testing.T) {
+	m := sessionModel(t)
+	m.ed.SetText("select 1 from dual")
+	if strings.Contains(topLine(m), "work") || m.tabBarH() != 0 {
+		t.Fatalf("no session yet: top line %q", topLine(m))
+	}
+
+	press(m, key('s', tea.ModCtrl))
+	answer(m, "work")
+	if !strings.HasPrefix(topLine(m), " work ") {
+		t.Fatalf("session name not top-left after save: %q", topLine(m))
+	}
+	for _, l := range strings.Split(screen(m), "\n") {
+		if len([]rune(l)) > 120 {
+			t.Fatalf("line too wide: %q", l)
+		}
+	}
+	if lines := strings.Split(screen(m), "\n"); len(lines) != 30 {
+		t.Fatalf("screen has %d lines, want 30", len(lines))
+	}
+
+	// Ctrl-S on a current session saves at once: no name, no overwrite question
+	m.ed.SetText("select 2 from dual")
+	press(m, key('s', tea.ModCtrl))
+	if m.mode != modeNormal || m.status != `Session "work" saved: 1 tab(s)` {
+		t.Fatalf("quick save: mode=%v status=%q", m.mode, m.status)
+	}
+	se, _ := m.hist.LoadSession("work")
+	if se.Tabs[0].SQL != "select 2 from dual" {
+		t.Fatalf("saved SQL: %q", se.Tabs[0].SQL)
+	}
+
+	// with several tabs the session name comes first, then the tabs; clicks still hit the tabs
+	m.openTab()
+	top := topLine(m)
+	if !strings.HasPrefix(top, " work │ 1 not connected ") || !strings.Contains(top, "2 not connected") {
+		t.Fatalf("top line with tabs: %q", top)
+	}
+	x, y := find(t, m, " 1 not connected ")
+	click(m, x+2, y)
+	if m.tabIndex(m.tab) != 0 {
+		t.Fatal("click on tab 1 with the session name in front")
+	}
+	click(m, 2, 0) // on the session name: nothing happens
+	if m.tabIndex(m.tab) != 0 {
+		t.Fatal("click on the session name changed the tab")
+	}
+
+	// "s" in the session window still asks (save under another name)
+	press(m, key(tea.KeyF10))
+	press(m, key('s'))
+	if m.mode != modePrompt || string(m.prompt.input) != "work" {
+		t.Fatalf("F10 s should ask: mode=%v input=%q", m.mode, string(m.prompt.input))
+	}
+	answer(m, "work copy")
+	if m.sessionName != "work copy" || !strings.HasPrefix(topLine(m), " work copy ") {
+		t.Fatalf("save as: name %q top %q", m.sessionName, topLine(m))
+	}
+
+	// deleting the current session clears the name
+	press(m, key(tea.KeyF10))
+	if m.sessList[0].Name != "work copy" {
+		t.Fatalf("list order: %v", m.sessList)
+	}
+	press(m, key('d'))
+	answer(m, "y")
+	press(m, key(tea.KeyEscape))
+	if m.sessionName != "" || strings.Contains(topLine(m), "work copy") {
+		t.Fatalf("after deleting the current session: name %q top %q", m.sessionName, topLine(m))
+	}
+}
+
+func TestSessionNameAfterLoad(t *testing.T) {
+	m := sessionModel(t)
+	m.hist.SaveSession("ms1", 0, []history.SessionTab{{SQL: "a"}, {SQL: "b"}})
+	press(m, key(tea.KeyF10))
+	press(m, key(tea.KeyEnter))
+	if !strings.HasPrefix(topLine(m), " ms1 │ 1 ") {
+		t.Fatalf("after load: %q", topLine(m))
+	}
+	m.ed.SetText("changed")
+	press(m, key('s', tea.ModCtrl))
+	se, _ := m.hist.LoadSession("ms1")
+	if m.mode != modeNormal || se.Tabs[0].SQL != "changed" {
+		t.Fatalf("Ctrl-S after load: mode=%v saved=%q", m.mode, se.Tabs[0].SQL)
 	}
 }
