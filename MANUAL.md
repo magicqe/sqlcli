@@ -628,6 +628,31 @@ Table layout:
 | rows | INTEGER | rows fetched or affected |
 | error | TEXT | error message, empty on success |
 
+### Sessions (F10)
+
+A session is the set of open SQL tabs: for each tab its connection, its SQL
+text and the cursor position, plus which tab was active. Sessions are stored
+in the same SQLite file as the history.
+
+Press **F10** to open the session window. It lists saved sessions, newest
+first, with the time they were saved, the number of tabs and their
+connections.
+
+| Key | Action |
+|---|---|
+| s | save the open tabs as a session (asks for a name; offers the current session's name or the date and time; asks before overwriting) |
+| Enter | load the selected session: it replaces the open tabs and reconnects each one |
+| d / Del | delete the selected session (asks first) |
+| Esc / F10 | close the window |
+
+Loading closes the current tabs' sessions. If a transaction is open, sqlcli
+asks first, because it will be rolled back; while a statement is running,
+loading is refused. A tab whose connection is no longer in the config file
+opens unconnected, and the status bar names the missing connection.
+
+Some terminals use F10 themselves (e.g. to open their menu); turn that off in
+the terminal's settings if F10 doesn't reach sqlcli.
+
 ## 11. Configuration file
 
 Location: `~/.config/sqlcli/config.toml` (or `$XDG_CONFIG_HOME/sqlcli/config.toml`,
@@ -717,6 +742,7 @@ Complete example with all settings:
 | F5 | run block or statement under cursor |
 | F7 | run whole buffer |
 | F6 | history browser |
+| F10 | sessions: save / load all SQL tabs |
 | F8 / F9 | commit / rollback |
 | Ctrl-C | cancel running statement; otherwise quit |
 | ^K X | quit |

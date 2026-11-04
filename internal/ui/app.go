@@ -41,6 +41,7 @@ const (
 	modeHelp
 	modeRecord
 	modeConnView
+	modeSessions
 )
 
 type prompt struct {
@@ -121,6 +122,10 @@ type Model struct {
 	kPrefix      bool      // ^K pressed outside the editor
 	lastClickAt  time.Time // for double-click on a connection
 	lastClickRow int
+
+	sessList    []history.SessionInfo // F10 session window
+	sessSel     int
+	sessionName string // last saved or loaded session, offered when saving
 
 	histEntries []history.Entry
 	histSel     int
@@ -778,6 +783,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case modeConnView:
 		m.mode = modeNormal
 		return nil
+	case modeSessions:
+		return m.updateSessions(key)
 	case modeHistory:
 		return m.updateHistory(key, text)
 	}
@@ -840,6 +847,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.execute(db.SplitStatements(m.ed.Text()))
 	case "f6":
 		m.openHistory()
+		return nil
+	case "f10":
+		m.openSessions()
 		return nil
 	case "f8", "f9":
 		if m.conn == nil || m.running {
@@ -1451,6 +1461,9 @@ func (m *Model) View() tea.View {
 	case modeConnView:
 		v.SetContent(m.connView())
 		return v
+	case modeSessions:
+		v.SetContent(m.sessionsView())
+		return v
 	}
 
 	cw := m.connWidth()
@@ -1569,7 +1582,7 @@ func (m *Model) bottomLine() string {
 		return hintKey.Render(p.label) + " " + before + lipgloss.NewStyle().Reverse(true).Render(curCh) + after
 	}
 	hints := [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F7", "run all"},
-		{"F6", "history"}, {"F8", "commit"}, {"F9", "rollback"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
+		{"F6", "history"}, {"F10", "sessions"}, {"F8", "commit"}, {"F9", "rollback"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
 	var parts []string
 	for _, h := range hints {
 		parts = append(parts, hintKey.Render(h[0])+" "+hintText.Render(h[1]))
@@ -1754,7 +1767,7 @@ const helpText = `
  F5          run statement at cursor       ^K U / ^K V            top / bottom of buffer
              (or the marked block)         ^K L                   go to line
  F7          run whole buffer as script    ^D                     delete char
- F6          SQL history (SQLite)          ^Y                     delete line
+ F6 / F10    SQL history / sessions        ^Y                     delete line
  F8 / F9     commit / rollback             ^W / ^O                delete word right / left
  Ctrl-C      cancel running query / quit   ^J                     delete to end of line
  ^K X        quit                          ^_ / ^^                undo / redo
@@ -2406,4 +2419,214 @@ func (m *Model) connView() string {
 	}
 	lines = append(lines, "", hintText.Render("e in the connections pane edits this connection."))
 	return box("Connection "+c.Name+" — any key closes", strings.Join(lines, "\n"), m.w, m.h, true)
+}
+
+// ---- sessions (F10): save and load all SQL tabs ----
+
+func (m *Model) openSessions() {
+	if m.hist == nil {
+		m.setStatus("Sessions are not available (no history database)", true)
+		return
+	}
+	m.mode = modeSessions
+	m.sessSel = 0
+	m.reloadSessions()
+}
+
+func (m *Model) reloadSessions() {
+	list, err := m.hist.Sessions()
+	if err != nil {
+		m.setStatus("Sessions: "+err.Error(), true)
+	}
+	m.sessList = list
+	m.sessSel = min(m.sessSel, max(len(list)-1, 0))
+}
+
+func (m *Model) updateSessions(key string) tea.Cmd {
+	switch key {
+	case "esc", "f10", "ctrl+c", "q":
+		m.mode = modeNormal
+	case "up", "ctrl+p", "k":
+		m.sessSel = max(m.sessSel-1, 0)
+	case "down", "ctrl+n", "j":
+		m.sessSel = min(m.sessSel+1, max(len(m.sessList)-1, 0))
+	case "s":
+		m.askSaveSession()
+	case "enter":
+		if len(m.sessList) > 0 {
+			return m.askLoadSession(m.sessList[m.sessSel].Name)
+		}
+	case "d", "delete":
+		if len(m.sessList) == 0 {
+			return nil
+		}
+		name := m.sessList[m.sessSel].Name
+		m.ask(fmt.Sprintf("Delete session %q? (y/N)", name), "", false, func(v string) tea.Cmd {
+			m.mode = modeSessions
+			if strings.EqualFold(strings.TrimSpace(v), "y") {
+				if err := m.hist.DeleteSession(name); err != nil {
+					m.setStatus(err.Error(), true)
+				} else {
+					m.setStatus("Deleted session "+name, false)
+				}
+				m.reloadSessions()
+			}
+			return nil
+		})
+	}
+	return nil
+}
+
+// askSaveSession asks for a name and saves every tab under it.
+func (m *Model) askSaveSession() {
+	def := m.sessionName
+	if def == "" {
+		def = time.Now().Format("2006-01-02 15:04")
+	}
+	m.ask("Save session as:", def, false, func(v string) tea.Cmd {
+		name := strings.TrimSpace(v)
+		if name == "" {
+			m.mode = modeSessions
+			return nil
+		}
+		save := func() tea.Cmd {
+			if err := m.saveSession(name); err != nil {
+				m.setStatus("Saving session: "+err.Error(), true)
+			} else {
+				m.setStatus(fmt.Sprintf("Session %q saved: %d tab(s)", name, len(m.tabs)), false)
+			}
+			return nil
+		}
+		if ok, _ := m.hist.SessionExists(name); ok {
+			m.ask(fmt.Sprintf("Session %q exists. Overwrite? (y/N)", name), "", false, func(v string) tea.Cmd {
+				if strings.EqualFold(strings.TrimSpace(v), "y") {
+					return save()
+				}
+				m.setStatus("Session not saved", false)
+				return nil
+			})
+			return nil
+		}
+		return save()
+	})
+}
+
+// saveSession stores every tab: its connection, SQL text and cursor.
+func (m *Model) saveSession(name string) error {
+	var tabs []history.SessionTab
+	for _, t := range m.tabs {
+		st := history.SessionTab{SQL: t.ed.Text(), Row: t.ed.CursorRow(), Col: t.ed.CursorCol()}
+		switch {
+		case t.conn != nil:
+			st.Connection = t.conn.Name
+		case t.connecting:
+			st.Connection = t.connectingTo
+		}
+		tabs = append(tabs, st)
+	}
+	if err := m.hist.SaveSession(name, m.tabIndex(m.tab), tabs); err != nil {
+		return err
+	}
+	m.sessionName = name
+	return nil
+}
+
+// askLoadSession loads a session, asking first when that would roll back
+// open transactions or cancel running statements.
+func (m *Model) askLoadSession(name string) tea.Cmd {
+	var tx, running int
+	for _, t := range m.tabs {
+		if t.conn != nil && t.conn.InTransaction() {
+			tx++
+		}
+		if t.running {
+			running++
+		}
+	}
+	if running > 0 {
+		m.setStatus("A statement is running; wait for it or cancel it (Ctrl-C) before loading a session", true)
+		return nil
+	}
+	if tx > 0 {
+		m.ask(fmt.Sprintf("%d open transaction(s) will be rolled back. Load session %q? (y/N)", tx, name), "", false, func(v string) tea.Cmd {
+			if strings.EqualFold(strings.TrimSpace(v), "y") {
+				return m.loadSession(name)
+			}
+			m.mode = modeSessions
+			return nil
+		})
+		return nil
+	}
+	return m.loadSession(name)
+}
+
+// loadSession replaces all tabs with the saved ones and reconnects them.
+func (m *Model) loadSession(name string) tea.Cmd {
+	se, err := m.hist.LoadSession(name)
+	if err != nil {
+		m.setStatus("Loading session: "+err.Error(), true)
+		return nil
+	}
+	if len(se.Tabs) == 0 {
+		m.setStatus("Session "+name+" has no tabs", true)
+		return nil
+	}
+	m.CloseAll() // rolls back open transactions
+	m.tabs = nil
+	var cmds []tea.Cmd
+	var missing []string
+	for _, st := range se.Tabs {
+		t := m.newTab()
+		m.tab = t
+		t.ed.SetText(st.SQL)
+		t.ed.SetCursor(st.Row, st.Col)
+		if st.Connection == "" {
+			continue
+		}
+		if i := m.connIndex(st.Connection); i >= 0 {
+			cmds = append(cmds, m.connect(i))
+		} else {
+			missing = append(missing, st.Connection)
+			m.setStatus(fmt.Sprintf("Connection %q is not in the config; this tab is not connected", st.Connection), true)
+		}
+	}
+	m.tab = m.tabs[min(max(se.Active, 0), len(m.tabs)-1)]
+	m.mode = modeNormal
+	m.focusMain()
+	m.layout()
+	m.sessionName = name
+	msg := fmt.Sprintf("Session %q loaded: %d tab(s)", name, len(m.tabs))
+	if len(missing) > 0 {
+		msg += "; not in the config: " + strings.Join(missing, ", ")
+	}
+	m.setStatus(msg, len(missing) > 0)
+	return tea.Batch(cmds...)
+}
+
+func (m *Model) sessionsView() string {
+	iw := m.w - 2
+	var lines []string
+	for i, s := range m.sessList {
+		conns := s.Connections
+		if conns == "" {
+			conns = "not connected"
+		}
+		line := fmt.Sprintf(" %-24s %s  %2d tab(s)  %s", ansi.Truncate(s.Name, 24, "…"), s.SavedAt.Format("2006-01-02 15:04"), s.Tabs, conns)
+		line = ansi.Truncate(line, iw, "…")
+		if i == m.sessSel {
+			line = connSelStyle.Render(line + strings.Repeat(" ", max(iw-ansi.StringWidth(line), 0)))
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		lines = append(lines, hintText.Render(" No saved sessions. Press s to save the open tabs."))
+	}
+	title := fmt.Sprintf("Sessions (%d)", len(m.sessList))
+	if m.sessionName != "" {
+		title += "  current: " + m.sessionName
+	}
+	b := box(title, strings.Join(lines, "\n"), m.w, m.h-1, true)
+	hint := " " + hintKey.Render("s") + hintText.Render(" save open tabs  ") + hintKey.Render("Enter") + hintText.Render(" load (replaces the open tabs)  ") +
+		hintKey.Render("d") + hintText.Render(" delete  ") + hintKey.Render("Esc") + hintText.Render(" close")
+	return b + "\n" + ansi.Truncate(hint, m.w, "")
 }

@@ -1,11 +1,14 @@
 package ui
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"sqlcli/internal/history"
 )
 
 func sid(t *testing.T, m *Model) string {
@@ -139,4 +142,43 @@ func TestUITabsDifferentConnections(t *testing.T) {
 		t.Fatal("query in tab 2 failed")
 	}
 	m.CloseAll()
+}
+
+func TestUISessionReconnects(t *testing.T) {
+	m := newTestModel(t, false)
+	h, err := history.Open(filepath.Join(t.TempDir(), "h.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	m.hist = h
+	m.ed.SetText("select 'tab one' from dual")
+	_, cmd := m.Update(key('k', tea.ModCtrl))
+	drain(m, cmd)
+	_, cmd = m.Update(key('o'))
+	drain(m, cmd)
+	m.ed.SetText("select 'tab two' from dual")
+	run(m, "begin null; end;") // leaves a transaction open in tab 2
+	m.ed.SetText("select 'tab two' from dual")
+	if err := m.saveSession("s1"); err != nil {
+		t.Fatal(err)
+	}
+	press(m, key(tea.KeyF10))
+	press(m, key(tea.KeyEnter))
+	if !strings.Contains(m.prompt.label, "1 open transaction(s) will be rolled back") {
+		t.Fatalf("expected a transaction question, got %q", m.prompt.label)
+	}
+	answer(m, "y") // drain runs the reconnects
+	if len(m.tabs) != 2 {
+		t.Fatalf("tabs: %d", len(m.tabs))
+	}
+	for i, tb := range m.tabs {
+		if tb.conn == nil || tb.conn.Name != "it" || tb.conn.InTransaction() {
+			t.Fatalf("tab %d not reconnected cleanly: %+v", i+1, tb.conn)
+		}
+	}
+	run(m, m.ed.Text())
+	if !m.res.hasGrid() || m.res.res.Rows[0][0] != "tab two" {
+		t.Fatalf("query in restored tab: %s", m.res.err)
+	}
 }

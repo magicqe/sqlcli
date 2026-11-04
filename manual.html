@@ -696,6 +696,20 @@ second line</pre>
           <tr><td><code>error</code></td><td>TEXT</td><td>Error message, empty on success</td></tr>
         </tbody>
       </table></div>
+          <h3 id="sessions">Sessions (F10)</h3>
+      <p>A session is the set of open SQL tabs: for each tab its connection, its SQL text and the cursor position, plus which tab was active. Sessions are stored in the same SQLite file as the history.</p>
+      <p>Press <kbd>F10</kbd> to open the session window. It lists saved sessions, newest first, with the time they were saved, the number of tabs and their connections.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>s</kbd></td><td class="wrap-ok">Save the open tabs as a session (asks for a name; offers the current session's name or the date and time; asks before overwriting)</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">Load the selected session: it replaces the open tabs and reconnects each one</td></tr>
+          <tr><td><kbd>d</kbd> / <kbd>Del</kbd></td><td>Delete the selected session (asks first)</td></tr>
+          <tr><td><kbd>Esc</kbd> / <kbd>F10</kbd></td><td>Close the window</td></tr>
+        </tbody>
+      </table></div>
+      <p>Loading closes the current tabs' sessions. If a transaction is open, sqlcli asks first, because it will be rolled back; while a statement is running, loading is refused. A tab whose connection is no longer in the config file opens unconnected, and the status bar names the missing connection.</p>
+      <p>Some terminals use <kbd>F10</kbd> themselves (for example to open their menu); turn that off in the terminal's settings if F10 doesn't reach sqlcli.</p>
     </section>
 
     <!-- 11 -->
@@ -793,6 +807,7 @@ second line</pre>
           <tr><td><kbd>F5</kbd></td><td>Run block or statement under cursor</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F7</kbd></td><td>Run whole buffer</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F6</kbd></td><td>History browser</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>F10</kbd></td><td>Sessions: save / load all SQL tabs</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F8</kbd> / <kbd>F9</kbd></td><td>Commit / rollback</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>Ctrl-C</kbd></td><td>Cancel running statement; otherwise quit</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>X</kbd></td><td>Quit</td><td><span class="grp">Global</span></td></tr>

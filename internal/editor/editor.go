@@ -306,6 +306,13 @@ func (e *Editor) ClickAt(x, y int) {
 	e.scroll()
 }
 
+// SetCursor moves the cursor to a buffer position (0-based), clamped.
+func (e *Editor) SetCursor(row, col int) {
+	e.cur = e.clamp(pos{row, col})
+	e.wantX = e.cur.col
+	e.scroll()
+}
+
 func (e *Editor) GotoLine(n int) {
 	e.cur = e.clamp(pos{n - 1, 0})
 	e.wantX = 0
