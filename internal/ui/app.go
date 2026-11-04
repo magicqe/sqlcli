@@ -1270,17 +1270,22 @@ func (m *Model) updateHistory(key, text string) tea.Cmd {
 		m.histSel = max(m.histSel-10, 0)
 	case "pgdown", "ctrl+v":
 		m.histSel = min(m.histSel+10, max(len(m.histEntries)-1, 0))
-	case "enter", "ctrl+r":
+	case "enter", "ctrl+r", "tab":
 		if len(m.histEntries) == 0 {
 			return nil
 		}
 		s := m.histEntries[m.histSel].SQL
 		m.mode = modeNormal
 		m.focusEditor()
-		if key == "ctrl+r" { // replace buffer
+		m.ed.ClosePopup()
+		switch key {
+		case "ctrl+r": // replace the panel's text
 			m.ed.SetText(s)
-		} else {
+		case "tab": // insert at the cursor
 			m.ed.InsertText(s)
+		default: // add at the end, as a statement of its own
+			m.ed.AppendStatement(s)
+			m.setStatus("Added to the end of the SQL panel (F5 runs it)", false)
 		}
 		return nil
 	case "delete":
@@ -1797,7 +1802,7 @@ func (m *Model) historyView() string {
 	}
 	title := fmt.Sprintf("History (%d)  filter: %s▏", len(m.histEntries), string(m.histFilter))
 	b := box(title, strings.Join(lines, "\n"), m.w, m.h-1, true)
-	hint := " " + hintKey.Render("Enter") + hintText.Render(" insert  ") + hintKey.Render("^R") + hintText.Render(" replace buffer  ") +
+	hint := " " + hintKey.Render("Enter") + hintText.Render(" add at the end  ") + hintKey.Render("Tab") + hintText.Render(" insert at cursor  ") + hintKey.Render("^R") + hintText.Render(" replace all  ") +
 		hintKey.Render("Del") + hintText.Render(" delete  ") + hintKey.Render("type") + hintText.Render(" to filter  ") +
 		hintKey.Render("Esc") + hintText.Render(" close")
 	return b + "\n" + ansi.Truncate(hint, m.w, "")

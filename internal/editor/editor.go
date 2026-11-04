@@ -217,6 +217,24 @@ func (e *Editor) insertAt(p pos, text string) pos {
 	return end
 }
 
+// AppendStatement adds text at the end of the buffer as a statement of its
+// own (after a blank line, unless the buffer is empty) in one undo step, and
+// puts the cursor at its start.
+func (e *Editor) AppendStatement(text string) {
+	e.pushUndo()
+	all := strings.TrimRight(e.Text(), " \t\n")
+	if all == "" {
+		e.lines = splitLines(text, e.TabWidth)
+		e.cur = pos{}
+	} else {
+		e.lines = splitLines(all+"\n\n"+text, e.TabWidth)
+		e.cur = pos{len(splitLines(all, e.TabWidth)) + 1, 0}
+	}
+	e.wantX = 0
+	e.hasMarkB, e.hasMarkK = false, false
+	e.scroll()
+}
+
 // InsertText inserts text (e.g. a paste or a history entry) at the cursor.
 func (e *Editor) InsertText(s string) {
 	e.pushUndo()

@@ -693,8 +693,9 @@ second line</pre>
           <tr><td>Type text</td><td class="wrap-ok">Filter to entries whose SQL contains the text (case-insensitive)</td></tr>
           <tr><td><kbd>Backspace</kbd> &nbsp;<kbd>^Y</kbd></td><td>Delete last filter character / clear the filter</td></tr>
           <tr><td><kbd>↑</kbd> <kbd>↓</kbd> &nbsp;<kbd>PgUp</kbd> <kbd>PgDn</kbd></td><td>Select</td></tr>
-          <tr><td><kbd>Enter</kbd></td><td>Insert the selected SQL at the editor cursor</td></tr>
-          <tr><td><kbd>^R</kbd></td><td>Replace the whole editor buffer with the selected SQL</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">Add the selected SQL at the end of the SQL panel, after a blank line, with the cursor on it (<kbd>F5</kbd> runs it)</td></tr>
+          <tr><td><kbd>Tab</kbd></td><td>Insert the selected SQL at the cursor</td></tr>
+          <tr><td><kbd>^R</kbd></td><td>Replace the whole SQL panel with the selected SQL</td></tr>
           <tr><td><kbd>Del</kbd></td><td>Delete the entry from history</td></tr>
           <tr><td><kbd>Esc</kbd> <kbd>F6</kbd></td><td>Close</td></tr>
         </tbody>
@@ -872,7 +873,7 @@ second line</pre>
           <tr><td><kbd>Enter</kbd></td><td>Show row as record</td><td><span class="grp">Results</span></td></tr>
           <tr><td><kbd>o</kbd></td><td>Grid / DBMS_OUTPUT</td><td><span class="grp">Results</span></td></tr>
           <tr><td><kbd>e</kbd></td><td>Export to CSV / TSV / JSON</td><td><span class="grp">Results</span></td></tr>
-          <tr><td><kbd>Enter</kbd> / <kbd>^R</kbd></td><td>Insert SQL / replace buffer with SQL</td><td><span class="grp">History</span></td></tr>
+          <tr><td><kbd>Enter</kbd> / <kbd>Tab</kbd> / <kbd>^R</kbd></td><td>Add SQL at the end / insert at cursor / replace all</td><td><span class="grp">History</span></td></tr>
           <tr><td><kbd>Del</kbd></td><td>Delete history entry</td><td><span class="grp">History</span></td></tr>
           <tr><td><kbd>Enter</kbd></td><td>Accept answer</td><td><span class="grp">Input line</span></td></tr>
           <tr><td><kbd>Esc</kbd> <kbd>Ctrl-C</kbd> <kbd>^G</kbd></td><td>Cancel question</td><td><span class="grp">Input line</span></td></tr>

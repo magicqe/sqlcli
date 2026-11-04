@@ -682,8 +682,9 @@ Press **F6** to open the history browser:
 | type text | filter: show entries whose SQL contains the text (case-insensitive) |
 | Backspace / ^Y | delete last filter character / clear filter |
 | ↑ / ↓, PgUp / PgDn | select |
-| Enter | insert the selected SQL at the editor cursor |
-| ^R | replace the whole editor buffer with the selected SQL |
+| Enter | add the selected SQL at the end of the SQL panel, after a blank line, with the cursor on it (F5 runs it) |
+| Tab | insert the selected SQL at the cursor |
+| ^R | replace the whole SQL panel with the selected SQL |
 | Del | delete the entry from history |
 | Esc / F6 | close |
 
