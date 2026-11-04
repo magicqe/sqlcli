@@ -1044,6 +1044,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.openSessions()
 	case editor.ActionLoadFile:
 		m.askLoadSQL()
+	case editor.ActionCopyOtherBlock:
+		m.blockFromOtherTab(false)
+	case editor.ActionMoveOtherBlock:
+		m.blockFromOtherTab(true)
 	case editor.ActionHelp:
 		m.mode = modeHelp
 	case editor.ActionFindPrompt:
@@ -3083,4 +3087,33 @@ func fileList(names []string) string {
 		s += fmt.Sprintf("  … (%d more)", len(names)-show)
 	}
 	return s + "   (Tab: next)"
+}
+
+// blockFromOtherTab copies (or moves) the most recently marked block of
+// another tab to the cursor, like JOE's ^K C / ^K M across windows. The
+// copied text becomes the marked block.
+func (m *Model) blockFromOtherTab(move bool) {
+	var src *tab
+	for _, t := range m.tabs {
+		if t != m.tab && t.ed.HasBlock() && (src == nil || t.ed.BlockStamp() > src.ed.BlockStamp()) {
+			src = t
+		}
+	}
+	if src == nil {
+		m.setStatus("No block (mark one with ^K B and ^K K)", true)
+		return
+	}
+	text := src.ed.BlockText()
+	m.ed.InsertBlock(text)
+	m.mouseBlock = false
+	if move {
+		src.ed.DeleteBlock()
+	} else {
+		src.ed.ClearBlock() // one block at a time: it is now the copy
+	}
+	verb := "Copied"
+	if move {
+		verb = "Moved"
+	}
+	m.setStatus(fmt.Sprintf("%s %d line(s) from tab %d", verb, strings.Count(text, "\n")+1, m.tabIndex(src)+1), false)
 }

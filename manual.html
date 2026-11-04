@@ -449,6 +449,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
           <tr><td><kbd>^K</kbd> <kbd>A</kbd></td><td>Clear the block marks (sqlcli-specific)</td></tr>
         </tbody>
       </table></div>
+      <p><strong>Between tabs:</strong> as in JOE, there's one block across all SQL panels. In a tab without a block of its own, <kbd>^K</kbd> <kbd>C</kbd> copies (and <kbd>^K</kbd> <kbd>M</kbd> moves) the most recently marked block of another tab to the cursor; the copy becomes the marked block, so it can be copied on again. Within one tab <kbd>^K</kbd> <kbd>C</kbd> / <kbd>^K</kbd> <kbd>M</kbd> work as before.</p>
       <div class="note"><span class="lbl">Blocks and F5</span><p>While a block is marked, <kbd>F5</kbd> runs the block instead of the statement under the cursor. Clear the marks with <kbd>^K</kbd> <kbd>A</kbd> to go back to running single statements.</p></div>
 
       <h3>Search and files</h3>

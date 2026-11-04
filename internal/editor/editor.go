@@ -14,20 +14,22 @@ import (
 type Action int
 
 const (
-	ActionNone        Action = iota
-	ActionExit               // ^K X  / ^K Q
-	ActionFindPrompt         // ^K F
-	ActionGotoPrompt         // ^K L
-	ActionSavePrompt         // ^K D
-	ActionInsertFile         // ^K R
-	ActionWriteBlock         // ^K W
-	ActionHelp               // ^K H
-	ActionNewWindow          // ^K O  (new tab)
-	ActionNextWindow         // ^K N
-	ActionPrevWindow         // ^K P
-	ActionCloseWindow        // ^K Q  (close tab)
-	ActionSessions           // ^K E  (session list)
-	ActionLoadFile           // ^K I  (replace the buffer with a file)
+	ActionNone           Action = iota
+	ActionExit                  // ^K X  / ^K Q
+	ActionFindPrompt            // ^K F
+	ActionGotoPrompt            // ^K L
+	ActionSavePrompt            // ^K D
+	ActionInsertFile            // ^K R
+	ActionWriteBlock            // ^K W
+	ActionHelp                  // ^K H
+	ActionNewWindow             // ^K O  (new tab)
+	ActionNextWindow            // ^K N
+	ActionPrevWindow            // ^K P
+	ActionCloseWindow           // ^K Q  (close tab)
+	ActionSessions              // ^K E  (session list)
+	ActionLoadFile              // ^K I  (replace the buffer with a file)
+	ActionCopyOtherBlock        // ^K C with no block here: copy the block of another editor
+	ActionMoveOtherBlock        // ^K M with no block here: move the block of another editor
 )
 
 type pos struct{ row, col int }
@@ -65,7 +67,21 @@ type Editor struct {
 
 	styles Styles
 	pop    popup // code-completion list
+
+	blockStamp int64 // when the block was last marked (blockClock), to find the newest block
 }
+
+// blockClock orders block marking across editors (JOE has one block for
+// all windows: the most recently marked one).
+var blockClock int64
+
+func (e *Editor) stampBlock() {
+	blockClock++
+	e.blockStamp = blockClock
+}
+
+// BlockStamp tells how recently the block was marked (larger is newer).
+func (e *Editor) BlockStamp() int64 { return e.blockStamp }
 
 type Styles struct {
 	Text, LineNo, LineNoCur, Block, Cursor lipgloss.Style
@@ -324,6 +340,30 @@ func (e *Editor) SetBlock(r1, c1, r2, c2 int) {
 		a, b = b, a
 	}
 	e.markB, e.markK, e.hasMarkB, e.hasMarkK = a, b, true, true
+	e.stampBlock()
+}
+
+// InsertBlock inserts text at the cursor (one undo step) and marks it as
+// the block, like JOE does after copying a block.
+func (e *Editor) InsertBlock(text string) {
+	e.pushUndo()
+	start := e.cur
+	end := e.insertAt(e.cur, text)
+	e.markB, e.markK, e.hasMarkB, e.hasMarkK = start, end, true, true
+	e.stampBlock()
+	e.scroll()
+}
+
+// DeleteBlock removes the block's text (one undo step) and the marks.
+func (e *Editor) DeleteBlock() {
+	b, k, ok := e.block()
+	if !ok {
+		return
+	}
+	e.pushUndo()
+	e.deleteRange(b, k)
+	e.hasMarkB, e.hasMarkK = false, false
+	e.scroll()
 }
 
 // ClearBlock removes the block marks.
@@ -462,15 +502,16 @@ func (e *Editor) handleCtrlK(key string) Action {
 	switch strings.ToLower(k) {
 	case "b":
 		e.markB, e.hasMarkB = e.cur, true
+		e.stampBlock()
 		e.Status = "Block begin set"
 	case "k":
 		e.markK, e.hasMarkK = e.cur, true
+		e.stampBlock()
 		e.Status = "Block end set"
 	case "c": // copy block to cursor
 		b, kk, ok := e.block()
 		if !ok {
-			e.Status = "No block"
-			return ActionNone
+			return ActionCopyOtherBlock // the host looks in other editors
 		}
 		txt := e.textRange(b, kk)
 		e.pushUndo()
@@ -479,8 +520,7 @@ func (e *Editor) handleCtrlK(key string) Action {
 	case "m": // move block to cursor
 		b, kk, ok := e.block()
 		if !ok {
-			e.Status = "No block"
-			return ActionNone
+			return ActionMoveOtherBlock // the host looks in other editors
 		}
 		if !e.cur.less(b) && e.cur.less(kk) {
 			e.Status = "Cursor is inside block"

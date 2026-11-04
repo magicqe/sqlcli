@@ -314,6 +314,11 @@ The block is highlighted.
 | ^K W | write the block to a file |
 | ^K A | clear the block marks (sqlcli-specific) |
 
+**Between tabs:** as in JOE, there is one block across all SQL panels. In a
+tab without a block of its own, ^K C copies (and ^K M moves) the most recently
+marked block of another tab to the cursor; the copy becomes the marked block,
+so it can be copied on again. Within one tab ^K C / ^K M work as before.
+
 When a block is marked, **F5 runs the block** instead of the statement under
 the cursor (see [Running SQL](#7-running-sql)). Clear it with ^K A to return
 to running single statements.
