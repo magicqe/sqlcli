@@ -451,11 +451,12 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
         <tbody>
           <tr><td><kbd>^K</kbd> <kbd>F</kbd></td><td class="wrap-ok">Find (case-insensitive, wraps at end of buffer)</td></tr>
           <tr><td><kbd>^L</kbd></td><td>Find next</td></tr>
-          <tr><td><kbd>^K</kbd> <kbd>D</kbd></td><td>Save the whole buffer to a file</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>D</kbd></td><td>Save the SQL panel to a file (see below)</td></tr>
           <tr><td><kbd>^K</kbd> <kbd>R</kbd></td><td>Insert a file at the cursor</td></tr>
         </tbody>
       </table></div>
       <p>File names may start with <code>~/</code>.</p>
+      <p><strong>Saving the SQL panel (<kbd>^K</kbd> <kbd>D</kbd>)</strong> asks for the file name, offering the tab's last file (or <code>query.sql</code> the first time). Saving again to the same file doesn't ask; another existing file is replaced only after you confirm. The file name is then shown in the SQL panel's title (<code>SQL · ora · report.sql</code>). <kbd>^K</kbd> <kbd>D</kbd> also works from the connections and results panes.</p>
 
       <h3>Other</h3>
       <div class="tbl"><table>

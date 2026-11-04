@@ -311,10 +311,16 @@ to running single statements.
 |---|---|
 | ^K F | find (case-insensitive, wraps at end of buffer) |
 | ^L | find next |
-| ^K D | save the whole buffer to a file |
+| ^K D | save the SQL panel to a file (see below) |
 | ^K R | insert a file at the cursor |
 
 File names may start with `~/`.
+
+**Saving the SQL panel (^K D)** asks for the file name, offering the tab's
+last file (or `query.sql` the first time). Saving again to the same file
+doesn't ask; another existing file is replaced only after you confirm. The
+file name is then shown in the SQL panel's title (`SQL · ora · report.sql`).
+^K D also works from the connections and results panes.
 
 ### Other
 

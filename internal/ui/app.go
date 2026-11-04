@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -74,6 +75,7 @@ type tab struct {
 	jumpEnd  bool // select the last row when the fetch-all finishes
 
 	afterFetch func() tea.Cmd // runs when a fetch-all completes (export)
+	file       string         // file the SQL was last saved to (^K D)
 	pendingRow int            // row to select once enough rows are fetched
 	hasPending bool
 
@@ -1013,10 +1015,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		})
 	case editor.ActionSavePrompt:
-		m.ask("Save buffer to file:", "", false, func(v string) tea.Cmd {
-			m.writeFile(v, m.ed.Text())
-			return nil
-		})
+		m.askSaveSQL()
 	case editor.ActionWriteBlock:
 		m.ask("Write block to file:", "", false, func(v string) tea.Cmd {
 			m.writeFile(v, m.ed.BlockText())
@@ -1256,6 +1255,9 @@ func (m *Model) sqlTitle() string {
 		if m.conn.ReadOnly {
 			t += " (read-only)"
 		}
+	}
+	if m.file != "" {
+		t += " · " + filepath.Base(m.file)
 	}
 	if m.ed.PrefixPending() {
 		t += "  ^K-"
@@ -1624,7 +1626,7 @@ func (m *Model) statusLine() string {
 	pos := fmt.Sprintf(" Ln %d, Col %d ", m.ed.CursorRow()+1, m.ed.CursorCol()+1)
 	msg := m.status
 	if m.kPrefix {
-		msg = "^K-  (X quit, Q close tab, O new tab, N/P next/previous tab, E sessions, H help)"
+		msg = "^K-  (X quit, Q close tab, O new tab, N/P next/previous tab, E sessions, D save SQL, H help)"
 	} else if m.running && m.exporting {
 		msg = fmt.Sprintf("Exporting %d rows…", len(m.res.res.Rows))
 	} else if m.running && m.fetching && m.afterFetch != nil && m.res.res != nil {
@@ -1660,7 +1662,7 @@ func (m *Model) bottomLine() string {
 		return hintKey.Render(p.label) + " " + before + lipgloss.NewStyle().Reverse(true).Render(curCh) + after
 	}
 	hints := [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F7", "run all"},
-		{"F6", "history"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
+		{"F6", "history"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K D", "save sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
 	var parts []string
 	for _, h := range hints {
 		parts = append(parts, hintKey.Render(h[0])+" "+hintText.Render(h[1]))
@@ -2001,6 +2003,8 @@ func (m *Model) ctrlKCommand(key string) tea.Cmd {
 		return m.closeTab()
 	case "e":
 		m.openSessions()
+	case "d":
+		m.askSaveSQL()
 	case "o":
 		return m.openTab()
 	case "n":
@@ -2716,4 +2720,52 @@ func (m *Model) sessionsView() string {
 	hint := " " + hintKey.Render("s / ^S") + hintText.Render(" save open tabs  ") + hintKey.Render("Enter") + hintText.Render(" load (replaces the open tabs)  ") +
 		hintKey.Render("d") + hintText.Render(" delete  ") + hintKey.Render("Esc") + hintText.Render(" close")
 	return b + "\n" + ansi.Truncate(hint, m.w, "")
+}
+
+// ---- saving the SQL panel to a file (^K D) ----
+
+// askSaveSQL asks for a file name (offering the tab's last one) and saves
+// the SQL panel's text to it, asking before replacing another existing file.
+func (m *Model) askSaveSQL() {
+	def := m.file
+	if def == "" {
+		def = "query.sql"
+	}
+	m.ask("Save SQL to file:", def, false, func(v string) tea.Cmd {
+		name := strings.TrimSpace(v)
+		if name == "" {
+			return nil
+		}
+		path := expandHome(name)
+		if abs, err := filepath.Abs(path); err == nil {
+			path = abs
+		}
+		if _, err := os.Stat(path); err == nil && path != m.file {
+			m.ask(path+" exists. Overwrite? (y/N)", "", false, func(v string) tea.Cmd {
+				if strings.EqualFold(strings.TrimSpace(v), "y") {
+					m.saveSQL(path)
+				} else {
+					m.setStatus("Not saved", false)
+				}
+				return nil
+			})
+			return nil
+		}
+		m.saveSQL(path)
+		return nil
+	})
+}
+
+// saveSQL writes the SQL panel's text to path (with a final newline).
+func (m *Model) saveSQL(path string) {
+	text := m.ed.Text()
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		m.setStatus("Saving SQL: "+err.Error(), true)
+		return
+	}
+	m.file = path
+	m.setStatus(fmt.Sprintf("Saved %d line(s) to %s", len(m.ed.Lines()), path), false)
 }
