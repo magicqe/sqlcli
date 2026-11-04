@@ -31,8 +31,10 @@ func TestSaveAndLoadSession(t *testing.T) {
 	m.ed.SetCursor(1, 7)
 	m.openTab()
 	m.ed.SetText("begin null; end;\n/")
+	m.ed.SetCursor(1, 5)
 	m.openTab()
 	m.ed.SetText("-- third")
+	m.ed.SetCursor(0, 8)
 	m.switchTab(1) // the middle tab is active
 
 	press(m, key(tea.KeyF10))
@@ -64,8 +66,14 @@ func TestSaveAndLoadSession(t *testing.T) {
 	if m.mode != modeNormal || len(m.tabs) != 3 || m.tabIndex(m.tab) != 1 {
 		t.Fatalf("loaded: mode=%v tabs=%d active=%d", m.mode, len(m.tabs), m.tabIndex(m.tab))
 	}
-	if m.tabs[0].ed.Text() != "select 1 from dual;\nselect 2 from dual" || m.tabs[0].ed.CursorRow() != 1 || m.tabs[0].ed.CursorCol() != 7 {
-		t.Fatalf("tab 1: %q at %d,%d", m.tabs[0].ed.Text(), m.tabs[0].ed.CursorRow(), m.tabs[0].ed.CursorCol())
+	if m.tabs[0].ed.Text() != "select 1 from dual;\nselect 2 from dual" {
+		t.Fatalf("tab 1: %q", m.tabs[0].ed.Text())
+	}
+	// every tab starts at the top-left corner, whatever the saved cursor was
+	for i, tb := range m.tabs {
+		if tb.ed.CursorRow() != 0 || tb.ed.CursorCol() != 0 {
+			t.Fatalf("tab %d cursor at %d,%d, want 0,0", i+1, tb.ed.CursorRow(), tb.ed.CursorCol())
+		}
 	}
 	if m.tabs[1].ed.Text() != "begin null; end;\n/" || m.tabs[2].ed.Text() != "-- third" {
 		t.Fatal("tab texts not restored")
@@ -139,17 +147,25 @@ func TestSessionShortcuts(t *testing.T) {
 		t.Fatalf("empty name: mode %v", m.mode)
 	}
 
-	// Ctrl-E opens the session list from the editor, results and connections pane
+	// ^K E opens the session list from the editor, results and connections pane
 	for _, f := range []focus{focusEditor, focusResults, focusConns} {
 		m.focus = f
-		press(m, key('e', tea.ModCtrl))
+		ctrlK(m, 'e')
 		if m.mode != modeSessions || !strings.Contains(screen(m), "quick") {
-			t.Fatalf("Ctrl-E (focus %v): mode=%v", f, m.mode)
+			t.Fatalf("^K E (focus %v): mode=%v", f, m.mode)
 		}
-		press(m, key('e', tea.ModCtrl)) // closes it again
+		press(m, key(tea.KeyEscape))
 		if m.mode != modeNormal {
-			t.Fatal("Ctrl-E should also close the session list")
+			t.Fatal("Esc should close the session list")
 		}
+	}
+
+	// Ctrl-E is end of line again (and doesn't open the session list)
+	m.focus = focusEditor
+	m.ed.SetCursor(0, 0)
+	press(m, key('e', tea.ModCtrl))
+	if m.mode != modeNormal || m.ed.CursorCol() != len("select 1 from dual") {
+		t.Fatalf("Ctrl-E: mode=%v col=%d", m.mode, m.ed.CursorCol())
 	}
 
 	// End still moves to the end of the line
@@ -164,6 +180,14 @@ func TestSessionShortcuts(t *testing.T) {
 	lines := strings.Split(screen(m), "\n")
 	if hints := lines[len(lines)-1]; !strings.Contains(hints, "F9 rollback  F10") {
 		t.Fatalf("key hints: %q", hints)
+	}
+}
+
+func TestCtrlELastRow(t *testing.T) {
+	m := recordModel(5) // results pane focused
+	press(m, key('e', tea.ModCtrl))
+	if m.mode != modeNormal || m.res.row != 4 {
+		t.Fatalf("results Ctrl-E: mode=%v row=%d", m.mode, m.res.row)
 	}
 }
 

@@ -848,7 +848,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "f6":
 		m.openHistory()
 		return nil
-	case "f10", "ctrl+e": // session window (load / save / delete)
+	case "f10": // session window (load / save / delete); also ^K E
 		m.openSessions()
 		return nil
 	case "ctrl+s": // save the open tabs as a session
@@ -897,7 +897,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.res.toggleText()
 		case "e":
 			return m.askExport()
-		case "end", "G":
+		case "end", "ctrl+e", "G":
 			m.res.handleKey("end")
 			if !m.res.showText() && m.res.res.More {
 				m.jumpEnd = true
@@ -963,6 +963,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.switchTab(m.tabIndex(m.tab) - 1)
 	case editor.ActionCloseWindow:
 		return m.closeTab()
+	case editor.ActionSessions:
+		m.openSessions()
 	case editor.ActionHelp:
 		m.mode = modeHelp
 	case editor.ActionFindPrompt:
@@ -1553,7 +1555,7 @@ func (m *Model) statusLine() string {
 	pos := fmt.Sprintf(" Ln %d, Col %d ", m.ed.CursorRow()+1, m.ed.CursorCol()+1)
 	msg := m.status
 	if m.kPrefix {
-		msg = "^K-  (X quit, Q close tab, O new tab, N/P next/previous tab, H help)"
+		msg = "^K-  (X quit, Q close tab, O new tab, N/P next/previous tab, E sessions, H help)"
 	} else if m.running && m.exporting {
 		msg = fmt.Sprintf("Exporting %d rows…", len(m.res.res.Rows))
 	} else if m.running && m.fetching && m.afterFetch != nil && m.res.res != nil {
@@ -1768,7 +1770,7 @@ func firstLine(s string) string {
 const helpText = `
  GLOBAL                                    EDITOR (JOE keys)
  F1          this help                     ^B ^F ^P ^N / arrows   move
- F2          show / hide connections pane  ^A / End               line start / end
+ F2          show / hide connections pane  ^A / ^E                line start / end
  F3 / F4     show / hide results / SQL     ^Z / ^X                word left / right
  Esc         back to editor                ^U / ^V                page up / down
  F5          run statement at cursor       ^K U / ^K V            top / bottom of buffer
@@ -1776,7 +1778,7 @@ const helpText = `
  F7          run whole buffer as script    ^D                     delete char
  F6          SQL history (SQLite)          ^Y                     delete line
  F8 / F9     commit / rollback             ^W / ^O                delete word right / left
- F10, ^E     sessions (load / save)        ^J                     delete to end of line
+ F10, ^K E   sessions (load / save)        ^J                     delete to end of line
  ^S          save session                  ^_ / ^^                undo / redo
  Ctrl-C      cancel running query / quit   ^K B / ^K K            mark block begin / end
  ^K X        quit                          ^K C / ^K M / ^K Y     copy / move / delete block
@@ -1928,6 +1930,8 @@ func (m *Model) ctrlKCommand(key string) tea.Cmd {
 		return m.quit()
 	case "q":
 		return m.closeTab()
+	case "e":
+		m.openSessions()
 	case "o":
 		return m.openTab()
 	case "n":
@@ -2453,7 +2457,7 @@ func (m *Model) reloadSessions() {
 
 func (m *Model) updateSessions(key string) tea.Cmd {
 	switch key {
-	case "esc", "f10", "ctrl+e", "ctrl+c", "q":
+	case "esc", "f10", "ctrl+c", "q":
 		m.mode = modeNormal
 	case "up", "ctrl+p", "k":
 		m.sessSel = max(m.sessSel-1, 0)
@@ -2588,8 +2592,7 @@ func (m *Model) loadSession(name string) tea.Cmd {
 	for _, st := range se.Tabs {
 		t := m.newTab()
 		m.tab = t
-		t.ed.SetText(st.SQL)
-		t.ed.SetCursor(st.Row, st.Col)
+		t.ed.SetText(st.SQL) // cursor at the top-left corner, scrolled to the top
 		if st.Connection == "" {
 			continue
 		}

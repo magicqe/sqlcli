@@ -26,6 +26,7 @@ const (
 	ActionNextWindow         // ^K N
 	ActionPrevWindow         // ^K P
 	ActionCloseWindow        // ^K Q  (close tab)
+	ActionSessions           // ^K E  (session list)
 )
 
 type pos struct{ row, col int }
@@ -505,6 +506,8 @@ func (e *Editor) handleCtrlK(key string) Action {
 		return ActionExit
 	case "q":
 		return ActionCloseWindow
+	case "e":
+		return ActionSessions
 	case "o":
 		return ActionNewWindow
 	case "n":
