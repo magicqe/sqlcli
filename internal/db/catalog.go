@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 )
 
@@ -102,4 +103,48 @@ func (c *Conn) Columns(ctx context.Context, owner, table string) ([]string, erro
 	}
 	rows, err = c.metaQuery(ctx, query, syn[0][0], strings.TrimSpace(syn[0][1]))
 	return names(rows), err
+}
+
+// Member is a function or procedure of a package.
+type Member struct {
+	Name       string
+	IsFunction bool
+}
+
+// Members returns the functions and procedures of a package, in declaration
+// order (overloads once). Without an owner it looks in the current schema,
+// then follows a private or public synonym (DBMS_OUTPUT -> SYS.DBMS_OUTPUT).
+func (c *Conn) Members(ctx context.Context, owner, pkg string) ([]Member, error) {
+	query := `
+		select p.procedure_name, max(case when a.position = 0 then 1 else 0 end)
+		  from all_procedures p
+		  left join all_arguments a
+		    on a.owner = p.owner and a.package_name = p.object_name
+		   and a.object_name = p.procedure_name and a.position = 0
+		 where p.owner = %s and p.object_name = :%d and p.procedure_name is not null
+		 group by p.procedure_name
+		 order by min(p.subprogram_id)`
+	toMembers := func(rows [][]string) []Member {
+		out := make([]Member, len(rows))
+		for i, r := range rows {
+			out[i] = Member{Name: r[0], IsFunction: r[1] == "1"}
+		}
+		return out
+	}
+	if owner != "" {
+		rows, err := c.metaQuery(ctx, fmt.Sprintf(query, ":1", 2), owner, pkg)
+		return toMembers(rows), err
+	}
+	rows, err := c.metaQuery(ctx, fmt.Sprintf(query, "sys_context('userenv', 'current_schema')", 1), pkg)
+	if err != nil || len(rows) > 0 {
+		return toMembers(rows), err
+	}
+	syn, err := c.metaQuery(ctx, `select table_owner, table_name from all_synonyms
+		where synonym_name = :1 and owner in (sys_context('userenv', 'current_schema'), 'PUBLIC')
+		order by decode(owner, 'PUBLIC', 2, 1)`, pkg)
+	if err != nil || len(syn) == 0 {
+		return nil, err
+	}
+	rows, err = c.metaQuery(ctx, fmt.Sprintf(query, ":1", 2), syn[0][0], syn[0][1])
+	return toMembers(rows), err
 }

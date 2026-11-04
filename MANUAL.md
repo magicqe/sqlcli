@@ -386,6 +386,10 @@ type next:
 * After `alias.` or `table.` it lists only that table's columns. Aliases are
   read from the statement's `FROM` and `JOIN` clauses (`from employees e`,
   `join hr.jobs as j`).
+* After `package.` it lists the package's **functions and procedures**
+  (`testpkg.` → `CALL1 function`, `CALL2 function`), also for standard
+  packages through their public synonyms (`dbms_output.` → `PUT_LINE` …) and
+  with an owner (`men.testpkg.`). Overloaded subprograms are listed once.
 * Object names are loaded in the background when a tab connects (once per
   connection). Columns are loaded from the data dictionary the first time
   they are needed, following synonyms. After `CREATE`, `DROP`, `ALTER` or

@@ -13,20 +13,21 @@ import (
 
 // Kinds of candidates, in display order (most relevant first).
 const (
-	KindColumn   = "column"
-	KindTable    = "table"
-	KindView     = "view"
-	KindSynonym  = "synonym"
-	KindObject   = "object" // sequence, package, procedure, function ...
-	KindKeyword  = "keyword"
-	KindFunction = "function"
-	KindType     = "type"
-	KindPublic   = "public synonym"
+	KindColumn    = "column"
+	KindTable     = "table"
+	KindView      = "view"
+	KindSynonym   = "synonym"
+	KindObject    = "object" // sequence, package, procedure, function ...
+	KindKeyword   = "keyword"
+	KindFunction  = "function"
+	KindProcedure = "procedure"
+	KindType      = "type"
+	KindPublic    = "public synonym"
 )
 
 var kindRank = map[string]int{
 	KindColumn: 0, KindTable: 1, KindView: 1, KindSynonym: 2, KindObject: 2,
-	KindKeyword: 3, KindFunction: 4, KindType: 5, KindPublic: 6,
+	KindKeyword: 3, KindFunction: 4, KindProcedure: 4, KindType: 5, KindPublic: 6,
 }
 
 // Item is one candidate.
@@ -49,6 +50,9 @@ type Catalog interface {
 	// Columns returns the columns of a table and whether they are known
 	// (false: not loaded yet; the caller should load them).
 	Columns(t TableRef) ([]string, bool)
+	// Members returns the functions and procedures of a package and whether
+	// they are known (false: not loaded yet).
+	Members(t TableRef) ([]Item, bool)
 }
 
 // Result is what the editor needs to show and apply a completion.
@@ -59,6 +63,8 @@ type Result struct {
 	// Need lists tables whose columns are not loaded yet; once they are,
 	// completing again gives more candidates.
 	Need []TableRef
+	// NeedMembers lists packages whose functions/procedures are not loaded.
+	NeedMembers []TableRef
 }
 
 const maxItems = 200
@@ -80,14 +86,22 @@ func Complete(lines []string, row, col int, cat Catalog) Result {
 	}
 	res := Result{Start: start, Prefix: string(line[start:col])}
 
-	// qualifier: the identifier before a '.' right before the word
-	qualifier := ""
+	// qualifier: the identifier before a '.' right before the word, and an
+	// owner before that one (owner.package.)
+	qualifier, owner := "", ""
 	if start > 0 && line[start-1] == '.' {
 		q := start - 1
 		for q > 0 && isIdent(line[q-1]) {
 			q--
 		}
 		qualifier = strings.ToUpper(string(line[q : start-1]))
+		if q > 1 && line[q-1] == '.' {
+			o := q - 1
+			for o > 0 && isIdent(line[o-1]) {
+				o--
+			}
+			owner = strings.ToUpper(string(line[o : q-1]))
+		}
 	}
 
 	stmt, _ := db.StatementAtCursor(strings.Join(lines, "\n"), row, col)
@@ -95,14 +109,32 @@ func Complete(lines []string, row, col int, cat Catalog) Result {
 
 	if qualifier != "" {
 		t, ok := resolve(qualifier, refs)
-		if !ok {
-			t = TableRef{Name: qualifier} // maybe a table used without FROM yet
+		if ok && owner == "" { // an alias or table of the statement: its columns
+			cols, known := cat.Columns(t)
+			if !known {
+				res.Need = append(res.Need, t)
+			}
+			var items []Item
+			for _, c := range cols {
+				items = append(items, Item{c, KindColumn})
+			}
+			res.Items = filter(items, res.Prefix)
+			return res
+		}
+		// a package (functions and procedures) or a table not in FROM yet
+		t = TableRef{Owner: owner, Name: qualifier}
+		var items []Item
+		if owner != "" || cat.HasObject(qualifier) {
+			members, known := cat.Members(t)
+			if !known {
+				res.NeedMembers = append(res.NeedMembers, t)
+			}
+			items = append(items, members...)
 		}
 		cols, known := cat.Columns(t)
 		if !known {
 			res.Need = append(res.Need, t)
 		}
-		var items []Item
 		for _, c := range cols {
 			items = append(items, Item{c, KindColumn})
 		}

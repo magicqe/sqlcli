@@ -486,3 +486,31 @@ select sqlcli_test_pkg2.call1(1) a, sqlcli_test_pkg2.call2('x') b from dual;`
 		t.Fatalf("F5 in body: %q", m.status)
 	}
 }
+
+func TestUICompletePackageMembers(t *testing.T) {
+	m := newTestModel(t, false)
+	defer m.conn.Execute(context.Background(), "drop package sqlcli_test_pkg3", 1)
+	run(m, "create or replace package sqlcli_test_pkg3 as\n  function call1 (v number) return number;\n  procedure reset;\nend;")
+	drain(m, m.loadObjects(true)) // the new package is in the catalog (as after the CREATE)
+	m.ed.SetText("")
+	m.focus = focusEditor
+	typeText(m, "select sqlcli_test_pkg3.") // members load from the database
+	got := popupTexts(m)
+	if strings.Join(got, ",") != "CALL1,RESET" {
+		t.Fatalf("members: %v", got)
+	}
+	if !strings.Contains(screen(m), "function") || !strings.Contains(screen(m), "procedure") {
+		t.Fatal("kinds not shown")
+	}
+	typeText(m, "ca")
+	press(m, key(tea.KeyTab))
+	if m.ed.Text() != "select sqlcli_test_pkg3.call1" {
+		t.Fatalf("inserted: %q", m.ed.Text())
+	}
+	// a standard package through its public synonym
+	m.ed.SetText("")
+	typeText(m, "begin dbms_output.put")
+	if got := popupTexts(m); !contains(got, "PUT_LINE") || !contains(got, "PUT") {
+		t.Fatalf("dbms_output.put: %v", got)
+	}
+}

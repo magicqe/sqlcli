@@ -352,6 +352,13 @@ type objectsMsg struct {
 	err  error
 }
 
+type membersMsg struct {
+	conn    string
+	ref     complete.TableRef
+	members []db.Member
+	err     error
+}
+
 type columnsMsg struct {
 	conn string
 	ref  complete.TableRef
@@ -677,6 +684,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.err == nil {
 				cat.setObjects(msg.objs)
 			}
+		}
+		return m, nil
+
+	case membersMsg:
+		if cat := m.catalogs[msg.conn]; cat != nil {
+			delete(cat.memLoading, msg.ref)
+			items := []complete.Item{}
+			for _, mb := range msg.members {
+				kind := complete.KindProcedure
+				if mb.IsFunction {
+					kind = complete.KindFunction
+				}
+				items = append(items, complete.Item{Text: mb.Name, Kind: kind})
+			}
+			if msg.err == nil {
+				cat.members[msg.ref] = items
+			}
+		}
+		if m.conn != nil && m.conn.Name == msg.conn && m.focus == focusEditor && m.mode == modeNormal {
+			return m, m.completeNow(false)
 		}
 		return m, nil
 
@@ -2278,11 +2305,21 @@ type catalog struct {
 	names      map[string]bool
 	cols       map[complete.TableRef][]string
 	colLoading map[complete.TableRef]bool
+	members    map[complete.TableRef][]complete.Item // package functions/procedures
+	memLoading map[complete.TableRef]bool
 	loading    bool
 }
 
 func newCatalog() *catalog {
-	return &catalog{cols: map[complete.TableRef][]string{}, colLoading: map[complete.TableRef]bool{}}
+	return &catalog{
+		cols: map[complete.TableRef][]string{}, colLoading: map[complete.TableRef]bool{},
+		members: map[complete.TableRef][]complete.Item{}, memLoading: map[complete.TableRef]bool{},
+	}
+}
+
+func (c *catalog) Members(t complete.TableRef) ([]complete.Item, bool) {
+	ms, ok := c.members[t]
+	return ms, ok
 }
 
 func (c *catalog) Objects() []complete.Item   { return c.objects }
@@ -2364,6 +2401,16 @@ func (m *Model) completeNow(force bool) tea.Cmd {
 	var cmds []tea.Cmd
 	if m.conn != nil {
 		if c := m.catalogs[m.conn.Name]; c != nil {
+			for _, t := range r.NeedMembers {
+				if !c.memLoading[t] {
+					c.memLoading[t] = true
+					conn, name, ref := m.conn, m.conn.Name, t
+					cmds = append(cmds, func() tea.Msg {
+						ms, err := conn.Members(context.Background(), ref.Owner, ref.Name)
+						return membersMsg{conn: name, ref: ref, members: ms, err: err}
+					})
+				}
+			}
 			for _, t := range r.Need {
 				if !c.colLoading[t] {
 					c.colLoading[t] = true

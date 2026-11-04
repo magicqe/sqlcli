@@ -9,9 +9,14 @@ import (
 type fakeCat struct {
 	objects []Item
 	cols    map[TableRef][]string
+	members map[TableRef][]Item
 }
 
 func (f fakeCat) Objects() []Item { return f.objects }
+func (f fakeCat) Members(t TableRef) ([]Item, bool) {
+	m, ok := f.members[t]
+	return m, ok
+}
 func (f fakeCat) HasObject(n string) bool {
 	for _, o := range f.objects {
 		if o.Text == n {
@@ -26,7 +31,12 @@ func (f fakeCat) Columns(t TableRef) ([]string, bool) {
 }
 
 var cat = fakeCat{
-	objects: []Item{{"EMPLOYEES", KindTable}, {"EMP_VIEW", KindView}, {"DEPT", KindTable}, {"DUAL", KindPublic}, {"MixedCase", KindTable}},
+	objects: []Item{{"EMPLOYEES", KindTable}, {"EMP_VIEW", KindView}, {"DEPT", KindTable}, {"DUAL", KindPublic}, {"MixedCase", KindTable},
+		{"TESTPKG", "package"}, {"DBMS_OUTPUT", KindPublic}},
+	members: map[TableRef][]Item{
+		{Name: "TESTPKG"}:               {{"CALL1", KindFunction}, {"CALL2", KindFunction}, {"RESET", KindProcedure}},
+		{Owner: "MEN", Name: "TESTPKG"}: {{"CALL1", KindFunction}, {"CALL2", KindFunction}, {"RESET", KindProcedure}},
+	},
 	cols: map[TableRef][]string{
 		{Name: "EMPLOYEES"}:         {"EMP_ID", "NAME", "DEPT_ID", "SALARY"},
 		{Name: "DEPT"}:              {"DEPT_ID", "DNAME"},
@@ -168,4 +178,31 @@ func idx(s []string, x string) int {
 		}
 	}
 	return -1
+}
+
+func TestCompletePackageMembers(t *testing.T) {
+	r := complete(t, "select testpkg.| from dual")
+	if strings.Join(texts(r.Items), ",") != "CALL1,CALL2,RESET" {
+		t.Fatalf("testpkg.: %v", texts(r.Items))
+	}
+	r = complete(t, "select testpkg.ca| from dual")
+	if strings.Join(texts(r.Items), ",") != "CALL1,CALL2" || r.Items[0].Kind != KindFunction {
+		t.Fatalf("testpkg.ca: %+v", r.Items)
+	}
+	r = complete(t, "select men.testpkg.c| from dual")
+	if strings.Join(texts(r.Items), ",") != "CALL1,CALL2" {
+		t.Fatalf("owner-qualified: %v", texts(r.Items))
+	}
+	r = complete(t, "begin dbms_output.| end;") // members not loaded yet: ask for them
+	if len(r.NeedMembers) != 1 || r.NeedMembers[0].Name != "DBMS_OUTPUT" {
+		t.Fatalf("need members: %+v", r)
+	}
+	r = complete(t, "select nothing_known.| from dual") // unknown name: no member lookup
+	if len(r.NeedMembers) != 0 {
+		t.Fatalf("unknown name asked for members: %+v", r.NeedMembers)
+	}
+	r = complete(t, "select e.| from employees e") // an alias still lists columns only
+	if len(r.NeedMembers) != 0 || texts(r.Items)[0] != "EMP_ID" {
+		t.Fatalf("alias: %+v", r)
+	}
 }

@@ -62,3 +62,47 @@ func TestIntegrationPackageSpecAndBody(t *testing.T) {
 		t.Fatalf("errors: %q %q", r.Message, r.Errors)
 	}
 }
+
+func TestIntegrationPackageMembers(t *testing.T) {
+	c := testConn(t)
+	ctx := context.Background()
+	defer c.Execute(ctx, "drop package sqlcli_test_pkg3", 1)
+	for _, s := range SplitStatements(`create or replace package sqlcli_test_pkg3 as
+  function call1 (v number) return number;
+  function call1 (v varchar2) return varchar2;   -- overload
+  procedure reset;
+  function call2 return varchar2;
+end;`) {
+		if _, err := c.Execute(ctx, s, 1); err != nil {
+			t.Fatal(CleanError(err))
+		}
+	}
+	ms, err := c.Members(ctx, "", "SQLCLI_TEST_PKG3")
+	if err != nil {
+		t.Fatal(CleanError(err))
+	}
+	want := []Member{{"CALL1", true}, {"RESET", false}, {"CALL2", true}}
+	if len(ms) != 3 || ms[0] != want[0] || ms[1] != want[1] || ms[2] != want[2] {
+		t.Fatalf("members: %+v", ms)
+	}
+	// a public synonym to a SYS package
+	ms, err = c.Members(ctx, "", "DBMS_OUTPUT")
+	names := map[string]bool{}
+	for _, m := range ms {
+		names[m.Name] = m.IsFunction
+	}
+	if err != nil || !(len(names) > 5) || names["PUT_LINE"] || len(ms) == 0 {
+		t.Fatalf("DBMS_OUTPUT: %v %v", ms, err)
+	}
+	if _, ok := names["PUT_LINE"]; !ok {
+		t.Fatalf("PUT_LINE missing: %v", ms)
+	}
+	// owner given
+	if ms, _ := c.Members(ctx, "SYS", "DBMS_OUTPUT"); len(ms) == 0 {
+		t.Fatal("SYS.DBMS_OUTPUT")
+	}
+	// not a package
+	if ms, _ := c.Members(ctx, "", "DUAL"); len(ms) != 0 {
+		t.Fatalf("DUAL: %v", ms)
+	}
+}
