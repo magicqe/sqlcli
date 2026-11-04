@@ -37,7 +37,8 @@ type Conn struct {
 	sc       *sql.Conn // the one Oracle session all statements run in
 	tx       *sql.Tx   // open transaction when AutoCommit is off
 	auto     bool
-	output   bool // DBMS_OUTPUT is enabled and read after each statement
+	output   bool      // DBMS_OUTPUT is enabled and read after each statement
+	lastObj  [3]string // kind, owner, name of the last created PL/SQL object (SHOW ERRORS)
 	closed   bool
 
 	mu  sync.Mutex // serializes all use of the session
@@ -319,10 +320,28 @@ func (c *Conn) Execute(ctx context.Context, stmt string, maxRows int) (*Result, 
 	}
 
 	isQuery := kw == "SELECT" || kw == "WITH"
-	if c.ReadOnly && !isQuery && kw != "EXPLAIN" && kw != "DESC" && kw != "DESCRIBE" {
+	if c.ReadOnly && !isQuery && kw != "EXPLAIN" && kw != "DESC" && kw != "DESCRIBE" && kw != "SHOW" && kw != "SHO" &&
+		!(kw == "SET" && !reSQLSet.MatchString(stmt)) {
 		return nil, fmt.Errorf("connection %q is read-only; %s refused", c.Name, kw)
 	}
 
+	if kw == "SHOW" || kw == "SHO" || (kw == "SET" && !reSQLSet.MatchString(stmt)) {
+		var q execer = c.sc
+		if c.tx != nil {
+			q = c.tx
+		}
+		var res *Result
+		var err error
+		if kw == "SET" {
+			res, err = c.sqlplusSet(stmt)
+		} else {
+			res, err = c.show(ctx, q, stmt)
+		}
+		if res != nil {
+			res.Duration = time.Since(start)
+		}
+		return res, err
+	}
 	if kw == "DESC" || kw == "DESCRIBE" { // SQL*Plus DESCRIBE, from the data dictionary
 		var q execer = c.sc
 		if c.tx != nil {
@@ -377,6 +396,7 @@ func (c *Conn) Execute(ctx context.Context, stmt string, maxRows int) (*Result, 
 		res.Message = kw + " executed."
 	}
 	if kind, owner, name, ok := compiledObject(stmt); ok {
+		c.lastObj = [3]string{kind, owner, name}
 		res.Message = fmt.Sprintf("%s %s created.", kind, name)
 		if errs := c.compileErrors(ex, kind, owner, name); len(errs) > 0 {
 			res.Message = fmt.Sprintf("%s %s created with compilation errors.", kind, name)
@@ -589,6 +609,13 @@ func ParseStatements(script string) []Statement {
 		if !inQuote && !inBlockCmt {
 			if t == "/" {
 				flush()
+				continue
+			}
+			if !started && IsLineCommand(t) {
+				// a SQL*Plus command: the whole line as written, no
+				// quote, comment or ';' processing
+				first := len(rs) - len([]rune(strings.TrimLeft(line, " \t")))
+				out = append(out, Statement{Text: t, StartRow: r, StartCol: first, EndRow: r, EndCol: max(len(rs)-1, 0)})
 				continue
 			}
 			// A PL/SQL statement (package, procedure ...) normally ends at a

@@ -5,16 +5,26 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/godror/godror"
 )
 
-// SQL*Plus commands that sqlcli runs itself. They end at the end of their
-// line, without ';'.
-var reLineCommand = regexp.MustCompile(`(?i)^(DESC|DESCRIBE|EXEC|EXECUTE)\b`)
+// SQL*Plus commands that sqlcli runs itself. They take exactly one line,
+// read as written (quotes and ';' inside are just text).
+var (
+	reLineCommand = regexp.MustCompile(`(?i)^(@|(DESC|DESCRIBE|EXEC|EXECUTE|SHOW|SHO|SET|PROMPT|PRO|SPOOL|SPO|` +
+		`DEFINE|DEF|UNDEFINE|UNDEF|START|STA|REM|REMARK)(\s|;|$))`)
+	// SET statements that are SQL, not SQL*Plus
+	reSQLSet = regexp.MustCompile(`(?i)^SET\s+(TRANSACTION|ROLE|CONSTRAINTS?)\b`)
+)
 
-// isLineCommand reports whether a statement is a one-line SQL*Plus command.
-func isLineCommand(stmt string) bool {
-	return reLineCommand.MatchString(reLeadingComments.ReplaceAllString(stmt, ""))
+// IsLineCommand reports whether a statement is a one-line SQL*Plus command.
+func IsLineCommand(stmt string) bool {
+	s := strings.TrimSpace(reLeadingComments.ReplaceAllString(stmt, ""))
+	return reLineCommand.MatchString(s) && !reSQLSet.MatchString(s)
 }
+
+func isLineCommand(stmt string) bool { return IsLineCommand(stmt) }
 
 // execAsBlock turns "EXEC proc(args)" into "BEGIN proc(args); END;".
 func execAsBlock(stmt string) string {
@@ -261,4 +271,95 @@ func queryRows(ctx context.Context, q execer, query string, args ...any) ([][]st
 		out = append(out, row)
 	}
 	return out, rows.Err()
+}
+
+// commandArgs returns the words after a command keyword.
+func commandArgs(stmt string) []string {
+	s := strings.TrimSpace(reLeadingComments.ReplaceAllString(stmt, ""))
+	s = strings.TrimSpace(strings.TrimSuffix(s, ";"))
+	f := strings.Fields(s)
+	if len(f) == 0 {
+		return nil
+	}
+	return f[1:]
+}
+
+// sqlplusSet handles SQL*Plus SET: SERVEROUTPUT ON|OFF changes DBMS_OUTPUT
+// collection; display settings (LINESIZE, PAGESIZE ...) don't apply to
+// sqlcli and are accepted without effect. Callers hold c.mu.
+func (c *Conn) sqlplusSet(stmt string) (*Result, error) {
+	args := commandArgs(stmt)
+	if len(args) == 0 {
+		return nil, fmt.Errorf("usage: SET option value")
+	}
+	opt := strings.ToUpper(args[0])
+	if strings.HasPrefix("SERVEROUTPUT", opt) && len(opt) >= 4 { // SERVEROUTPUT, SERVEROUT, SERVEROUT...
+		if len(args) < 2 {
+			return nil, fmt.Errorf("usage: SET SERVEROUTPUT ON|OFF")
+		}
+		switch strings.ToUpper(args[1]) {
+		case "ON":
+			if !c.output {
+				c.output = godror.EnableDbmsOutput(context.Background(), c.sc) == nil
+				if !c.output {
+					return nil, fmt.Errorf("DBMS_OUTPUT could not be enabled")
+				}
+			}
+			return &Result{Message: "SERVEROUTPUT is ON."}, nil
+		case "OFF":
+			c.output = false
+			_, _ = c.sc.ExecContext(context.Background(), "begin dbms_output.disable; end;")
+			return &Result{Message: "SERVEROUTPUT is OFF."}, nil
+		}
+		return nil, fmt.Errorf("usage: SET SERVEROUTPUT ON|OFF")
+	}
+	return &Result{Message: fmt.Sprintf("SET %s has no effect in sqlcli.", opt)}, nil
+}
+
+var reShowErrors = regexp.MustCompile(`(?i)^(?:ERR|ERRO|ERROR|ERRORS)(?:\s+(PACKAGE\s+BODY|TYPE\s+BODY|PACKAGE|PROCEDURE|FUNCTION|TRIGGER|TYPE|VIEW)\s+(?:("[^"]+"|[A-Za-z][\w$#]*)\s*\.\s*)?("[^"]+"|[A-Za-z][\w$#]*))?$`)
+
+// show handles SQL*Plus SHOW ERRORS [type [owner.]name] and SHOW USER.
+// Callers hold c.mu.
+func (c *Conn) show(ctx context.Context, q execer, stmt string) (*Result, error) {
+	args := commandArgs(stmt)
+	rest := strings.Join(args, " ")
+	switch {
+	case len(args) == 1 && strings.EqualFold(args[0], "USER"):
+		rows, err := queryRows(ctx, q, "select user from dual")
+		if err != nil {
+			return nil, err
+		}
+		return &Result{Message: fmt.Sprintf("USER is %q", rows[0][0])}, nil
+	case reShowErrors.MatchString(rest):
+		m := reShowErrors.FindStringSubmatch(rest)
+		kind, owner, name := c.lastObj[0], c.lastObj[1], c.lastObj[2]
+		if m[1] != "" {
+			ident := func(x string) string {
+				if strings.HasPrefix(x, `"`) {
+					return strings.Trim(x, `"`)
+				}
+				return strings.ToUpper(x)
+			}
+			kind = strings.ToUpper(strings.Join(strings.Fields(m[1]), " "))
+			owner, name = "", ident(m[3])
+			if m[2] != "" {
+				owner = ident(m[2])
+			}
+		}
+		if name == "" {
+			return &Result{Message: "No errors: nothing was created in this session yet (or use SHOW ERRORS type name)."}, nil
+		}
+		errs := c.compileErrors(q, kind, owner, name)
+		if len(errs) == 0 {
+			return &Result{Message: fmt.Sprintf("No errors for %s %s.", kind, name)}, nil
+		}
+		res := &Result{IsQuery: true, Columns: []string{"LINE/COL", "ERROR"}}
+		for _, e := range errs {
+			lc, text, _ := strings.Cut(e, "  ")
+			res.Rows = append(res.Rows, []string{lc, text})
+		}
+		res.Message = fmt.Sprintf("Errors for %s %s: %d.", kind, name, len(errs))
+		return res, nil
+	}
+	return nil, fmt.Errorf("SHOW %s is not supported (use SHOW ERRORS or SHOW USER)", rest)
 }

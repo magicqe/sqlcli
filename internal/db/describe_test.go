@@ -114,3 +114,73 @@ end;`) {
 	}
 	_ = c.Rollback()
 }
+
+func TestLineCommandRecognition(t *testing.T) {
+	yes := []string{"show errors", "SHO ERR", "set serveroutput on", "SET LINESIZE 200", "prompt it's done; ok", "PRO x",
+		"spool out.txt", "SPOOL OFF", "define x = 1", "DEF", "undefine x", "@run.sql", "@@sub.sql a b", "start x.sql", "rem note", "REMARK"}
+	no := []string{"set transaction read only", "SET ROLE all", "set constraints all deferred", "select 1 from dual", "settings", "prompted", "rem_count := 1"}
+	for _, s := range yes {
+		if !IsLineCommand(s) {
+			t.Errorf("%q should be a SQL*Plus command", s)
+		}
+	}
+	for _, s := range no {
+		if IsLineCommand(s) {
+			t.Errorf("%q is not a SQL*Plus command", s)
+		}
+	}
+	got := SplitStatements("prompt it's done; really\nselect 1 from dual;\n  @sub.sql 'a b'\nset linesize 200")
+	want := []string{"prompt it's done; really", "select 1 from dual;", "@sub.sql 'a b'", "set linesize 200"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestIntegrationShowAndSet(t *testing.T) {
+	c := testConn(t)
+	ctx := context.Background()
+	defer c.Execute(ctx, "drop procedure sqlcli_test_proc", 1)
+	r, err := c.Execute(ctx, "show errors", 1)
+	if err != nil || !strings.HasPrefix(r.Message, "No errors: nothing was created") {
+		t.Fatalf("show errors before create: %v %v", r, err)
+	}
+	if r, _ := c.Execute(ctx, "show user", 1); !strings.HasPrefix(r.Message, `USER is "`) {
+		t.Fatalf("show user: %q", r.Message)
+	}
+	c.Execute(ctx, "create or replace procedure sqlcli_test_proc is\nbegin\n  no_such_thing;\nend;", 1)
+	r, err = c.Execute(ctx, "show errors", 1)
+	if err != nil || !r.IsQuery || len(r.Rows) == 0 || r.Rows[0][0] != "3/3" || !strings.Contains(r.Rows[0][1], "PLS-00201") {
+		t.Fatalf("show errors: %+v %v", r, err)
+	}
+	r, _ = c.Execute(ctx, "show errors procedure sqlcli_test_proc", 1)
+	if len(r.Rows) == 0 {
+		t.Fatal("show errors with a name")
+	}
+	c.Execute(ctx, "create or replace procedure sqlcli_test_proc is\nbegin\n  null;\nend;", 1)
+	if r, _ := c.Execute(ctx, "sho err", 1); r.Message != "No errors for PROCEDURE SQLCLI_TEST_PROC." {
+		t.Fatalf("no errors: %q", r.Message)
+	}
+
+	// SET SERVEROUTPUT OFF stops collecting output, ON starts again
+	r, _ = c.Execute(ctx, "set serveroutput off", 1)
+	if r.Message != "SERVEROUTPUT is OFF." {
+		t.Fatalf("off: %q", r.Message)
+	}
+	if r, _ := c.Execute(ctx, "begin dbms_output.put_line('hidden'); end;", 1); len(r.Output) != 0 {
+		t.Fatalf("output while off: %q", r.Output)
+	}
+	c.Execute(ctx, "SET SERVEROUT ON SIZE UNLIMITED", 1)
+	if r, _ := c.Execute(ctx, "begin dbms_output.put_line('shown'); end;", 1); len(r.Output) != 1 || r.Output[0] != "shown" {
+		t.Fatalf("output when on: %q", r.Output)
+	}
+	if r, _ := c.Execute(ctx, "set pagesize 0", 1); r.Message != "SET PAGESIZE has no effect in sqlcli." {
+		t.Fatalf("other set: %q", r.Message)
+	}
+	if _, err := c.Execute(ctx, "set transaction read only", 1); err != nil { // SQL, not SQL*Plus
+		t.Fatalf("set transaction: %s", CleanError(err))
+	}
+	_ = c.Rollback()
+	if _, err := c.Execute(ctx, "show parameters", 1); err == nil || !strings.Contains(err.Error(), "not supported") {
+		t.Fatalf("unsupported show: %v", err)
+	}
+}
