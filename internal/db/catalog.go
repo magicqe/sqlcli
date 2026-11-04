@@ -289,23 +289,10 @@ func (c *Conn) UpdateCell(ctx context.Context, owner, table, column, colType, va
 		}
 		arg = v
 	}
-	target := quoteName(table)
-	if owner != "" {
-		target = quoteName(owner) + "." + target
-	}
-	stmt := fmt.Sprintf("update %s set %s = :1 where rowid = chartorowid(:2)", target, quoteName(column))
-	var ex execer = c.sc
-	if !c.auto {
-		if c.tx == nil {
-			tx, err := c.sc.BeginTx(context.Background(), nil)
-			if err != nil {
-				return err
-			}
-			c.tx = tx
-		}
-		ex = c.tx
-	} else if c.tx != nil {
-		ex = c.tx
+	stmt := fmt.Sprintf("update %s set %s = :1 where rowid = chartorowid(:2)", tableName(owner, table), quoteName(column))
+	ex, err := c.dmlExecer()
+	if err != nil {
+		return err
 	}
 	r, err := ex.ExecContext(ctx, stmt, arg, rowid)
 	if err != nil {
@@ -349,4 +336,116 @@ func quoteName(s string) string {
 		return s
 	}
 	return `"` + strings.ReplaceAll(s, `"`, `""`) + `"`
+}
+
+// ColumnTypes returns the data types of a table's columns by column name.
+func (c *Conn) ColumnTypes(ctx context.Context, owner, table string) (map[string]string, error) {
+	rows, err := c.metaQuery(ctx, `select column_name, data_type from all_tab_columns
+		where owner = nvl(:1, sys_context('userenv', 'current_schema')) and table_name = :2`, owner, table)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("table %s not found", table)
+	}
+	out := map[string]string{}
+	for _, r := range rows {
+		out[r[0]] = r[1]
+	}
+	return out, nil
+}
+
+// dmlExecer returns where DML runs: the open transaction, a new one (unless
+// auto-commit is on), or the session. Callers hold c.mu.
+func (c *Conn) dmlExecer() (execer, error) {
+	if c.tx == nil && !c.auto {
+		tx, err := c.sc.BeginTx(context.Background(), nil)
+		if err != nil {
+			return nil, err
+		}
+		c.tx = tx
+	}
+	if c.tx != nil {
+		return c.tx, nil
+	}
+	return c.sc, nil
+}
+
+func (c *Conn) checkWritable() error {
+	if c.closed || c.sc == nil {
+		return sql.ErrConnDone
+	}
+	if c.ReadOnly {
+		return fmt.Errorf("connection %q is read-only", c.Name)
+	}
+	return nil
+}
+
+func tableName(owner, table string) string {
+	if owner != "" {
+		return quoteName(owner) + "." + quoteName(table)
+	}
+	return quoteName(table)
+}
+
+// InsertRow inserts one row: INSERT INTO table (cols) VALUES (:1, ...)
+// RETURNING ROWID. Values are converted for the column types; an empty
+// value is NULL. It returns the new row's ROWID.
+func (c *Conn) InsertRow(ctx context.Context, owner, table string, cols, types, values []string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := c.checkWritable(); err != nil {
+		return "", err
+	}
+	if len(cols) == 0 {
+		return "", fmt.Errorf("no columns to insert")
+	}
+	names := make([]string, len(cols))
+	marks := make([]string, len(cols))
+	args := make([]any, 0, len(cols)+1)
+	for i, col := range cols {
+		names[i], marks[i] = quoteName(col), fmt.Sprintf(":%d", i+1)
+		if values[i] == "" {
+			args = append(args, nil)
+			continue
+		}
+		v, err := bindValue(types[i], values[i])
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", col, err)
+		}
+		args = append(args, v)
+	}
+	var rowid string
+	args = append(args, sql.Out{Dest: &rowid})
+	stmt := fmt.Sprintf("insert into %s (%s) values (%s) returning rowidtochar(rowid) into :%d",
+		tableName(owner, table), strings.Join(names, ", "), strings.Join(marks, ", "), len(cols)+1)
+	ex, err := c.dmlExecer()
+	if err != nil {
+		return "", err
+	}
+	if _, err := ex.ExecContext(ctx, stmt, args...); err != nil {
+		return "", err
+	}
+	return rowid, nil
+}
+
+// DeleteRow deletes the row with the given ROWID.
+func (c *Conn) DeleteRow(ctx context.Context, owner, table, rowid string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := c.checkWritable(); err != nil {
+		return err
+	}
+	ex, err := c.dmlExecer()
+	if err != nil {
+		return err
+	}
+	r, err := ex.ExecContext(ctx, fmt.Sprintf("delete from %s where rowid = chartorowid(:1)", tableName(owner, table)), rowid)
+	if err != nil {
+		return err
+	}
+	if n, _ := r.RowsAffected(); n != 1 {
+		return fmt.Errorf("the row was not found (deleted meanwhile?)")
+	}
+	return nil
 }

@@ -652,6 +652,7 @@ to focus it, or press F3 twice.
 | End (^E, G) | last row; **fetches all remaining rows first** |
 | ← / → (^B / ^F, h / l) | move the cell cursor one column left / right |
 | u | edit the current cell ([Editing cells](#editing-cells)) |
+| i / d | insert a new row / delete the current row |
 | Enter | show the selected row as a record ([Record view](#record-view)) |
 | o | switch between the grid and DBMS_OUTPUT (when a query produced both) |
 | e | export the result to a .csv, .tsv or .json file ([Exporting](#exporting)) |
@@ -681,6 +682,17 @@ include a `ROWID` column. **s** in the object tree adds it for tables
 binary columns (RAW, BLOB) and read-only connections, **u** says why it can't
 edit.
 
+**Inserting and deleting rows.** **i** inserts a new row: sqlcli asks for the
+value of each of the result's table columns in turn (`New row: ID (number,
+empty = NULL) [1/3]`; Esc cancels the whole insert) and runs `INSERT …
+VALUES (:1, …) RETURNING ROWID`. The new row appears below the current one,
+with its ROWID, so it can be edited at once. **d** deletes the current row
+after a yes/no question (`DELETE … WHERE ROWID = :rowid`). Both work in the
+grid and in the record view, in the tab's transaction: F9 commits, F8 rolls
+back and puts the grid back as it was (edited values return, inserted rows go,
+deleted rows come back). Insert needs a result of one table; delete also
+needs its `ROWID` column.
+
 ### Record view
 
 **Enter** on a grid row shows that row as a record: one line per column,
@@ -689,12 +701,15 @@ long values in full, NULL as `(null)`.
 | Key | Action |
 |---|---|
 | ↑ / ↓ (^P / ^N) | previous / next record |
+| Tab / Shift-Tab | next / previous field (the field cursor) |
+| u | edit the field under the field cursor (as in the grid; the record view stays open) |
+| i / d | insert a new row / delete this row |
 | Home (^A) | first record |
 | End (^E) | last record; fetches all remaining rows first, like End in the grid |
 | PgUp / PgDn (^U / ^V) | back / forward by `ui.record_page` records (default 10) |
 | Shift-↑ / Shift-↓, Shift-PgUp / Shift-PgDn, mouse wheel | scroll a record that is taller than the screen |
 | Ctrl-C | stop fetching |
-| any other key | close the record view (the grid keeps the record selected) |
+| other keys | close the record view (the grid keeps the record selected) |
 
 Stepping past the last fetched row with ↓ or PgDn fetches the next batch;
 PgDn still lands exactly `record_page` records further.

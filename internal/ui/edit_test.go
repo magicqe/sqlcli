@@ -87,3 +87,50 @@ func TestRevertEdits(t *testing.T) {
 		t.Fatalf("revert: %d %q", n, m.res.res.Rows[0][1])
 	}
 }
+
+func TestRevertInsertDelete(t *testing.T) {
+	m := editModel("select rowid, t.* from emp t", []string{"ROWID", "NAME"}, [][]string{{"r1", "a"}, {"r2", "b"}, {"r3", "c"}})
+	m.res.insertRow(1, []string{"r9", "new"}) // a, new, b, c
+	m.res.deleteRow(3)                        // a, new, b
+	m.res.setCell(0, 1, "A")                  // A, new, b
+	m.res.deleteRow(1)                        // A, b
+	if got := m.res.res.Rows; len(got) != 2 || got[0][1] != "A" || got[1][1] != "b" {
+		t.Fatalf("after changes: %v", got)
+	}
+	if n := m.res.revertEdits(); n != 4 {
+		t.Fatalf("reverted %d", n)
+	}
+	want := [][]string{{"r1", "a"}, {"r2", "b"}, {"r3", "c"}}
+	for i := range want {
+		if m.res.res.Rows[i][1] != want[i][1] {
+			t.Fatalf("after revert: %v", m.res.res.Rows)
+		}
+	}
+}
+
+func TestRecordFieldCursor(t *testing.T) {
+	m := editModel("select rowid, t.* from emp t", []string{"ROWID", "ID", "NAME"}, [][]string{{"r1", "1", "a"}})
+	press(m, key(tea.KeyEnter)) // record view
+	press(m, key(tea.KeyTab))
+	press(m, key(tea.KeyTab))
+	if m.mode != modeRecord || m.res.selCol != 2 {
+		t.Fatalf("Tab: mode %v field %d", m.mode, m.res.selCol)
+	}
+	press(m, key(tea.KeyTab)) // stays on the last field
+	press(m, key(tea.KeyTab, tea.ModShift))
+	if m.res.selCol != 1 {
+		t.Fatalf("Shift-Tab: %d", m.res.selCol)
+	}
+	if !strings.Contains(screen(m), "Tab S-Tab field") || !strings.Contains(m.recordView(), "48;5;24") {
+		t.Fatal("field cursor or hint missing")
+	}
+	// a question from the record view returns to it
+	press(m, key('d'))
+	if m.mode != modePrompt || m.prompt.back != modeRecord {
+		t.Fatalf("delete question: mode %v back %v", m.mode, m.prompt.back)
+	}
+	press(m, key(tea.KeyEscape))
+	if m.mode != modeRecord {
+		t.Fatalf("after Esc: %v", m.mode)
+	}
+}

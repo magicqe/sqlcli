@@ -219,3 +219,37 @@ func TestIntegrationUpdateCell(t *testing.T) {
 	}
 	c.Rollback()
 }
+
+func TestIntegrationInsertDeleteRow(t *testing.T) {
+	c := testConn(t)
+	ctx := context.Background()
+	defer c.Execute(ctx, "drop table sqlcli_test_ins purge", 1)
+	if _, err := c.Execute(ctx, "create table sqlcli_test_ins (id number(5) not null, name varchar2(20), born date)", 1); err != nil {
+		t.Fatal(CleanError(err))
+	}
+	types, err := c.ColumnTypes(ctx, "", "SQLCLI_TEST_INS")
+	if err != nil || types["ID"] != "NUMBER" || types["BORN"] != "DATE" {
+		t.Fatalf("types: %v %v", types, err)
+	}
+	rowid, err := c.InsertRow(ctx, "", "SQLCLI_TEST_INS", []string{"ID", "NAME", "BORN"}, []string{"NUMBER", "VARCHAR2", "DATE"}, []string{"7", "seven", "2020-02-29"})
+	if err != nil || rowid == "" || !c.InTransaction() {
+		t.Fatalf("insert: %q %v", rowid, err)
+	}
+	r, _ := c.Execute(ctx, "select id, name, to_char(born, 'YYYY-MM-DD') from sqlcli_test_ins where rowid = chartorowid('"+rowid+"')", 1)
+	if len(r.Rows) != 1 || r.Rows[0][0] != "7" || r.Rows[0][2] != "2020-02-29" {
+		t.Fatalf("inserted row: %v", r.Rows)
+	}
+	if _, err := c.InsertRow(ctx, "", "SQLCLI_TEST_INS", []string{"ID", "NAME"}, []string{"NUMBER", "VARCHAR2"}, []string{"", "no id"}); err == nil || !strings.Contains(err.Error(), "ORA-01400") {
+		t.Fatalf("NOT NULL violation: %v", err)
+	}
+	if err := c.DeleteRow(ctx, "", "SQLCLI_TEST_INS", rowid); err != nil {
+		t.Fatal(CleanError(err))
+	}
+	if r, _ := c.Execute(ctx, "select count(*) from sqlcli_test_ins", 1); r.Rows[0][0] != "0" {
+		t.Fatalf("after delete: %v", r.Rows)
+	}
+	c.Rollback()
+	if r, _ := c.Execute(ctx, "select count(*) from sqlcli_test_ins", 1); r.Rows[0][0] != "0" {
+		t.Fatalf("rollback of insert+delete: %v", r.Rows)
+	}
+}

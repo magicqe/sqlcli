@@ -35,7 +35,7 @@ type resultView struct {
 	colOff int // first visible column
 	selCol int // column of the cell cursor
 
-	edits []cellEdit // cells changed in the database (reverted on rollback)
+	edits []rowChange // changes made in the database (undone in the grid on rollback)
 	w, h  int
 }
 
@@ -400,10 +400,12 @@ func (r *resultView) rangeText() (string, int) {
 	return strings.Join(out, "\n"), len(out)
 }
 
-// cellEdit remembers a changed cell so a rollback can show the old value.
-type cellEdit struct {
+// rowChange remembers a change so a rollback can undo it in the grid.
+type rowChange struct {
+	kind     byte // 'u' cell edited, 'i' row inserted, 'd' row deleted
 	row, col int
-	old      string
+	old      string   // 'u': the old value
+	data     []string // 'd': the deleted row
 }
 
 // visibleCols returns the columns shown, from colOff while they fit.
@@ -446,22 +448,55 @@ func (r *resultView) keepColVisible() {
 
 // setCell changes a shown value after an UPDATE, remembering the old one.
 func (r *resultView) setCell(row, col int, value string) {
-	r.edits = append(r.edits, cellEdit{row: row, col: col, old: r.res.Rows[row][col]})
+	r.edits = append(r.edits, rowChange{kind: 'u', row: row, col: col, old: r.res.Rows[row][col]})
 	r.res.Rows[row][col] = value
 	if row <= 500 {
 		r.widths[col] = max(r.widths[col], min(ansi.StringWidth(cell(value)), maxColWidth))
 	}
 }
 
-// revertEdits shows the old values again (after a rollback).
+// insertRow adds a row (just inserted in the database) at index at.
+func (r *resultView) insertRow(at int, data []string) {
+	at = min(max(at, 0), len(r.res.Rows))
+	r.res.Rows = append(r.res.Rows[:at], append([][]string{data}, r.res.Rows[at:]...)...)
+	r.edits = append(r.edits, rowChange{kind: 'i', row: at})
+	r.row = at
+	r.clampRow()
+}
+
+// deleteRow removes a row (just deleted in the database).
+func (r *resultView) deleteRow(at int) {
+	r.edits = append(r.edits, rowChange{kind: 'd', row: at, data: r.res.Rows[at]})
+	r.res.Rows = append(r.res.Rows[:at], r.res.Rows[at+1:]...)
+	r.clampRow()
+}
+
+// revertEdits undoes the changes in the grid (after a rollback): old values
+// come back, inserted rows go, deleted rows return.
 func (r *resultView) revertEdits() int {
 	n := len(r.edits)
 	for i := n - 1; i >= 0; i-- {
 		e := r.edits[i]
-		if r.res != nil && e.row < len(r.res.Rows) {
-			r.res.Rows[e.row][e.col] = e.old
+		if r.res == nil {
+			break
+		}
+		switch e.kind {
+		case 'u':
+			if e.row < len(r.res.Rows) {
+				r.res.Rows[e.row][e.col] = e.old
+			}
+		case 'i':
+			if e.row < len(r.res.Rows) {
+				r.res.Rows = append(r.res.Rows[:e.row], r.res.Rows[e.row+1:]...)
+			}
+		case 'd':
+			at := min(e.row, len(r.res.Rows))
+			r.res.Rows = append(r.res.Rows[:at], append([][]string{e.data}, r.res.Rows[at:]...)...)
 		}
 	}
 	r.edits = nil
+	if r.res != nil {
+		r.clampRow()
+	}
 	return n
 }

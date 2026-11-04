@@ -659,6 +659,7 @@ end;
           <tr><td><kbd>End</kbd> &nbsp;<kbd>^E</kbd> &nbsp;<kbd>G</kbd></td><td class="wrap-ok">Last row. <strong>Fetches all remaining rows first.</strong></td></tr>
           <tr><td><kbd>←</kbd> <kbd>→</kbd> &nbsp;<kbd>^B</kbd> <kbd>^F</kbd> &nbsp;<kbd>h</kbd> <kbd>l</kbd></td><td>Move the cell cursor one column left / right</td></tr>
           <tr><td><kbd>u</kbd></td><td class="wrap-ok">Edit the current cell (see <a href="#edit-cells">Editing cells</a>)</td></tr>
+          <tr><td><kbd>i</kbd> / <kbd>d</kbd></td><td>Insert a new row / delete the current row</td></tr>
           <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">Show the selected row as a record (see <a href="#record">Record view</a>)</td></tr>
           <tr><td><kbd>o</kbd></td><td class="wrap-ok">Switch between the grid and DBMS_OUTPUT (when a query produced both)</td></tr>
           <tr><td><kbd>e</kbd></td><td class="wrap-ok">Export the result to a .csv, .tsv or .json file (see <a href="#export">Exporting</a>)</td></tr>
@@ -668,12 +669,16 @@ end;
       <h3 id="edit-cells">Editing cells</h3>
       <p>The grid has a <strong>cell cursor</strong>: <kbd>←</kbd> / <kbd>→</kbd> move it between columns (the grid scrolls sideways to keep the column visible), <kbd>↑</kbd> / <kbd>↓</kbd> between rows. <kbd>u</kbd> edits the current cell: the bottom line asks for the new value, filled in with the current one; an empty value sets NULL (for text that's the same in Oracle). sqlcli then runs <code>UPDATE table SET column = :value WHERE ROWID = :rowid</code> with bind variables, in the tab's transaction like any DML: <strong><kbd>F9</kbd> commits, <kbd>F8</kbd> rolls back</strong>, and after a rollback the edited cells show their old values again (with <code>query.auto_commit = true</code> each change is committed at once). Numbers may use <code>.</code> or <code>,</code>; dates are typed as <code>YYYY-MM-DD [HH:MI[:SS]]</code>.</p>
       <p>Rows are found by their <strong>ROWID</strong>, so the result must come from one table and include a <code>ROWID</code> column. <kbd>s</kbd> in the object tree adds it for tables (<code>select rowid, t.* from table t</code>); in your own SQL write e.g. <code>select rowid, e.* from emp e</code>. Without a ROWID, for joins, computed columns, binary columns (RAW, BLOB) and read-only connections, <kbd>u</kbd> says why it can't edit.</p>
+      <p><strong>Inserting and deleting rows.</strong> <kbd>i</kbd> inserts a new row: sqlcli asks for the value of each of the result's table columns in turn (<code>New row: ID (number, empty = NULL) [1/3]</code>; <kbd>Esc</kbd> cancels the whole insert) and runs <code>INSERT … VALUES (:1, …) RETURNING ROWID</code>. The new row appears below the current one, with its ROWID, so it can be edited at once. <kbd>d</kbd> deletes the current row after a yes/no question (<code>DELETE … WHERE ROWID = :rowid</code>). Both work in the grid and in the record view, in the tab's transaction: <kbd>F9</kbd> commits, <kbd>F8</kbd> rolls back and puts the grid back as it was (edited values return, inserted rows go, deleted rows come back). Insert needs a result of one table; delete also needs its <code>ROWID</code> column.</p>
       <h3 id="record">Record view</h3>
       <p><kbd>Enter</kbd> on a grid row shows that row as a record: one line per column, long values in full, NULL as <code>(null)</code>.</p>
       <div class="tbl"><table>
         <thead><tr><th>Key</th><th>Action</th></tr></thead>
         <tbody>
           <tr><td><kbd>↑</kbd> <kbd>↓</kbd> &nbsp;<kbd>^P</kbd> <kbd>^N</kbd></td><td>Previous / next record</td></tr>
+          <tr><td><kbd>Tab</kbd> / <kbd>Shift-Tab</kbd></td><td>Next / previous field (the field cursor)</td></tr>
+          <tr><td><kbd>u</kbd></td><td class="wrap-ok">Edit the field under the field cursor (as in the grid; the record view stays open)</td></tr>
+          <tr><td><kbd>i</kbd> / <kbd>d</kbd></td><td>Insert a new row / delete this row</td></tr>
           <tr><td><kbd>Home</kbd> &nbsp;<kbd>^A</kbd></td><td>First record</td></tr>
           <tr><td><kbd>End</kbd> &nbsp;<kbd>^E</kbd></td><td class="wrap-ok">Last record. Fetches all remaining rows first, like End in the grid.</td></tr>
           <tr><td><kbd>PgUp</kbd> <kbd>PgDn</kbd> &nbsp;<kbd>^U</kbd> <kbd>^V</kbd></td><td class="wrap-ok">Back / forward by <code>ui.record_page</code> records (default 10)</td></tr>

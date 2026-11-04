@@ -52,6 +52,7 @@ const (
 )
 
 type prompt struct {
+	back     mode // mode to return to when the question ends (normal or record view)
 	label    string
 	input    []rune
 	cur      int
@@ -624,8 +625,15 @@ func (m *Model) rowsStatus() string {
 // ---- prompts ----
 
 func (m *Model) ask(label, initial string, mask bool, onSubmit func(string) tea.Cmd) {
+	back := modeNormal
+	if m.mode == modeRecord { // a question from the record view returns to it
+		back = modeRecord
+	}
+	if m.mode == modePrompt {
+		back = m.prompt.back // a follow-up question returns where the first one would
+	}
 	m.mode = modePrompt
-	m.prompt = prompt{label: label, input: []rune(initial), cur: len([]rune(initial)), mask: mask, onSubmit: onSubmit}
+	m.prompt = prompt{back: back, label: label, input: []rune(initial), cur: len([]rune(initial)), mask: mask, onSubmit: onSubmit}
 }
 
 // askFile is ask for a file name: Tab completes it.
@@ -643,10 +651,10 @@ func (m *Model) updatePrompt(key, text string) tea.Cmd {
 	p.cycle = nil // any other key ends Tab cycling
 	switch key {
 	case "esc", "ctrl+c", "ctrl+g":
-		m.mode = modeNormal
+		m.mode = p.back
 		m.setStatus("Cancelled", false)
 	case "enter":
-		m.mode = modeNormal
+		m.mode = p.back
 		if p.onSubmit != nil {
 			return p.onSubmit(string(p.input))
 		}
@@ -788,6 +796,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case cellUpdatedMsg:
 		return m, m.onTab(msg.tab, func() tea.Cmd { m.cellUpdated(msg); return nil })
+
+	case insertReadyMsg:
+		return m, m.onTab(msg.tab, func() tea.Cmd { return m.askInsertValues(msg, 0, nil) })
+
+	case rowInsertedMsg:
+		return m, m.onTab(msg.tab, func() tea.Cmd { m.rowInserted(msg); return nil })
+
+	case rowDeletedMsg:
+		return m, m.onTab(msg.tab, func() tea.Cmd { m.rowDeleted(msg); return nil })
 
 	case objectsMsg:
 		if cat := m.catalogs[msg.conn]; cat != nil {
@@ -1106,7 +1123,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		} else if commit {
 			m.setStatus("Commit complete", false)
 		} else if reverted > 0 {
-			m.setStatus(fmt.Sprintf("Rollback complete: %d edited cell(s) show their old values again", reverted), false)
+			m.setStatus(fmt.Sprintf("Rollback complete: %d change(s) undone in the grid too", reverted), false)
 		} else {
 			m.setStatus("Rollback complete", false)
 		}
@@ -1133,6 +1150,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.res.toggleText()
 		case "u":
 			return m.startCellEdit()
+		case "i":
+			return m.startInsert()
+		case "d":
+			return m.startDelete()
 		case "e":
 			return m.askExport()
 		case "end", "ctrl+e", "G":
@@ -1956,8 +1977,22 @@ func (m *Model) recordView() string {
 		nw = max(nw, ansi.StringWidth(c))
 	}
 	var lines []string
+	m.res.selCol = min(max(m.res.selCol, 0), len(r.Columns)-1)
 	for i, c := range r.Columns {
 		name := headerStyle.Render(fmt.Sprintf("%-*s", nw, c)) + sepStyle.Render(" │ ")
+		if i == m.res.selCol { // the field cursor
+			v := row[i]
+			if v == db.Null {
+				v = db.NullDisplay
+			}
+			first := strings.SplitN(v, "\n", 2)[0]
+			plain := fmt.Sprintf("%-*s │ %s", nw, c, first)
+			lines = append(lines, selStyle.Render(plain+strings.Repeat(" ", max(m.w-2-ansi.StringWidth(plain), 0))))
+			for _, extra := range strings.Split(v, "\n")[1:] {
+				lines = append(lines, strings.Repeat(" ", nw)+sepStyle.Render(" │ ")+extra)
+			}
+			continue
+		}
 		if row[i] == db.Null {
 			lines = append(lines, name+nullStyle.Render(db.NullDisplay))
 			continue
@@ -1983,8 +2018,11 @@ func (m *Model) recordView() string {
 		title += fmt.Sprintf("  fetching… %d rows (Ctrl-C stops)", len(r.Rows))
 	}
 	hint := " " + hintKey.Render("↑↓") + hintText.Render(" previous/next  ") +
-		hintKey.Render("Home End") + hintText.Render(" first/last  ") +
 		hintKey.Render("PgUp PgDn") + hintText.Render(fmt.Sprintf(" ±%d records  ", m.cfg.UI.RecordPage)) +
+		hintKey.Render("Home End") + hintText.Render(" first/last  ") +
+		hintKey.Render("Tab S-Tab") + hintText.Render(" field  ") +
+		hintKey.Render("u") + hintText.Render(" edit  ") + hintKey.Render("i") + hintText.Render(" insert  ") +
+		hintKey.Render("d") + hintText.Render(" delete  ") +
 		hintKey.Render("Shift-↑↓") + hintText.Render(" scroll  ") +
 		hintKey.Render("other keys") + hintText.Render(" close")
 	return box(title, strings.Join(lines[m.recTop:], "\n"), m.w, m.h-1, true) + "\n" + ansi.Truncate(hint, m.w, "")
@@ -2045,6 +2083,18 @@ func (m *Model) updateRecord(key string) tea.Cmd {
 		if m.running && m.cancel != nil {
 			m.cancel()
 		}
+	case "tab": // next / previous field
+		m.res.selCol = min(m.res.selCol+1, len(r.Columns)-1)
+		m.keepFieldVisible()
+	case "shift+tab":
+		m.res.selCol = max(m.res.selCol-1, 0)
+		m.keepFieldVisible()
+	case "u":
+		return m.startCellEdit()
+	case "i":
+		return m.startInsert()
+	case "d":
+		return m.startDelete()
 	default:
 		m.mode = modeNormal
 	}
@@ -2086,6 +2136,7 @@ const helpText = `
  arrows, PgUp/PgDn, wheel   scroll         ↑↓ / Home End          previous, next / first, last
  End         fetch all rows, last row      PgUp / PgDn            ± record_page records
  ←→ / u      cell cursor / edit the cell (needs ROWID; F9 commit, F8 rollback)
+ i / d       insert a row / delete the row (also in the record view; Tab moves between fields there)
  Ctrl-C      stop fetching                 Shift-↑↓, wheel        scroll a long record
  Enter       show row as record
  o           grid / DBMS_OUTPUT
@@ -3423,7 +3474,7 @@ func (m *Model) keyHints() [][2]string {
 			}
 			return append(h, [2]string{"Tab", "editor"}, [2]string{"Esc", "editor"}, [2]string{"F1", "help"})
 		}
-		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Enter", "record"}, {"u", "edit"}, {"e", "export"}, {"End", "all rows"}}
+		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Enter", "record"}, {"u", "edit"}, {"i", "insert"}, {"d", "delete"}, {"e", "export"}, {"End", "all rows"}}
 		if m.res.canToggle() {
 			h = append(h, [2]string{"o", "output"})
 		}
@@ -3461,22 +3512,9 @@ func (m *Model) editTarget() (complete.TableRef, int, string, error) {
 	if m.conn.ReadOnly {
 		return complete.TableRef{}, 0, "", fmt.Errorf("connection %q is read-only", m.conn.Name)
 	}
-	ri := -1
-	for i, c := range r.Columns {
-		if strings.EqualFold(c, "ROWID") {
-			ri = i
-		}
-	}
-	tables := map[complete.TableRef]bool{}
-	for _, t := range complete.TableRefs(r.SQL) {
-		tables[t] = true
-	}
-	if len(tables) != 1 {
-		return complete.TableRef{}, 0, "", errors.New("editing works on a query of one table")
-	}
-	var table complete.TableRef
-	for t := range tables {
-		table = t
+	table, ri, err := resultTable(r)
+	if err != nil {
+		return complete.TableRef{}, 0, "", err
 	}
 	if ri < 0 {
 		return complete.TableRef{}, 0, "", fmt.Errorf("to edit, the query needs the ROWID: select rowid, t.* from %s t", strings.ToLower(table.Name))
@@ -3547,9 +3585,218 @@ func (m *Model) cellUpdated(msg cellUpdatedMsg) {
 		return
 	}
 	m.res.setCell(msg.row, msg.col, msg.value)
-	what := "F9 commits, F8 rolls back"
-	if m.cfg.Query.AutoCommit {
-		what = "committed"
+	m.setStatus(fmt.Sprintf("%s updated (%s)", r.Columns[msg.col], m.txHint()), false)
+}
+
+// resultTable returns the one table a result comes from and the index of
+// its ROWID column (-1 if there is none).
+func resultTable(r *db.Result) (complete.TableRef, int, error) {
+	ri := -1
+	for i, c := range r.Columns {
+		if strings.EqualFold(c, "ROWID") {
+			ri = i
+		}
 	}
-	m.setStatus(fmt.Sprintf("%s updated (%s)", r.Columns[msg.col], what), false)
+	tables := map[complete.TableRef]bool{}
+	for _, t := range complete.TableRefs(r.SQL) {
+		tables[t] = true
+	}
+	if len(tables) != 1 {
+		return complete.TableRef{}, ri, errors.New("editing works on a query of one table")
+	}
+	var table complete.TableRef
+	for t := range tables {
+		table = t
+	}
+	return table, ri, nil
+}
+
+// keepFieldVisible scrolls the record view so the field cursor is shown.
+func (m *Model) keepFieldVisible() {
+	r := m.res.res
+	line := 0
+	for i := 0; i < m.res.selCol && i < len(r.Columns); i++ {
+		line += 1 + strings.Count(r.Rows[m.res.row][i], "\n")
+	}
+	vis := max(m.h-3, 1)
+	if line < m.recTop {
+		m.recTop = line
+	}
+	if line >= m.recTop+vis {
+		m.recTop = line - vis + 1
+	}
+}
+
+// ---- inserting and deleting rows (i, d) ----
+
+type insertReadyMsg struct {
+	tab         int
+	table       complete.TableRef
+	cols, types []string // the result's table columns, in result order
+	rowidCol    int
+	at          int // grid index for the new row
+	err         error
+}
+
+type rowInsertedMsg struct {
+	tab, at  int
+	cols     []string
+	values   []string
+	rowid    string
+	rowidCol int
+	err      error
+}
+
+type rowDeletedMsg struct {
+	tab, row int
+	err      error
+}
+
+// startInsert looks up the column types, then asks for the values.
+func (m *Model) startInsert() tea.Cmd {
+	r := m.res.res
+	switch {
+	case m.running:
+		m.setStatus("Wait for the running statement (Ctrl-C cancels it)", true)
+		return nil
+	case m.res.showText() || r == nil:
+		m.setStatus("no result to insert into: run a query first", true)
+		return nil
+	case m.conn == nil:
+		m.setStatus("not connected", true)
+		return nil
+	case m.conn.ReadOnly:
+		m.setStatus(fmt.Sprintf("connection %q is read-only", m.conn.Name), true)
+		return nil
+	}
+	table, ri, err := resultTable(r)
+	if err != nil {
+		m.setStatus(err.Error(), true)
+		return nil
+	}
+	conn, id, at := m.conn, m.id, min(m.res.row+1, len(r.Rows))
+	cols := append([]string{}, r.Columns...)
+	return func() tea.Msg {
+		types, err := conn.ColumnTypes(context.Background(), table.Owner, table.Name)
+		msg := insertReadyMsg{tab: id, table: table, rowidCol: ri, at: at, err: err}
+		for i, c := range cols {
+			if t, ok := types[strings.ToUpper(c)]; ok && i != ri {
+				msg.cols = append(msg.cols, strings.ToUpper(c))
+				msg.types = append(msg.types, t)
+			}
+		}
+		return msg
+	}
+}
+
+// askInsertValues asks for the value of column k, then the next one, and
+// inserts the row after the last.
+func (m *Model) askInsertValues(msg insertReadyMsg, k int, values []string) tea.Cmd {
+	if msg.err != nil {
+		m.setStatus(db.CleanError(msg.err), true)
+		return nil
+	}
+	if len(msg.cols) == 0 {
+		m.setStatus("none of the result's columns is a column of "+msg.table.Name, true)
+		return nil
+	}
+	label := fmt.Sprintf("New row: %s (%s, empty = NULL) [%d/%d]:", msg.cols[k], strings.ToLower(msg.types[k]), k+1, len(msg.cols))
+	m.ask(label, "", false, func(v string) tea.Cmd {
+		values := append(append([]string{}, values...), v)
+		if k+1 < len(msg.cols) {
+			return m.askInsertValues(msg, k+1, values)
+		}
+		conn, id := m.conn, m.id
+		m.setStatus("Inserting...", false)
+		return func() tea.Msg {
+			rowid, err := conn.InsertRow(context.Background(), msg.table.Owner, msg.table.Name, msg.cols, msg.types, values)
+			return rowInsertedMsg{tab: id, at: msg.at, cols: msg.cols, values: values, rowid: rowid, rowidCol: msg.rowidCol, err: err}
+		}
+	})
+	return nil
+}
+
+func (m *Model) rowInserted(msg rowInsertedMsg) {
+	if msg.err != nil {
+		m.setStatus(db.CleanError(msg.err), true)
+		return
+	}
+	r := m.res.res
+	if r == nil {
+		return
+	}
+	row := make([]string, len(r.Columns))
+	for i, c := range r.Columns {
+		row[i] = db.Null
+		for k, col := range msg.cols {
+			if strings.EqualFold(c, col) && msg.values[k] != "" {
+				row[i] = msg.values[k]
+			}
+		}
+	}
+	if msg.rowidCol >= 0 {
+		row[msg.rowidCol] = msg.rowid
+	}
+	m.res.insertRow(msg.at, row)
+	m.setStatus("1 row inserted ("+m.txHint()+")", false)
+}
+
+// startDelete asks for confirmation and deletes the current row.
+func (m *Model) startDelete() tea.Cmd {
+	if m.running {
+		m.setStatus("Wait for the running statement (Ctrl-C cancels it)", true)
+		return nil
+	}
+	r := m.res.res
+	if m.res.showText() || r == nil || len(r.Rows) == 0 {
+		m.setStatus("no row to delete: run a query first", true)
+		return nil
+	}
+	if m.conn == nil || m.conn.ReadOnly {
+		m.setStatus("not connected, or the connection is read-only", true)
+		return nil
+	}
+	table, ri, err := resultTable(r)
+	if err == nil && ri < 0 {
+		err = fmt.Errorf("to delete, the query needs the ROWID: select rowid, t.* from %s t", strings.ToLower(table.Name))
+	}
+	if err != nil {
+		m.setStatus(err.Error(), true)
+		return nil
+	}
+	row := m.res.row
+	rowid := r.Rows[row][ri]
+	m.ask(fmt.Sprintf("Delete row %d from %s? (y/N)", row+1, table.Name), "", false, func(v string) tea.Cmd {
+		if !strings.EqualFold(strings.TrimSpace(v), "y") {
+			m.setStatus("Not deleted", false)
+			return nil
+		}
+		conn, id := m.conn, m.id
+		return func() tea.Msg {
+			err := conn.DeleteRow(context.Background(), table.Owner, table.Name, rowid)
+			return rowDeletedMsg{tab: id, row: row, err: err}
+		}
+	})
+	return nil
+}
+
+func (m *Model) rowDeleted(msg rowDeletedMsg) {
+	if msg.err != nil {
+		m.setStatus(db.CleanError(msg.err), true)
+		return
+	}
+	if r := m.res.res; r != nil && msg.row < len(r.Rows) {
+		m.res.deleteRow(msg.row)
+		if len(r.Rows) == 0 && m.mode == modeRecord {
+			m.mode = modeNormal
+		}
+	}
+	m.setStatus("1 row deleted ("+m.txHint()+")", false)
+}
+
+func (m *Model) txHint() string {
+	if m.cfg.Query.AutoCommit {
+		return "committed"
+	}
+	return "F9 commits, F8 rolls back"
 }

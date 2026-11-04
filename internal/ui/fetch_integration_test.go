@@ -729,7 +729,7 @@ func TestUIEditCells(t *testing.T) {
 	// F8: database and grid go back
 	m.focus = focusResults
 	press(m, key(tea.KeyF8))
-	if m.res.res.Rows[m.res.row][2] != "one" || value() != "one" || !strings.Contains(m.status, "old values") {
+	if m.res.res.Rows[m.res.row][2] != "one" || value() != "one" || !strings.Contains(m.status, "undone in the grid") {
 		t.Fatalf("rollback: grid %q db %q status %q", m.res.res.Rows[m.res.row][2], value(), m.status)
 	}
 	// edit again and commit; a number column too
@@ -755,4 +755,68 @@ func TestUIEditCells(t *testing.T) {
 		t.Fatalf("bad number: %q", m.status)
 	}
 	press(m, key(tea.KeyF8))
+}
+
+func TestUIInsertDeleteRows(t *testing.T) {
+	m := newTestModel(t, false)
+	ctx := context.Background()
+	defer m.conn.Execute(ctx, "drop table sqlcli_test_rows purge", 1)
+	run(m, "create table sqlcli_test_rows (id number(5) not null, name varchar2(20))")
+	run(m, "insert into sqlcli_test_rows values (1, 'one')")
+	run(m, "insert into sqlcli_test_rows values (2, 'two')")
+	press(m, key(tea.KeyF9))
+	count := func() string {
+		r, _ := m.conn.Execute(ctx, "select count(*) || ':' || listagg(name, ',') within group (order by id) from sqlcli_test_rows", 1)
+		return r.Rows[0][0]
+	}
+	run(m, "select rowid, t.* from sqlcli_test_rows t order by id")
+	m.focus = focusResults
+
+	// record view: edit a field and stay there
+	press(m, key(tea.KeyEnter))
+	press(m, key(tea.KeyTab))
+	press(m, key(tea.KeyTab)) // NAME
+	press(m, key('u'))
+	if m.mode != modePrompt || string(m.prompt.input) != "one" {
+		t.Fatalf("record edit: %q %q", m.prompt.label, string(m.prompt.input))
+	}
+	answer(m, "ONE")
+	if m.mode != modeRecord || !strings.Contains(m.recordView(), "ONE") || count() != "2:ONE,two" {
+		t.Fatalf("after record edit: mode %v db %q status %q", m.mode, count(), m.status)
+	}
+
+	// insert from the record view: one question per column
+	press(m, key('i'))
+	if !strings.Contains(m.prompt.label, "New row: ID (number, empty = NULL) [1/2]") {
+		t.Fatalf("insert question: %q (status %q)", m.prompt.label, m.status)
+	}
+	answer(m, "3")
+	answer(m, "three")
+	if m.mode != modeRecord || m.res.row != 1 || m.res.res.Rows[1][1] != "3" || m.res.res.Rows[1][0] == db.Null || count() != "3:ONE,two,three" {
+		t.Fatalf("after insert: row %d %v db %q status %q", m.res.row, m.res.res.Rows, count(), m.status)
+	}
+	press(m, key(tea.KeyEscape)) // back to the grid
+
+	// delete the inserted row (it has its ROWID), then "two"
+	press(m, key('d'))
+	answer(m, "y")
+	m.res.row = 1 // "two"
+	press(m, key('d'))
+	answer(m, "y")
+	if len(m.res.res.Rows) != 1 || count() != "1:ONE" {
+		t.Fatalf("after deletes: %v db %q", m.res.res.Rows, count())
+	}
+	// a NOT NULL violation is reported and nothing changes
+	press(m, key('i'))
+	answer(m, "")
+	answer(m, "no id")
+	if !m.statusErr || !strings.Contains(m.status, "ORA-01400") || len(m.res.res.Rows) != 1 {
+		t.Fatalf("NOT NULL: %q", m.status)
+	}
+
+	// F8: the database and the grid go back to the committed state
+	press(m, key(tea.KeyF8))
+	if count() != "2:one,two" || len(m.res.res.Rows) != 2 || m.res.res.Rows[0][2] != "one" || m.res.res.Rows[1][2] != "two" {
+		t.Fatalf("rollback: db %q grid %v status %q", count(), m.res.res.Rows, m.status)
+	}
 }
