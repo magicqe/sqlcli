@@ -310,11 +310,10 @@ func (m *Model) closeTab() tea.Cmd {
 }
 
 // StartWithSession makes the program load a saved session when it starts,
-// instead of connecting a single tab. The connections panel starts hidden
-// (F2 shows it): the session brings its own connections.
+// instead of connecting a single tab. The connections panel is shown as
+// configured (ui.show_connections); the editor has the focus.
 func (m *Model) StartWithSession(name string) {
 	m.startSession = name
-	m.showConns = false
 	m.focus = focusEditor
 	m.status = ""
 }
