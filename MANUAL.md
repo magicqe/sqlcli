@@ -739,7 +739,7 @@ long values in full, NULL as `(null)`.
 |---|---|
 | ↑ / ↓ (^P / ^N) | previous / next record |
 | Ctrl-↓ / Ctrl-↑, Tab / Shift-Tab | next / previous field (the field cursor) |
-| u | edit the field under the field cursor (as in the grid; the record view stays open) |
+| u / Enter | edit the field under the field cursor in the text editor panel, whatever its type (^K X or Ctrl-S saves, Esc cancels; the record view stays open and its bottom line shows the result) |
 | i / d | insert a new row / delete this row |
 | Home (^A) | first record |
 | End (^E) | last record; fetches all remaining rows first, like End in the grid |

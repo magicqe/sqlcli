@@ -250,3 +250,49 @@ func TestTextEditorKeepsCRLF(t *testing.T) {
 		t.Fatalf("saved %q", got)
 	}
 }
+
+func TestRecordViewEditsInTextPanel(t *testing.T) {
+	m := editModel("select rowid, t.* from emp t", []string{"ROWID", "ID", "NAME"}, [][]string{{"r1", "1", "Anna"}})
+	press(m, key(tea.KeyEnter)) // record view
+	press(m, key(tea.KeyDown, tea.ModCtrl))
+	press(m, key(tea.KeyDown, tea.ModCtrl)) // NAME
+	if m.mode != modeRecord || m.res.selCol != 2 {
+		t.Fatalf("mode %v field %d", m.mode, m.res.selCol)
+	}
+	// Enter edits (here the column type lookup fails: the test connection is not open)
+	press(m, key(tea.KeyEnter))
+	if m.mode != modeRecord || !m.statusErr || !strings.Contains(screen(m), m.status) {
+		t.Fatalf("Enter should start an edit and show its error in the record view: mode %v %q\n%s", m.mode, m.status, screen(m))
+	}
+	press(m, key(tea.KeyUp, tea.ModCtrl)) // any key clears the message
+	if m.status != "" || !strings.Contains(screen(m), "u Enter edit") {
+		t.Fatalf("message should go with the next key: %q", m.status)
+	}
+	press(m, key(tea.KeyDown, tea.ModCtrl))
+
+	// every type opens the text editor panel from the record view
+	for _, typ := range []string{"VARCHAR2", "NUMBER", "DATE"} {
+		_, cmd := m.Update(editReadyMsg{tab: m.id, row: 0, col: 2, table: "EMP", colTy: typ, rowid: "r1", current: "Anna"})
+		drain(m, cmd)
+		if m.mode != modeText || m.text.ed.Text() != "Anna" || !strings.Contains(screen(m), "EMP.NAME ("+strings.ToLower(typ)+")") {
+			t.Fatalf("%s: mode %v\n%s", typ, m.mode, screen(m))
+		}
+		press(m, key(tea.KeyEscape))
+		if m.mode != modeRecord {
+			t.Fatalf("%s: back to the record view, mode %v", typ, m.mode)
+		}
+	}
+	// saving returns to the record view with the result on its bottom line
+	m.Update(editReadyMsg{tab: m.id, row: 0, col: 2, table: "EMP", colTy: "VARCHAR2", rowid: "r1", current: "Anna"})
+	typeText(m, "X")
+	press(m, key('s', tea.ModCtrl))
+	if m.mode != modeRecord || !m.statusErr || !strings.Contains(screen(m), m.status) {
+		t.Fatalf("after save: mode %v %q", m.mode, m.status)
+	}
+	// the grid keeps the one-line prompt for short types
+	press(m, key(tea.KeyEscape))
+	m.Update(editReadyMsg{tab: m.id, row: 0, col: 2, table: "EMP", colTy: "VARCHAR2", rowid: "r1", current: "Anna"})
+	if m.mode != modePrompt {
+		t.Fatalf("grid: mode %v", m.mode)
+	}
+}

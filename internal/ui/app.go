@@ -1159,6 +1159,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		case "enter":
 			if m.res.selectedRow() != nil {
 				m.mode, m.recTop = modeRecord, 0
+				m.status = "" // the record view's bottom line shows only its own messages
 			}
 		case "o":
 			m.res.toggleText()
@@ -2066,10 +2067,17 @@ func (m *Model) recordView() string {
 		hintKey.Render("PgUp PgDn") + hintText.Render(fmt.Sprintf(" ±%d records  ", m.cfg.UI.RecordPage)) +
 		hintKey.Render("Home End") + hintText.Render(" first/last  ") +
 		hintKey.Render("^↑↓ Tab") + hintText.Render(" field  ") +
-		hintKey.Render("u") + hintText.Render(" edit  ") + hintKey.Render("i") + hintText.Render(" insert  ") +
+		hintKey.Render("u Enter") + hintText.Render(" edit  ") + hintKey.Render("i") + hintText.Render(" insert  ") +
 		hintKey.Render("d") + hintText.Render(" delete  ") +
 		hintKey.Render("Shift-↑↓") + hintText.Render(" scroll  ") +
 		hintKey.Render("other keys") + hintText.Render(" close")
+	if m.status != "" { // the result of an edit, insert or delete
+		st := hintKey
+		if m.statusErr {
+			st = errStyle
+		}
+		hint = " " + st.Render(m.status)
+	}
 	return box(title, strings.Join(lines[m.recTop:], "\n"), m.w, m.h-1, true) + "\n" + ansi.Truncate(hint, m.w, "")
 }
 
@@ -2077,6 +2085,7 @@ func (m *Model) recordView() string {
 // scroll a long record, or close the view.
 func (m *Model) updateRecord(key string) tea.Cmd {
 	r := m.res.res
+	m.status = "" // the last message (e.g. "NAME updated") goes with the next key
 	switch key {
 	case "up", "ctrl+p", "k":
 		m.res.handleKey("up")
@@ -2134,7 +2143,7 @@ func (m *Model) updateRecord(key string) tea.Cmd {
 	case "shift+tab", "ctrl+up":
 		m.res.selCol = max(m.res.selCol-1, 0)
 		m.keepFieldVisible()
-	case "u":
+	case "u", "enter": // edit the field, in the text editor panel
 		return m.startCellEdit()
 	case "i":
 		return m.startInsert()
@@ -2181,7 +2190,7 @@ const helpText = `
  arrows, PgUp/PgDn, wheel   scroll         ↑↓ / Home End          previous, next / first, last
  End         fetch all rows, last row      PgUp / PgDn            ± record_page records
  ←→ / u      cell cursor / edit the cell (needs ROWID; F9 commit, F8 rollback)
- i / d       insert a row / delete the row (also in the record view; Ctrl-↑↓ / Tab move between fields there)
+ i / d       insert a row / delete the row (also in the record view: Ctrl-↑↓ / Tab move between fields, u / Enter edit in the text panel)
  CLOB values open in a text editor panel: ^K X or Ctrl-S saves, Esc cancels (twice if changed),
              ^K D / ^K I save to / load from a file, ^K R inserts a file, ^K W writes the block,
              ^K F / ^L / ^R find / find next / search and replace
@@ -3620,7 +3629,7 @@ func (m *Model) askCellValue(msg editReadyMsg) tea.Cmd {
 			return cellUpdatedMsg{tab: id, row: msg.row, col: msg.col, value: shown, err: err}
 		}
 	}
-	if isLongText(msg.colTy) { // CLOB: in the text editor panel
+	if isLongText(msg.colTy) || m.mode == modeRecord { // CLOB, or from the record view: in the text editor panel
 		m.openTextEdit(fmt.Sprintf("%s.%s (%s) — empty = NULL", msg.table, col, strings.ToLower(msg.colTy)), cur, textFileName(msg.table, col), save)
 		return nil
 	}

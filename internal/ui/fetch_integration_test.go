@@ -776,12 +776,13 @@ func TestUIInsertDeleteRows(t *testing.T) {
 	press(m, key(tea.KeyEnter))
 	press(m, key(tea.KeyTab))
 	press(m, key(tea.KeyTab)) // NAME
-	press(m, key('u'))
-	if m.mode != modePrompt || string(m.prompt.input) != "one" {
-		t.Fatalf("record edit: %q %q", m.prompt.label, string(m.prompt.input))
+	press(m, key(tea.KeyEnter)) // in the text editor panel
+	if m.mode != modeText || m.text.ed.Text() != "one" {
+		t.Fatalf("record edit: mode %v", m.mode)
 	}
-	answer(m, "ONE")
-	if m.mode != modeRecord || !strings.Contains(m.recordView(), "ONE") || count() != "2:ONE,two" {
+	m.text.ed.SetText("ONE")
+	press(m, key('s', tea.ModCtrl))
+	if m.mode != modeRecord || !strings.Contains(screen(m), "NAME updated") || !strings.Contains(m.recordView(), "ONE") || count() != "2:ONE,two" {
 		t.Fatalf("after record edit: mode %v db %q status %q", m.mode, count(), m.status)
 	}
 
