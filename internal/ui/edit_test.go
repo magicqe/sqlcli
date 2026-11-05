@@ -121,7 +121,18 @@ func TestRecordFieldCursor(t *testing.T) {
 	if m.res.selCol != 1 {
 		t.Fatalf("Shift-Tab: %d", m.res.selCol)
 	}
-	if !strings.Contains(screen(m), "Tab S-Tab field") || !strings.Contains(m.recordView(), "48;5;24") {
+	press(m, key(tea.KeyDown, tea.ModCtrl))
+	if m.mode != modeRecord || m.res.selCol != 2 {
+		t.Fatalf("Ctrl-Down: mode %v field %d", m.mode, m.res.selCol)
+	}
+	press(m, key(tea.KeyUp, tea.ModCtrl))
+	press(m, key(tea.KeyUp, tea.ModCtrl))
+	press(m, key(tea.KeyUp, tea.ModCtrl)) // stays on the first field
+	if m.mode != modeRecord || m.res.selCol != 0 || m.res.row != 0 {
+		t.Fatalf("Ctrl-Up: mode %v field %d row %d", m.mode, m.res.selCol, m.res.row)
+	}
+	press(m, key(tea.KeyDown, tea.ModCtrl))
+	if !strings.Contains(screen(m), "^↑↓ Tab field") || !strings.Contains(m.recordView(), "48;5;24") {
 		t.Fatal("field cursor or hint missing")
 	}
 	// a question from the record view returns to it

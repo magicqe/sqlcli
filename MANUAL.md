@@ -738,7 +738,7 @@ long values in full, NULL as `(null)`.
 | Key | Action |
 |---|---|
 | ↑ / ↓ (^P / ^N) | previous / next record |
-| Tab / Shift-Tab | next / previous field (the field cursor) |
+| Ctrl-↓ / Ctrl-↑, Tab / Shift-Tab | next / previous field (the field cursor) |
 | u | edit the field under the field cursor (as in the grid; the record view stays open) |
 | i / d | insert a new row / delete this row |
 | Home (^A) | first record |

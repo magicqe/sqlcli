@@ -2065,7 +2065,7 @@ func (m *Model) recordView() string {
 	hint := " " + hintKey.Render("↑↓") + hintText.Render(" previous/next  ") +
 		hintKey.Render("PgUp PgDn") + hintText.Render(fmt.Sprintf(" ±%d records  ", m.cfg.UI.RecordPage)) +
 		hintKey.Render("Home End") + hintText.Render(" first/last  ") +
-		hintKey.Render("Tab S-Tab") + hintText.Render(" field  ") +
+		hintKey.Render("^↑↓ Tab") + hintText.Render(" field  ") +
 		hintKey.Render("u") + hintText.Render(" edit  ") + hintKey.Render("i") + hintText.Render(" insert  ") +
 		hintKey.Render("d") + hintText.Render(" delete  ") +
 		hintKey.Render("Shift-↑↓") + hintText.Render(" scroll  ") +
@@ -2128,10 +2128,10 @@ func (m *Model) updateRecord(key string) tea.Cmd {
 		if m.running && m.cancel != nil {
 			m.cancel()
 		}
-	case "tab": // next / previous field
+	case "tab", "ctrl+down": // next / previous field
 		m.res.selCol = min(m.res.selCol+1, len(r.Columns)-1)
 		m.keepFieldVisible()
-	case "shift+tab":
+	case "shift+tab", "ctrl+up":
 		m.res.selCol = max(m.res.selCol-1, 0)
 		m.keepFieldVisible()
 	case "u":
@@ -2181,7 +2181,7 @@ const helpText = `
  arrows, PgUp/PgDn, wheel   scroll         ↑↓ / Home End          previous, next / first, last
  End         fetch all rows, last row      PgUp / PgDn            ± record_page records
  ←→ / u      cell cursor / edit the cell (needs ROWID; F9 commit, F8 rollback)
- i / d       insert a row / delete the row (also in the record view; Tab moves between fields there)
+ i / d       insert a row / delete the row (also in the record view; Ctrl-↑↓ / Tab move between fields there)
  CLOB values open in a text editor panel: ^K X or Ctrl-S saves, Esc cancels (twice if changed),
              ^K D / ^K I save to / load from a file, ^K R inserts a file, ^K W writes the block,
              ^K F / ^L / ^R find / find next / search and replace
