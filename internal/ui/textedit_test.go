@@ -200,3 +200,53 @@ func TestTextEditorReplace(t *testing.T) {
 		t.Fatalf("save: mode %v", m.mode)
 	}
 }
+
+func TestRecordViewCRLF(t *testing.T) {
+	req := "<SOAP:Body>\r\n\r\n\t<deployer>immediate</deployer>\r\n</SOAP:Body>"
+	m := editModel("select rowid, t.* from cmd t", []string{"ROWID", "ID", "REQUEST", "RESPONSE"},
+		[][]string{{"AAA", "5", req, "\x00NULL\x00"}})
+	m.mode = modeRecord
+	for _, sel := range []int{0, 2} { // as a plain field and under the field cursor
+		m.res.selCol = sel
+		v := m.View().Content
+		if strings.Contains(v, "\r") {
+			t.Fatalf("raw CR in the record view (sel %d)", sel)
+		}
+		sc := screen(m)
+		want := []string{"REQUEST  │ <SOAP:Body>", "         │     <deployer>immediate</deployer>", "         │ </SOAP:Body>", "RESPONSE │ (null)"}
+		for _, w := range want {
+			if !strings.Contains(sc, w) {
+				t.Fatalf("sel %d: missing %q in\n%s", sel, w, sc)
+			}
+		}
+	}
+	m.res.selCol = 3
+	m.keepFieldVisible() // RESPONSE is on line 6 (ROWID, ID, 4 lines of REQUEST)
+	if m.recTop != 0 {
+		t.Fatalf("recTop %d", m.recTop)
+	}
+}
+
+func TestTextEditorKeepsCRLF(t *testing.T) {
+	m := clobModel()
+	var got []string
+	keep := func(v string) tea.Cmd { got = append(got, v); return nil }
+	val := "a\r\n\tb\r\nc"
+	m.openTextEdit("t", val, "f.txt", keep)
+	if strings.Contains(m.View().Content, "\r") || strings.Contains(m.View().Content, "[modified]") {
+		t.Fatal("unchanged CRLF text shows as modified or with raw CR")
+	}
+	press(m, key(tea.KeyEscape)) // unchanged: closes at once
+	if m.mode != modeNormal {
+		t.Fatalf("Esc on unchanged text: mode %v", m.mode)
+	}
+	m.openTextEdit("t", val, "f.txt", keep)
+	press(m, key('s', tea.ModCtrl)) // not edited: exactly the value
+	m.openTextEdit("t", val, "f.txt", keep)
+	m.text.ed.SetCursor(2, 1)
+	typeText(m, "!")
+	press(m, key('s', tea.ModCtrl)) // edited: CR LF line ends come back
+	if len(got) != 2 || got[0] != val || got[1] != "a\r\n    b\r\nc!" {
+		t.Fatalf("saved %q", got)
+	}
+}

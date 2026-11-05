@@ -693,7 +693,10 @@ keys (blocks, ^Y, undo, paste). **^K X** or **Ctrl-S** saves and runs the
 UPDATE; **Esc** cancels — with unsaved changes the first Esc warns and the
 second discards them. Saving an empty text sets NULL. The same panel asks for
 CLOB columns when inserting a row (**i**). Values are sent as LOBs, so they
-may be longer than 32 KB.
+may be longer than 32 KB. Windows line ends (CR LF) are kept: the panel
+shows plain lines and saving puts the CR LF back; a value you didn't edit is
+saved exactly as it was. (Tabs are shown and saved as spaces once you edit
+the value.) The record view, too, shows CR LF and CR as line breaks.
 
 In the text editor panel **^K D** saves the text to a file and **^K I** loads
 a file, replacing the text (^_ undoes); **^K R** inserts a file at the cursor

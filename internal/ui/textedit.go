@@ -22,6 +22,8 @@ type textEdit struct {
 	orig    string
 	back    mode // where saving or cancelling returns
 	onSave  func(string) tea.Cmd
+	raw     string // the value as given (orig is it as the editor holds it)
+	crlf    bool   // the value used CR LF line ends: saving puts them back
 	discard bool   // Esc was pressed once with unsaved changes
 	file    string // last file saved or loaded (^K D, ^K I), offered next time
 }
@@ -48,7 +50,10 @@ func (m *Model) openTextEdit(title, text, file string, onSave func(string) tea.C
 	ed.Focused = true
 	ed.SetText(text)
 	ed.SetCursor(0, 0)
-	m.text = &textEdit{ed: ed, title: title, orig: text, back: back, onSave: onSave, file: file}
+	// the editor holds lines without CR and with tabs as spaces: compare with
+	// that, and give back the value untouched when nothing was edited
+	m.text = &textEdit{ed: ed, title: title, orig: ed.Text(), raw: text, crlf: strings.Contains(text, "\r\n"),
+		back: back, onSave: onSave, file: file}
 	m.mode = modeText
 	m.status = ""
 	m.layoutText()
@@ -126,6 +131,12 @@ func (m *Model) updateText(key, text string) tea.Cmd {
 func (m *Model) saveText() tea.Cmd {
 	te := m.text
 	v := te.ed.Text()
+	switch {
+	case v == te.orig:
+		v = te.raw // not edited: exactly as it was (CR LF, tabs)
+	case te.crlf:
+		v = strings.ReplaceAll(v, "\n", "\r\n")
+	}
 	m.closeTextEdit("")
 	if te.onSave != nil {
 		return te.onSave(v)

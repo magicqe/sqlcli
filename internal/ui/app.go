@@ -1995,6 +1995,21 @@ func (m *Model) historyView() string {
 	return b + "\n" + ansi.Truncate(hint, m.w, "")
 }
 
+// valueLines splits a value into display lines for the record view: CR LF
+// and lone CR end a line like LF (a raw CR would move the terminal cursor
+// back and garble the screen), tabs become spaces, other control
+// characters show as "·".
+func valueLines(v string) []string {
+	v = strings.NewReplacer("\r\n", "\n", "\r", "\n", "\t", "    ").Replace(v)
+	v = strings.Map(func(r rune) rune {
+		if r < 0x20 && r != '\n' || r == 0x7f {
+			return '·'
+		}
+		return r
+	}, v)
+	return strings.Split(v, "\n")
+}
+
 func (m *Model) recordView() string {
 	r := m.res.res
 	row := m.res.selectedRow()
@@ -2015,10 +2030,10 @@ func (m *Model) recordView() string {
 			if v == db.Null {
 				v = db.NullDisplay
 			}
-			first := strings.SplitN(v, "\n", 2)[0]
-			plain := fmt.Sprintf("%-*s │ %s", nw, c, first)
+			vl := valueLines(v)
+			plain := fmt.Sprintf("%-*s │ %s", nw, c, vl[0])
 			lines = append(lines, selStyle.Render(plain+strings.Repeat(" ", max(m.w-2-ansi.StringWidth(plain), 0))))
-			for _, extra := range strings.Split(v, "\n")[1:] {
+			for _, extra := range vl[1:] {
 				lines = append(lines, strings.Repeat(" ", nw)+sepStyle.Render(" │ ")+extra)
 			}
 			continue
@@ -2027,7 +2042,7 @@ func (m *Model) recordView() string {
 			lines = append(lines, name+nullStyle.Render(db.NullDisplay))
 			continue
 		}
-		vl := strings.Split(row[i], "\n")
+		vl := valueLines(row[i])
 		lines = append(lines, name+vl[0])
 		for _, extra := range vl[1:] {
 			lines = append(lines, strings.Repeat(" ", nw)+sepStyle.Render(" │ ")+extra)
@@ -3654,7 +3669,7 @@ func (m *Model) keepFieldVisible() {
 	r := m.res.res
 	line := 0
 	for i := 0; i < m.res.selCol && i < len(r.Columns); i++ {
-		line += 1 + strings.Count(r.Rows[m.res.row][i], "\n")
+		line += len(valueLines(r.Rows[m.res.row][i]))
 	}
 	vis := max(m.h-3, 1)
 	if line < m.recTop {
