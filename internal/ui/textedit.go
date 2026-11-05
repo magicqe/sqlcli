@@ -92,6 +92,10 @@ func (m *Model) updateText(key, text string) tea.Cmd {
 		return m.saveText()
 	case editor.ActionCloseWindow: // ^K Q
 		m.closeTextEdit("Cancelled")
+	case editor.ActionFindPrompt: // ^K F
+		m.askFind(false)
+	case editor.ActionReplacePrompt: // ^R
+		m.askFind(true)
 	case editor.ActionSavePrompt: // ^K D
 		m.askTextFile("Save text to file:", func(path string) { m.saveTextFile(path, te.ed.Text()) })
 	case editor.ActionWriteBlock: // ^K W
@@ -141,13 +145,13 @@ func (m *Model) textView() string {
 		hint = m.status
 	}
 	if hint == "" {
-		hint = "^K X / Ctrl-S save   Esc cancel   ^K D / ^K I save / load file   ^K R insert file   ^K B/K/C/M/Y block   empty text = NULL"
+		hint = "^K X / Ctrl-S save   Esc cancel   ^K F / ^R find / replace   ^K D / ^K I save / load file   ^K R insert file   ^K B/K/C/M/Y block   empty text = NULL"
 	}
 	pos := fmt.Sprintf(" Ln %d, Col %d ", te.ed.CursorRow()+1, te.ed.CursorCol()+1)
 	room := max(m.w-ansi.StringWidth(pos), 0)
 	hint = ansi.Truncate(" "+hint, room, "…")
 	line := hintText.Render(hint + strings.Repeat(" ", max(room-ansi.StringWidth(hint), 0)) + pos)
-	if m.mode == modePrompt { // a question (file name ...) on the bottom line
+	if m.mode == modePrompt || m.mode == modeReplace { // a question on the bottom line
 		line = m.bottomLine()
 	}
 	return body + "\n" + line

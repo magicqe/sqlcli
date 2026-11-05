@@ -155,3 +155,48 @@ func TestTextEditorFiles(t *testing.T) {
 		t.Fatalf("missing file:\n%s", screen(m))
 	}
 }
+
+func TestTextEditorReplace(t *testing.T) {
+	m := clobModel()
+	m.ed.SetText("select line from t") // the SQL editor must not change
+	clobReady(m, "CLOB")               // "first line\nsecond line"
+
+	press(m, key('r', tea.ModCtrl))
+	answer(m, "line")
+	answer(m, "row")
+	if m.mode != modeReplace || !strings.Contains(screen(m), "DOCS.DOC") || !strings.Contains(screen(m), `Replace "line" with "row"?`) {
+		t.Fatalf("asking over the panel: mode %v\n%s", m.mode, screen(m))
+	}
+	press(m, key('n'))
+	press(m, key('y'))
+	if m.mode != modeText || m.text.ed.Text() != "first line\nsecond row" {
+		t.Fatalf("after n y: mode %v %q", m.mode, m.text.ed.Text())
+	}
+	if !strings.Contains(screen(m), "1 occurrence replaced") {
+		t.Fatalf("status in the panel:\n%s", screen(m))
+	}
+
+	// ^K F finds in the panel; options a = replace all
+	m.text.ed.SetCursor(0, 0)
+	ctrlK(m, 'f')
+	answer(m, "second")
+	answer(m, "")
+	if m.mode != modeText || m.text.ed.CursorRow() != 1 {
+		t.Fatalf("find: mode %v row %d", m.mode, m.text.ed.CursorRow())
+	}
+	ctrlK(m, 'f')
+	answer(m, "i")
+	answer(m, "a")
+	answer(m, "I")
+	if m.mode != modeText || m.text.ed.Text() != "fIrst lIne\nsecond row" {
+		t.Fatalf("replace all: %q", m.text.ed.Text())
+	}
+	if m.ed.Text() != "select line from t" {
+		t.Fatalf("the SQL editor changed: %q", m.ed.Text())
+	}
+	// saving the panel still works afterwards
+	press(m, key('s', tea.ModCtrl))
+	if m.mode != modeNormal || m.text != nil {
+		t.Fatalf("save: mode %v", m.mode)
+	}
+}

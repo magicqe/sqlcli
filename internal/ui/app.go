@@ -1807,6 +1807,11 @@ func (m *Model) View() tea.View {
 			v.SetContent(m.textView())
 			return v
 		}
+	case modeReplace:
+		if m.text != nil { // replacing in the text panel
+			v.SetContent(m.textView())
+			return v
+		}
 	}
 
 	cw := m.connWidth()
@@ -2163,7 +2168,8 @@ const helpText = `
  ←→ / u      cell cursor / edit the cell (needs ROWID; F9 commit, F8 rollback)
  i / d       insert a row / delete the row (also in the record view; Tab moves between fields there)
  CLOB values open in a text editor panel: ^K X or Ctrl-S saves, Esc cancels (twice if changed),
-             ^K D / ^K I save to / load from a file, ^K R inserts a file, ^K W writes the block
+             ^K D / ^K I save to / load from a file, ^K R inserts a file, ^K W writes the block,
+             ^K F / ^L / ^R find / find next / search and replace
  Ctrl-C      stop fetching                 Shift-↑↓, wheel        scroll a long record
  Enter       show row as record
  o           grid / DBMS_OUTPUT

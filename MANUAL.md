@@ -703,6 +703,12 @@ completes file names, and another existing file is replaced only after you
 confirm. The file holds the text exactly as it is — nothing reaches the
 database until you save the panel with ^K X.
 
+**Search and replace** works in the panel as in the SQL editor (see
+[Search and files](#search-and-files)): ^K F finds (options **r** replace,
+**c** match case, **a** all without asking), ^L finds the next match, ^R
+replaces — each match is highlighted and the bottom line asks y / n / a /
+Esc. Only the panel's text changes; ^_ undoes the whole replace.
+
 Rows are found by their **ROWID**, so the result must come from one table and
 include a `ROWID` column. **s** in the object tree adds it for tables
 (`select rowid, t.* from table t`); in your own SQL write e.g.
