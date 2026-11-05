@@ -17,6 +17,7 @@ const (
 	ActionNone           Action = iota
 	ActionExit                  // ^K X  / ^K Q
 	ActionFindPrompt            // ^K F
+	ActionReplacePrompt         // Ctrl-R
 	ActionGotoPrompt            // ^K L
 	ActionSavePrompt            // ^K D
 	ActionInsertFile            // ^K R
@@ -59,6 +60,9 @@ type Editor struct {
 	lastWasInsert bool
 
 	lastSearch string
+	matchCase  bool // the last search is case-sensitive
+	match      pos  // highlighted match (replace), matchLen > 0
+	matchLen   int
 	TabWidth   int
 	AutoIndent bool
 	Highlight  bool // SQL syntax colouring
@@ -109,6 +113,8 @@ func DefaultStyles() Styles {
 		},
 	}
 }
+
+var matchStyle = lipgloss.NewStyle().Background(lipgloss.Color("220")).Foreground(lipgloss.Color("16"))
 
 func New() *Editor {
 	return &Editor{lines: [][]rune{{}}, TabWidth: 4, AutoIndent: true, styles: DefaultStyles()}
@@ -288,39 +294,149 @@ func (e *Editor) doRedo() {
 
 // ---- search ----
 
-// Find searches forward from the cursor (wrapping) case-insensitively.
-func (e *Editor) Find(s string) bool {
+// Find searches forward from the cursor (wrapping) for s, or for the last
+// search when s is empty, with the case option of the last FindCase.
+func (e *Editor) Find(s string) bool { return e.FindCase(s, e.matchCase) }
+
+// FindCase is Find with the case option (matchCase: case-sensitive).
+func (e *Editor) FindCase(s string, matchCase bool) bool {
 	if s == "" {
 		s = e.lastSearch
+	} else {
+		e.matchCase = matchCase
 	}
 	if s == "" {
 		return false
 	}
 	e.lastSearch = s
-	needle := []rune(strings.ToLower(s))
+	p, ok := e.findFrom(s, e.matchCase, e.cur, false)
+	if !ok {
+		e.Status = fmt.Sprintf("Not found: %s", s)
+		return false
+	}
+	e.cur, e.wantX = p, p.col
+	e.scroll()
+	e.Status = ""
+	return true
+}
+
+// LastSearch returns the last searched text.
+func (e *Editor) LastSearch() string { return e.lastSearch }
+
+// findFrom finds s after from (at from itself too when at is set),
+// wrapping around the end of the buffer.
+func (e *Editor) findFrom(s string, matchCase bool, from pos, at bool) (pos, bool) {
+	fold := func(x string) string {
+		if matchCase {
+			return x
+		}
+		return strings.ToLower(x)
+	}
+	needle := []rune(fold(s))
+	if len(needle) == 0 {
+		return pos{}, false
+	}
 	n := len(e.lines)
+	from = e.clamp(from)
 	for i := 0; i <= n; i++ {
-		r := (e.cur.row + i) % n
-		line := []rune(strings.ToLower(string(e.lines[r])))
+		r := (from.row + i) % n
+		line := []rune(fold(string(e.lines[r])))
 		start := 0
 		if i == 0 {
-			start = e.cur.col + 1
+			start = from.col + 1
+			if at {
+				start = from.col
+			}
 		}
 		if i == n { // wrapped back to the starting line: search its head
-			line = line[:min(len(line), e.cur.col+len(needle))]
+			line = line[:min(len(line), from.col+len(needle))]
 			start = 0
 		}
 		if idx := indexRunes(line, needle, start); idx >= 0 {
-			e.cur = pos{r, idx}
-			e.wantX = idx
-			e.scroll()
-			e.Status = ""
-			return true
+			return pos{r, idx}, true
 		}
 	}
-	e.Status = fmt.Sprintf("Not found: %s", s)
-	return false
+	return pos{}, false
 }
+
+// ---- replace ----
+
+// Replace is a search-and-replace in progress: it goes from the cursor to
+// the end of the buffer, wraps to the top and stops where it started.
+type Replace struct {
+	Find, With string
+	MatchCase  bool
+	Count      int // replacements made
+	stop       pos
+	wrapped    bool
+}
+
+// StartReplace begins replacing find with with: it moves to the first
+// match (at or after the cursor) and highlights it. It returns nil when
+// there is no match.
+func (e *Editor) StartReplace(find, with string, matchCase bool) *Replace {
+	e.lastSearch, e.matchCase = find, matchCase
+	r := &Replace{Find: find, With: with, MatchCase: matchCase, stop: e.cur}
+	if !e.nextMatch(r, e.cur, true) {
+		e.Status = fmt.Sprintf("Not found: %s", find)
+		return nil
+	}
+	return r
+}
+
+// nextMatch moves to the next match from p; false when the search is done.
+func (e *Editor) nextMatch(r *Replace, p pos, at bool) bool {
+	m, ok := e.findFrom(r.Find, r.MatchCase, p, at)
+	if ok && m.less(p) || ok && !at && m == p {
+		if r.wrapped {
+			ok = false // around a second time
+		}
+		r.wrapped = true
+	}
+	if ok && r.wrapped && !m.less(r.stop) {
+		ok = false // back where it started
+	}
+	if !ok {
+		e.matchLen = 0
+		return false
+	}
+	e.cur, e.wantX = m, m.col
+	e.match, e.matchLen = m, len([]rune(r.Find))
+	e.scroll()
+	return true
+}
+
+// ReplaceStep replaces the highlighted match (if replace is set) and moves
+// to the next one. It returns false when there are no more matches.
+func (e *Editor) ReplaceStep(r *Replace, replace bool) bool {
+	if e.matchLen == 0 {
+		return false
+	}
+	if !replace {
+		return e.nextMatch(r, e.match, false)
+	}
+	m := e.match
+	if r.Count == 0 {
+		e.pushUndo() // the whole replace is one undo step
+	}
+	e.deleteRange(m, pos{m.row, m.col + e.matchLen})
+	end := e.insertAt(m, r.With)
+	r.Count++
+	if r.wrapped && m.row == r.stop.row && m.col < r.stop.col || !r.wrapped && m.row == r.stop.row && m.less(r.stop) {
+		r.stop.col += len([]rune(r.With)) - e.matchLen
+	}
+	e.matchLen = 0
+	return e.nextMatch(r, end, true)
+}
+
+// ReplaceRest replaces the highlighted match and all the following ones.
+func (e *Editor) ReplaceRest(r *Replace) {
+	for e.ReplaceStep(r, true) {
+	}
+}
+
+// EndReplace removes the match highlight.
+func (e *Editor) EndReplace() { e.matchLen = 0 }
 
 func indexRunes(hay, needle []rune, from int) int {
 	for i := max(from, 0); i+len(needle) <= len(hay); i++ {
@@ -483,6 +599,8 @@ func (e *Editor) HandleKey(key, text string) Action {
 	// --- search ---
 	case "ctrl+l":
 		e.Find("")
+	case "ctrl+r":
+		return ActionReplacePrompt
 
 	// --- insertion ---
 	case "enter":
@@ -815,6 +933,9 @@ func (e *Editor) View() string {
 		p := pos{r, c}
 		return hasBlock && !p.less(b) && p.less(k)
 	}
+	inMatch := func(r, c int) bool {
+		return e.matchLen > 0 && r == e.match.row && c >= e.match.col && c < e.match.col+e.matchLen
+	}
 
 	// lexer state at the first visible line
 	var lex lexState
@@ -875,6 +996,8 @@ func (e *Editor) View() string {
 				out.WriteString(e.styles.Block.Render(s))
 			case segStyle == 2:
 				out.WriteString(e.styles.Cursor.Render(s))
+			case segStyle == 3:
+				out.WriteString(matchStyle.Render(s))
 			case segStyle > 3:
 				out.WriteString(e.styles.Syntax[segStyle-3].Render(s))
 			default:
@@ -902,8 +1025,10 @@ func (e *Editor) View() string {
 				continue
 			}
 			st := 0
-			if e.Focused && r == e.cur.row && c == e.cur.col {
+			if e.Focused && r == e.cur.row && c == e.cur.col && !inMatch(r, c) {
 				st = 2
+			} else if inMatch(r, c) {
+				st = 3 // the match being replaced
 			} else if c < len(line) && inBlock(r, c) || (c == len(line) && inBlock(r, c) && r < k.row) {
 				st = 1
 			} else if c < len(kinds) && kinds[c] != tkPlain {

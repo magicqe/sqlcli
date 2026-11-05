@@ -365,11 +365,21 @@ to running single statements.
 
 | Key | Action |
 |---|---|
-| ^K F | find (case-insensitive, wraps at end of buffer) |
+| ^K F | find (case-insensitive, wraps at end of buffer); asks for options: **r** replace, **c** match case, **a** replace all without asking |
 | ^L | find next |
+| ^R | search and replace |
 | ^K D | save the SQL panel to a file (see below) |
 | ^K I | load a file into the SQL panel, replacing its text (see below) |
 | ^K R | insert a file at the cursor |
+
+**Search and replace.** ^R asks for the text to find and its replacement;
+^K F does the same when you answer the options question with **r** (add
+**c** to match case, or **a** to replace every match without asking). The
+search starts at the cursor, wraps at the end of the buffer and stops where
+it started. Each match is highlighted and the bottom line asks: **y** (or
+Space) replaces it, **n** skips it, **a** replaces it and all the rest,
+**Esc** stops. The status line says how many were replaced; one ^_ undoes the
+whole replace.
 
 File names may start with `~/`. **Tab completes file names** in these
 questions (and when saving, loading or exporting): a single match is completed
@@ -1004,7 +1014,7 @@ Complete example with all settings:
 | ^Z ^X | word left / right | ^W ^O | delete word right / left |
 | ^U ^V | page up / down | ^J | delete to end of line |
 | ^K U ^K V | top / end of buffer | ^_ ^^ | undo / redo |
-| ^K L | go to line | ^K F, ^L | find, find next |
+| ^K L | go to line | ^K F, ^L, ^R | find, find next, replace |
 | ^K B ^K K | block begin / end | ^K C ^K M ^K Y | copy / move / delete block |
 | ^K A | clear block | ^K W | write block to file |
 | ^K D | save SQL panel to file | ^K I / ^K R | load file / insert file at cursor |

@@ -1,0 +1,97 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+)
+
+// Search and replace in the SQL editor, the JOE way: ^K F asks for the
+// text and the options (r replace, c match case); Ctrl-R goes straight to
+// replacing. Replacing asks at each match: y, n, a (all the rest), Esc.
+
+// askFind asks for the search text, then the options (^K F) or the
+// replacement (Ctrl-R, replace set).
+func (m *Model) askFind(replace bool) {
+	label := "Find:"
+	if replace {
+		label = "Replace:"
+	}
+	m.ask(label, m.ed.LastSearch(), false, func(find string) tea.Cmd {
+		if find == "" {
+			m.setStatus("Cancelled", false)
+			return nil
+		}
+		if replace {
+			m.askReplaceWith(find, false, false)
+			return nil
+		}
+		m.ask("Options: r replace, c match case, a replace all without asking (Enter = find):", "", false, func(opts string) tea.Cmd {
+			opts = strings.ToLower(opts)
+			matchCase := strings.Contains(opts, "c")
+			if strings.ContainsAny(opts, "ra") {
+				m.askReplaceWith(find, matchCase, strings.Contains(opts, "a"))
+				return nil
+			}
+			m.ed.FindCase(find, matchCase)
+			m.setStatus(m.ed.Status, m.ed.Status != "")
+			return nil
+		})
+		return nil
+	})
+}
+
+func (m *Model) askReplaceWith(find string, matchCase, all bool) {
+	m.ask(fmt.Sprintf("Replace %q with:", find), "", false, func(with string) tea.Cmd {
+		r := m.ed.StartReplace(find, with, matchCase)
+		if r == nil {
+			m.setStatus(m.ed.Status, true)
+			return nil
+		}
+		m.replace = r
+		if all {
+			m.ed.ReplaceRest(r)
+			m.endReplace()
+			return nil
+		}
+		m.mode = modeReplace
+		m.setStatus("", false)
+		return nil
+	})
+}
+
+func (m *Model) updateReplace(key string) tea.Cmd {
+	r := m.replace
+	more := true
+	switch key {
+	case "y", "Y", "space", "enter":
+		more = m.ed.ReplaceStep(r, true)
+	case "n", "N", "backspace", "delete":
+		more = m.ed.ReplaceStep(r, false)
+	case "a", "A", "r", "R", "!":
+		m.ed.ReplaceRest(r)
+		more = false
+	case "esc", "q", "Q", "ctrl+c", "ctrl+g":
+		more = false
+	}
+	if !more {
+		m.endReplace()
+	}
+	return nil
+}
+
+func (m *Model) endReplace() {
+	r := m.replace
+	m.ed.EndReplace()
+	m.replace = nil
+	m.mode = modeNormal
+	switch r.Count {
+	case 0:
+		m.setStatus("Nothing replaced", false)
+	case 1:
+		m.setStatus("1 occurrence replaced (^_ undoes)", false)
+	default:
+		m.setStatus(fmt.Sprintf("%d occurrences replaced (^_ undoes all)", r.Count), false)
+	}
+}

@@ -49,7 +49,8 @@ const (
 	modeRecord
 	modeConnView
 	modeSessions
-	modeText // the text editor panel (CLOB values)
+	modeText    // the text editor panel (CLOB values)
+	modeReplace // search and replace: asking at each match
 )
 
 type prompt struct {
@@ -128,7 +129,8 @@ type Model struct {
 	mode  mode
 
 	prompt      prompt
-	text        *textEdit // the text editor panel, in modeText
+	text        *textEdit       // the text editor panel, in modeText
+	replace     *editor.Replace // search and replace in progress, in modeReplace
 	connSel     int
 	showConns   bool   // connections panel visible (F2)
 	showResults bool   // results panel visible (F3)
@@ -999,6 +1001,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.updatePrompt(key, text)
 	case modeText:
 		return m.updateText(key, text)
+	case modeReplace:
+		return m.updateReplace(key)
 	case modeHelp:
 		if !m.scrollHelp(key) {
 			m.mode = modeNormal
@@ -1243,11 +1247,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case editor.ActionHelp:
 		m.mode = modeHelp
 	case editor.ActionFindPrompt:
-		m.ask("Find:", "", false, func(v string) tea.Cmd {
-			m.ed.Find(v)
-			m.setStatus(m.ed.Status, m.ed.Status != "")
-			return nil
-		})
+		m.askFind(false)
+	case editor.ActionReplacePrompt:
+		m.askFind(true)
 	case editor.ActionGotoPrompt:
 		m.ask("Go to line:", "", false, func(v string) tea.Cmd {
 			n, err := strconv.Atoi(strings.TrimSpace(v))
@@ -1902,6 +1904,11 @@ func (m *Model) statusLine() string {
 }
 
 func (m *Model) bottomLine() string {
+	if m.mode == modeReplace {
+		return hintKey.Render(fmt.Sprintf(" Replace %q with %q?", m.replace.Find, m.replace.With)) + "  " +
+			hintKey.Render("y") + " " + hintText.Render("yes") + "  " + hintKey.Render("n") + " " + hintText.Render("no") + "  " +
+			hintKey.Render("a") + " " + hintText.Render("all the rest") + "  " + hintKey.Render("Esc") + " " + hintText.Render("stop")
+	}
 	if m.mode == modePrompt {
 		p := m.prompt
 		in := p.input
@@ -2137,8 +2144,8 @@ const helpText = `
  F8 / F9     rollback / commit             ^K B / ^K K            mark block begin / end
  F10, ^K E   sessions (load / save)        ^K C / ^K M / ^K Y     copy / move / delete block
  ^S          save session                  ^K A                   clear block marks
- Ctrl-C      cancel running query / quit   ^K F / ^L              find / find next
- ^K X        quit
+ Ctrl-C      cancel running query / quit   ^K F / ^L              find (options r c a) / find next
+ ^K X        quit                          ^R                     search and replace
  CONNECTIONS PANE
  Enter       connect this tab              ^K D                   save buffer to file
  a / e / d   add / edit / delete           ^K R                   insert file

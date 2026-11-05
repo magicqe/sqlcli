@@ -478,13 +478,15 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
       <div class="tbl"><table>
         <thead><tr><th>Key</th><th>Action</th></tr></thead>
         <tbody>
-          <tr><td><kbd>^K</kbd> <kbd>F</kbd></td><td class="wrap-ok">Find (case-insensitive, wraps at end of buffer)</td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>F</kbd></td><td class="wrap-ok">Find (case-insensitive, wraps at end of buffer); asks for options: <kbd>r</kbd> replace, <kbd>c</kbd> match case, <kbd>a</kbd> replace all without asking</td></tr>
           <tr><td><kbd>^L</kbd></td><td>Find next</td></tr>
+          <tr><td><kbd>^R</kbd></td><td>Search and replace</td></tr>
           <tr><td><kbd>^K</kbd> <kbd>D</kbd></td><td>Save the SQL panel to a file (see below)</td></tr>
           <tr><td><kbd>^K</kbd> <kbd>I</kbd></td><td class="wrap-ok">Load a file into the SQL panel, replacing its text (see below)</td></tr>
           <tr><td><kbd>^K</kbd> <kbd>R</kbd></td><td>Insert a file at the cursor</td></tr>
         </tbody>
       </table></div>
+      <p><strong>Search and replace.</strong> <kbd>^R</kbd> asks for the text to find and its replacement; <kbd>^K</kbd> <kbd>F</kbd> does the same when you answer the options question with <kbd>r</kbd> (add <kbd>c</kbd> to match case, or <kbd>a</kbd> to replace every match without asking). The search starts at the cursor, wraps at the end of the buffer and stops where it started. Each match is highlighted and the bottom line asks: <kbd>y</kbd> (or <kbd>Space</kbd>) replaces it, <kbd>n</kbd> skips it, <kbd>a</kbd> replaces it and all the rest, <kbd>Esc</kbd> stops. The status line says how many were replaced; one <kbd>^_</kbd> undoes the whole replace.</p>
       <p>File names may start with <code>~/</code>. <strong><kbd>Tab</kbd> completes file names</strong> in these questions (and when saving, loading or exporting): a single match is completed fully (directories get a <code>/</code>, so the next Tab looks inside), several matches are completed as far as they agree and listed in the status line, and Tab again steps through them. Hidden files are offered when the name starts with <code>.</code>.</p>
       <p><strong>Saving the SQL panel (<kbd>^K</kbd> <kbd>D</kbd>)</strong> asks for the file name, offering the tab's last file (or <code>query.sql</code> the first time). Saving again to the same file doesn't ask; another existing file is replaced only after you confirm. The file name is then shown in the SQL panel's title (<code>SQL · ora · report.sql</code>). <kbd>^K</kbd> <kbd>D</kbd> also works from the connections and results panes.</p>
       <p><strong>Loading a file (<kbd>^K</kbd> <kbd>I</kbd>)</strong> replaces the SQL panel's text with a text file, puts the cursor at the top-left corner, and makes it the tab's file: the title shows its name and <kbd>^K</kbd> <kbd>D</kbd> saves back to it. <kbd>^_</kbd> (undo) brings back the previous text. Directories, binary files and files over 10 MB are refused. To insert a file at the cursor instead, use <kbd>^K</kbd> <kbd>R</kbd>.</p>
@@ -914,7 +916,7 @@ second line</pre>
           <tr><td><kbd>^W</kbd> <kbd>^O</kbd></td><td>Delete word right / left</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^J</kbd></td><td>Delete to end of line</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^_</kbd> <kbd>^^</kbd></td><td>Undo / redo</td><td><span class="grp">Editor</span></td></tr>
-          <tr><td><kbd>^K</kbd> <kbd>F</kbd> / <kbd>^L</kbd></td><td>Find / find next</td><td><span class="grp">Editor</span></td></tr>
+          <tr><td><kbd>^K</kbd> <kbd>F</kbd> / <kbd>^L</kbd> / <kbd>^R</kbd></td><td>Find / find next / replace</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>B</kbd> / <kbd>^K</kbd> <kbd>K</kbd></td><td>Block begin / end</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>C</kbd> <kbd>M</kbd> <kbd>Y</kbd></td><td>Copy / move / delete block</td><td><span class="grp">Editor</span></td></tr>
           <tr><td><kbd>^K</kbd> <kbd>A</kbd></td><td>Clear block marks</td><td><span class="grp">Editor</span></td></tr>
