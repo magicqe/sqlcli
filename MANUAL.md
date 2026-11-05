@@ -695,6 +695,14 @@ second discards them. Saving an empty text sets NULL. The same panel asks for
 CLOB columns when inserting a row (**i**). Values are sent as LOBs, so they
 may be longer than 32 KB.
 
+In the text editor panel **^K D** saves the text to a file and **^K I** loads
+a file, replacing the text (^_ undoes); **^K R** inserts a file at the cursor
+and **^K W** writes the marked block to a file. The first name offered is
+`table_column.txt` (e.g. `docs_doc.txt`), then the last file used; Tab
+completes file names, and another existing file is replaced only after you
+confirm. The file holds the text exactly as it is — nothing reaches the
+database until you save the panel with ^K X.
+
 Rows are found by their **ROWID**, so the result must come from one table and
 include a `ROWID` column. **s** in the object tree adds it for tables
 (`select rowid, t.* from table t`); in your own SQL write e.g.

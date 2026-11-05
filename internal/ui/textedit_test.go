@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -87,5 +88,70 @@ func TestTextEditorPaste(t *testing.T) {
 	m.Update(tea.PasteMsg{Content: "pasted\ntext "})
 	if !strings.HasPrefix(m.text.ed.Text(), "pasted\ntext first line") {
 		t.Fatalf("paste: %q", m.text.ed.Text())
+	}
+}
+
+func TestTextEditorFiles(t *testing.T) {
+	dir := t.TempDir()
+	m := clobModel()
+	clobReady(m, "CLOB")
+
+	// ^K D offers table_column.txt and saves the text as it is
+	ctrlK(m, 'd')
+	if m.mode != modePrompt || string(m.prompt.input) != "docs_doc.txt" {
+		t.Fatalf("save question: mode %v input %q", m.mode, string(m.prompt.input))
+	}
+	if !strings.Contains(screen(m), "DOCS.DOC") {
+		t.Fatal("the text panel should stay on screen during the question")
+	}
+	saved := dir + "/doc.txt"
+	answer(m, saved)
+	if m.mode != modeText {
+		t.Fatalf("back in the text panel: mode %v", m.mode)
+	}
+	if b, err := os.ReadFile(saved); err != nil || string(b) != "first line\nsecond line" {
+		t.Fatalf("saved file: %q %v", b, err)
+	}
+	if !strings.Contains(screen(m), "Saved 22 character(s)") {
+		t.Fatalf("status in the panel:\n%s", screen(m))
+	}
+
+	// ^K I replaces the text with a file (offering the last file)
+	other := dir + "/other.txt"
+	os.WriteFile(other, []byte("from a file\nline 2\n"), 0o644)
+	ctrlK(m, 'i')
+	if string(m.prompt.input) != saved {
+		t.Fatalf("load offers the last file: %q", string(m.prompt.input))
+	}
+	answer(m, other)
+	if m.mode != modeText || m.text.ed.Text() != "from a file\nline 2\n" {
+		t.Fatalf("loaded: %q", m.text.ed.Text())
+	}
+
+	// ^K R inserts a file at the cursor
+	m.text.ed.SetCursor(0, 0)
+	ctrlK(m, 'r')
+	answer(m, saved)
+	if !strings.HasPrefix(m.text.ed.Text(), "first line\nsecond linefrom a file") {
+		t.Fatalf("inserted: %q", m.text.ed.Text())
+	}
+
+	// saving over another existing file asks first
+	ctrlK(m, 'd')
+	answer(m, saved)
+	if m.mode != modePrompt || !strings.Contains(m.prompt.label, "Overwrite") {
+		t.Fatalf("overwrite question: %q", m.prompt.label)
+	}
+	answer(m, "n")
+	if b, _ := os.ReadFile(saved); string(b) != "first line\nsecond line" || m.mode != modeText {
+		t.Fatalf("not overwritten: %q, mode %v", b, m.mode)
+	}
+
+	// a missing file is reported, the text stays
+	before := m.text.ed.Text()
+	ctrlK(m, 'i')
+	answer(m, dir+"/missing.txt")
+	if m.text.ed.Text() != before || !strings.Contains(screen(m), "no such file") {
+		t.Fatalf("missing file:\n%s", screen(m))
 	}
 }

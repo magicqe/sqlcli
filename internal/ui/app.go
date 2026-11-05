@@ -631,8 +631,8 @@ func (m *Model) rowsStatus() string {
 
 func (m *Model) ask(label, initial string, mask bool, onSubmit func(string) tea.Cmd) {
 	back := modeNormal
-	if m.mode == modeRecord { // a question from the record view returns to it
-		back = modeRecord
+	if m.mode == modeRecord || m.mode == modeText { // a question from the record view / text panel returns to it
+		back = m.mode
 	}
 	if m.mode == modePrompt {
 		back = m.prompt.back // a follow-up question returns where the first one would
@@ -1802,6 +1802,11 @@ func (m *Model) View() tea.View {
 	case modeText:
 		v.SetContent(m.textView())
 		return v
+	case modePrompt:
+		if m.prompt.back == modeText && m.text != nil { // a question from the text panel: over it
+			v.SetContent(m.textView())
+			return v
+		}
 	}
 
 	cw := m.connWidth()
@@ -2157,7 +2162,8 @@ const helpText = `
  End         fetch all rows, last row      PgUp / PgDn            ± record_page records
  ←→ / u      cell cursor / edit the cell (needs ROWID; F9 commit, F8 rollback)
  i / d       insert a row / delete the row (also in the record view; Tab moves between fields there)
- CLOB values open in a text editor panel: ^K X or Ctrl-S saves, Esc cancels (twice if changed)
+ CLOB values open in a text editor panel: ^K X or Ctrl-S saves, Esc cancels (twice if changed),
+             ^K D / ^K I save to / load from a file, ^K R inserts a file, ^K W writes the block
  Ctrl-C      stop fetching                 Shift-↑↓, wheel        scroll a long record
  Enter       show row as record
  o           grid / DBMS_OUTPUT
@@ -3594,7 +3600,7 @@ func (m *Model) askCellValue(msg editReadyMsg) tea.Cmd {
 		}
 	}
 	if isLongText(msg.colTy) { // CLOB: in the text editor panel
-		m.openTextEdit(fmt.Sprintf("%s.%s (%s) — empty = NULL", msg.table, col, strings.ToLower(msg.colTy)), cur, save)
+		m.openTextEdit(fmt.Sprintf("%s.%s (%s) — empty = NULL", msg.table, col, strings.ToLower(msg.colTy)), cur, textFileName(msg.table, col), save)
 		return nil
 	}
 	m.ask(fmt.Sprintf("%s (%s, empty = NULL):", col, strings.ToLower(msg.colTy)), cur, false, save)
@@ -3740,7 +3746,7 @@ func (m *Model) askInsertValues(msg insertReadyMsg, k int, values []string) tea.
 		}
 	}
 	if isLongText(msg.types[k]) { // CLOB: in the text editor panel
-		m.openTextEdit(strings.TrimSuffix(label, ":"), "", next)
+		m.openTextEdit(strings.TrimSuffix(label, ":"), "", textFileName(msg.table.Name, msg.cols[k]), next)
 		return nil
 	}
 	m.ask(label, "", false, next)
