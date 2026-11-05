@@ -38,13 +38,13 @@ func TestRecordNavigation(t *testing.T) {
 		k    tea.KeyPressMsg
 		want int
 	}{
-		{key(tea.KeyDown), 2},
-		{key('n', tea.ModCtrl), 3},
-		{key(tea.KeyUp), 2},
-		{key('p', tea.ModCtrl), 1},
-		{key(tea.KeyUp), 1}, // stays on the first record
+		{key(tea.KeyRight), 2},
+		{key('f', tea.ModCtrl), 3},
+		{key(tea.KeyLeft), 2},
+		{key('b', tea.ModCtrl), 1},
+		{key(tea.KeyLeft), 1}, // stays on the first record
 		{key(tea.KeyEnd), 5},
-		{key(tea.KeyDown), 5}, // stays on the last record
+		{key(tea.KeyRight), 5}, // stays on the last record
 		{key(tea.KeyHome), 1},
 		{key('e', tea.ModCtrl), 5},
 		{key('a', tea.ModCtrl), 1},
@@ -58,13 +58,41 @@ func TestRecordNavigation(t *testing.T) {
 			t.Fatalf("step %d: screen does not show record %d", i, s.want)
 		}
 	}
-	press(m, key(tea.KeyDown))
+	press(m, key(tea.KeyRight))
 	if s := screen(m); !strings.Contains(s, "line one") || !strings.Contains(s, "line two") {
 		t.Fatal("multi-line value not shown")
 	}
 	press(m, key(tea.KeyEscape))
 	if m.mode != modeNormal || m.res.row != 1 {
 		t.Fatalf("Esc should close and keep the selection: mode=%v row=%d", m.mode, m.res.row)
+	}
+}
+
+func TestRecordArrowsMoveFields(t *testing.T) {
+	m := recordModel(3)
+	press(m, key(tea.KeyEnter))
+	press(m, key(tea.KeyDown))
+	press(m, key(tea.KeyDown))
+	press(m, key(tea.KeyDown)) // stays on the last field
+	if m.mode != modeRecord || m.res.selCol != 2 || m.res.row != 0 {
+		t.Fatalf("Down: field %d record %d", m.res.selCol, m.res.row+1)
+	}
+	press(m, key(tea.KeyRight)) // the next record keeps the field
+	if m.res.row != 1 || m.res.selCol != 2 {
+		t.Fatalf("Right: field %d record %d", m.res.selCol, m.res.row+1)
+	}
+	press(m, key(tea.KeyUp))
+	press(m, key('p', tea.ModCtrl))
+	press(m, key(tea.KeyUp)) // stays on the first field
+	if m.res.selCol != 0 || m.res.row != 1 {
+		t.Fatalf("Up: field %d record %d", m.res.selCol, m.res.row+1)
+	}
+	press(m, key('n', tea.ModCtrl))
+	if m.res.selCol != 1 {
+		t.Fatalf("Ctrl-N: field %d", m.res.selCol)
+	}
+	if !strings.Contains(screen(m), "←→ previous/next record  ↑↓ field") {
+		t.Fatalf("hint:\n%s", screen(m))
 	}
 }
 

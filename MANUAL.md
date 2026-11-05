@@ -737,8 +737,8 @@ long values in full, NULL as `(null)`.
 
 | Key | Action |
 |---|---|
-| ↑ / ↓ (^P / ^N) | previous / next record |
-| Ctrl-↓ / Ctrl-↑, Tab / Shift-Tab | next / previous field (the field cursor) |
+| ← / → (^B / ^F) | previous / next record (the field cursor stays on its column) |
+| ↓ / ↑ (^N / ^P), Ctrl-↓ / Ctrl-↑, Tab / Shift-Tab | next / previous field (the field cursor) |
 | u / Enter | edit the field under the field cursor in the text editor panel, whatever its type (^K X or Ctrl-S saves, Esc cancels; the record view stays open and its bottom line shows the result) |
 | i / d | insert a new row / delete this row |
 | Home (^A) | first record |
@@ -748,7 +748,7 @@ long values in full, NULL as `(null)`.
 | Ctrl-C | stop fetching |
 | other keys | close the record view (the grid keeps the record selected) |
 
-Stepping past the last fetched row with ↓ or PgDn fetches the next batch;
+Stepping past the last fetched row with → or PgDn fetches the next batch;
 PgDn still lands exactly `record_page` records further.
 
 ### Fetching rows

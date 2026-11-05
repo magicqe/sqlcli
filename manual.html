@@ -680,8 +680,8 @@ end;
       <div class="tbl"><table>
         <thead><tr><th>Key</th><th>Action</th></tr></thead>
         <tbody>
-          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> &nbsp;<kbd>^P</kbd> <kbd>^N</kbd></td><td>Previous / next record</td></tr>
-          <tr><td><kbd>Ctrl-↓</kbd> / <kbd>Ctrl-↑</kbd>, <kbd>Tab</kbd> / <kbd>Shift-Tab</kbd></td><td>Next / previous field (the field cursor)</td></tr>
+          <tr><td><kbd>←</kbd> <kbd>→</kbd> &nbsp;<kbd>^B</kbd> <kbd>^F</kbd></td><td>Previous / next record (the field cursor stays on its column)</td></tr>
+          <tr><td><kbd>↓</kbd> / <kbd>↑</kbd> &nbsp;<kbd>^N</kbd> / <kbd>^P</kbd>, <kbd>Ctrl-↓</kbd> / <kbd>Ctrl-↑</kbd>, <kbd>Tab</kbd> / <kbd>Shift-Tab</kbd></td><td>Next / previous field (the field cursor)</td></tr>
           <tr><td><kbd>u</kbd> / <kbd>Enter</kbd></td><td class="wrap-ok">Edit the field under the field cursor in the text editor panel, whatever its type (<kbd>^K X</kbd> or <kbd>Ctrl-S</kbd> saves, <kbd>Esc</kbd> cancels; the record view stays open and its bottom line shows the result)</td></tr>
           <tr><td><kbd>i</kbd> / <kbd>d</kbd></td><td>Insert a new row / delete this row</td></tr>
           <tr><td><kbd>Home</kbd> &nbsp;<kbd>^A</kbd></td><td>First record</td></tr>
@@ -692,7 +692,7 @@ end;
           <tr><td>Any other key</td><td class="wrap-ok">Close the record view (the grid keeps the record selected)</td></tr>
         </tbody>
       </table></div>
-      <p>Stepping past the last fetched row with <kbd>↓</kbd> or <kbd>PgDn</kbd> fetches the next batch; PgDn still lands exactly <code>record_page</code> records further.</p>
+      <p>Stepping past the last fetched row with <kbd>→</kbd> or <kbd>PgDn</kbd> fetches the next batch; PgDn still lands exactly <code>record_page</code> records further.</p>
       <h3>Fetching rows</h3>
       <p>A query first fetches <code>query.max_rows</code> rows (default 1000). If it has more, the query stays open on the server, the status says <code>1000 row(s) fetched, more available.</code>, and the row count in the title gets a <code>+</code> (<code>row 1/1000+</code>).</p>
       <ul>

@@ -207,10 +207,10 @@ func TestUIRecordFetches(t *testing.T) {
 	press(m, key(tea.KeyEnter))
 	r = m.res.res
 	for i := 0; i < 1100 && r.More; i++ {
-		press(m, key(tea.KeyDown))
+		press(m, key(tea.KeyRight))
 	}
 	if len(r.Rows) != 1500 || r.More {
-		t.Fatalf("Down: rows=%d more=%v", len(r.Rows), r.More)
+		t.Fatalf("Right: rows=%d more=%v", len(r.Rows), r.More)
 	}
 }
 

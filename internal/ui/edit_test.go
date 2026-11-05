@@ -132,7 +132,7 @@ func TestRecordFieldCursor(t *testing.T) {
 		t.Fatalf("Ctrl-Up: mode %v field %d row %d", m.mode, m.res.selCol, m.res.row)
 	}
 	press(m, key(tea.KeyDown, tea.ModCtrl))
-	if !strings.Contains(screen(m), "^↑↓ Tab field") || !strings.Contains(m.recordView(), "48;5;24") {
+	if !strings.Contains(screen(m), "↑↓ field") || !strings.Contains(m.recordView(), "48;5;24") {
 		t.Fatal("field cursor or hint missing")
 	}
 	// a question from the record view returns to it

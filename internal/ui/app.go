@@ -2063,10 +2063,10 @@ func (m *Model) recordView() string {
 	if m.running && m.fetching {
 		title += fmt.Sprintf("  fetching… %d rows (Ctrl-C stops)", len(r.Rows))
 	}
-	hint := " " + hintKey.Render("↑↓") + hintText.Render(" previous/next  ") +
+	hint := " " + hintKey.Render("←→") + hintText.Render(" previous/next record  ") +
+		hintKey.Render("↑↓") + hintText.Render(" field  ") +
 		hintKey.Render("PgUp PgDn") + hintText.Render(fmt.Sprintf(" ±%d records  ", m.cfg.UI.RecordPage)) +
 		hintKey.Render("Home End") + hintText.Render(" first/last  ") +
-		hintKey.Render("^↑↓ Tab") + hintText.Render(" field  ") +
 		hintKey.Render("u Enter") + hintText.Render(" edit  ") + hintKey.Render("i") + hintText.Render(" insert  ") +
 		hintKey.Render("d") + hintText.Render(" delete  ") +
 		hintKey.Render("Shift-↑↓") + hintText.Render(" scroll  ") +
@@ -2087,12 +2087,14 @@ func (m *Model) updateRecord(key string) tea.Cmd {
 	r := m.res.res
 	m.status = "" // the last message (e.g. "NAME updated") goes with the next key
 	switch key {
-	case "up", "ctrl+p", "k":
+	case "left", "ctrl+b", "h": // previous / next record
 		m.res.handleKey("up")
 		m.recTop = 0
-	case "down", "ctrl+n", "j":
+		m.keepFieldVisible()
+	case "right", "ctrl+f", "l":
 		m.res.handleKey("down")
 		m.recTop = 0
+		m.keepFieldVisible()
 		if m.res.nearEnd() {
 			return m.fetch(false)
 		}
@@ -2137,10 +2139,10 @@ func (m *Model) updateRecord(key string) tea.Cmd {
 		if m.running && m.cancel != nil {
 			m.cancel()
 		}
-	case "tab", "ctrl+down": // next / previous field
+	case "down", "ctrl+n", "j", "tab", "ctrl+down": // next / previous field
 		m.res.selCol = min(m.res.selCol+1, len(r.Columns)-1)
 		m.keepFieldVisible()
-	case "shift+tab", "ctrl+up":
+	case "up", "ctrl+p", "k", "shift+tab", "ctrl+up":
 		m.res.selCol = max(m.res.selCol-1, 0)
 		m.keepFieldVisible()
 	case "u", "enter": // edit the field, in the text editor panel
@@ -2187,10 +2189,10 @@ const helpText = `
  Tab         object tree (below)           ^K I                   load file (replace text)
 
  RESULTS PANE                              RECORD VIEW (Enter on a row)
- arrows, PgUp/PgDn, wheel   scroll         ↑↓ / Home End          previous, next / first, last
+ arrows, PgUp/PgDn, wheel   scroll         ←→ / Home End          previous, next / first, last record
  End         fetch all rows, last row      PgUp / PgDn            ± record_page records
  ←→ / u      cell cursor / edit the cell (needs ROWID; F9 commit, F8 rollback)
- i / d       insert a row / delete the row (also in the record view: Ctrl-↑↓ / Tab move between fields, u / Enter edit in the text panel)
+ i / d       insert a row / delete the row (also in the record view: ↑↓ move between fields, u / Enter edit in the text panel)
  CLOB values open in a text editor panel: ^K X or Ctrl-S saves, Esc cancels (twice if changed),
              ^K D / ^K I save to / load from a file, ^K R inserts a file, ^K W writes the block,
              ^K F / ^L / ^R find / find next / search and replace
