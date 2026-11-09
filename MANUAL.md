@@ -283,11 +283,21 @@ connection, and is loaded again after `CREATE`, `DROP`, `ALTER` or `RENAME`.
 | i | insert the name at the editor cursor (`package.member` for members) |
 | d | `DESC` the object |
 | s | `select * from` the table, view or synonym (for tables `select rowid, t.*`, so the rows can be edited with u); the results get the whole height (the SQL panel is hidden, F4 brings it back) |
+| / or f | **filter** the objects by name (see below) |
 | r | reload the tree |
 | Ctrl-D | open the object's **DDL** in a new SQL tab (see below) |
 | Esc | back to the editor |
 
 A click selects, a double-click opens, the mouse wheel scrolls.
+
+**Filter.** / (or f) asks on the bottom line for a filter and the tree
+follows as you type: only objects whose name contains the text are shown
+(case-insensitive; `*` or `%` match any text, e.g. `emp*hist`), groups
+without matches are hidden, the others open and show `matching/all` counts,
+and the first match is selected. The filter is shown on the last line of the
+tree (`/ emp  3 matches`). Enter keeps it, Esc goes back to the previous
+filter, and an empty filter shows all objects again. Each connection's tree
+keeps its own filter, also when it is reloaded (r).
 
 **Ctrl-D** opens a new SQL tab (with its own session on the same connection)
 holding the object's DDL from `DBMS_METADATA.GET_DDL`: for a package its

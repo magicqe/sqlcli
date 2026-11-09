@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"sqlcli/internal/config"
 	"sqlcli/internal/db"
@@ -131,7 +132,7 @@ func TestPanelKeyHints(t *testing.T) {
 	m.res.set(&db.Result{IsQuery: true, Columns: []string{"N"}, Rows: [][]string{{"1"}}}, nil, nil, "") // a grid
 	for f, want := range map[focus]string{
 		focusConns:   "Enter connect  a add  e edit  v view  d delete",
-		focusTree:    "Enter open  ← close  i insert name  d desc  s select  ^D ddl",
+		focusTree:    "Enter open  ← close  / filter  i insert name  d desc  s select  ^D ddl",
 		focusResults: "Enter record  u edit  i insert  d delete  e export",
 		focusEditor:  "F1 help  F2 conns  F3 results",
 	} {
@@ -147,5 +148,69 @@ func TestPanelKeyHints(t *testing.T) {
 		if strings.Contains(l, "Enter connect") {
 			t.Fatal("key hints still inside the connections box")
 		}
+	}
+}
+
+func TestObjectTreeFilter(t *testing.T) {
+	m := treeModel(t)
+	m.focus = focusTree
+	if !strings.Contains(ansi.Strip(m.bottomLine()), "/ filter") {
+		t.Fatalf("hint: %q", m.bottomLine())
+	}
+	press(m, key('/'))
+	if m.mode != modePrompt || !strings.Contains(m.prompt.label, "Filter objects") {
+		t.Fatalf("filter question: mode %v %q", m.mode, m.prompt.label)
+	}
+	// the tree follows as you type
+	typeText(m, "em")
+	s := screen(m)
+	for _, want := range []string{"▾ Tables  1/3", "EMP", "▾ Sequences  1/1", "EMP_SEQ", "/ em  2 matches"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("live filter: missing %q\n%s", want, s)
+		}
+	}
+	for _, gone := range []string{"DEPT", "Packages", "Mixed"} {
+		if strings.Contains(s, gone) {
+			t.Fatalf("live filter: %q should be hidden\n%s", gone, s)
+		}
+	}
+	if n := m.tree().selected(); n == nil || n.name != "EMP" {
+		t.Fatalf("the first match should be selected: %+v", n)
+	}
+	press(m, key(tea.KeyEnter))
+	if m.mode != modeNormal || m.focus != focusTree || m.tree().filter != "em" || !strings.Contains(screen(m), "/ em  2 matches") {
+		t.Fatalf("after Enter: mode %v focus %v filter %q", m.mode, m.focus, m.tree().filter)
+	}
+
+	// wildcards, case-insensitive; no match
+	press(m, key('f'))
+	press(m, key('y', tea.ModCtrl))
+	typeText(m, "t*pkg")
+	if s := screen(m); !strings.Contains(s, "TESTPKG") || strings.Contains(s, "EMP") {
+		t.Fatalf("wildcard:\n%s", s)
+	}
+	typeText(m, "zz")
+	if s := screen(m); !strings.Contains(s, "no match") || !strings.Contains(s, "0 matches") {
+		t.Fatalf("no match:\n%s", s)
+	}
+	// Esc goes back to the previous filter
+	press(m, key(tea.KeyEscape))
+	if m.tree().filter != "em" || !strings.Contains(screen(m), "EMP_SEQ") {
+		t.Fatalf("Esc: filter %q", m.tree().filter)
+	}
+	// an empty filter shows everything again
+	press(m, key('/'))
+	press(m, key('y', tea.ModCtrl))
+	press(m, key(tea.KeyEnter))
+	if s := screen(m); m.tree().filter != "" || !strings.Contains(s, "Packages  1") || strings.Contains(s, "matches") {
+		t.Fatalf("cleared:\n%s", s)
+	}
+
+	// the filter survives a reload of the tree
+	m.tree().setFilter("dept")
+	m.loadTree(true)
+	m.Update(treeObjectsMsg{conn: "ora", objs: []db.SchemaObject{{Type: "TABLE", Name: "EMP", Valid: true}, {Type: "TABLE", Name: "DEPT", Valid: true}}})
+	if s := screen(m); !strings.Contains(s, "DEPT") || strings.Contains(s, "EMP") || !strings.Contains(s, "/ dept  1 match") {
+		t.Fatalf("after reload:\n%s", s)
 	}
 }

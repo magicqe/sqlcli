@@ -775,7 +775,7 @@ func TestUIInsertDeleteRows(t *testing.T) {
 	// record view: edit a field and stay there
 	press(m, key(tea.KeyEnter))
 	press(m, key(tea.KeyTab))
-	press(m, key(tea.KeyTab)) // NAME
+	press(m, key(tea.KeyTab))   // NAME
 	press(m, key(tea.KeyEnter)) // in the text editor panel
 	if m.mode != modeText || m.text.ed.Text() != "one" {
 		t.Fatalf("record edit: mode %v", m.mode)

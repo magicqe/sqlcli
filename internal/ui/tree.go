@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -55,6 +56,48 @@ type objTree struct {
 	err     string
 	sel     int // index into visible()
 	top     int
+	filter  string         // object name filter ("" = all objects)
+	match   *regexp.Regexp // the compiled filter
+}
+
+// setFilter sets the object name filter: a case-insensitive part of the
+// name, where * and % match any text. Groups with matches open; the first
+// matching object is selected.
+func (t *objTree) setFilter(f string) {
+	f = strings.TrimSpace(f)
+	t.filter, t.match = f, nil
+	if f != "" {
+		pat := regexp.QuoteMeta(f)
+		pat = strings.NewReplacer(`\*`, ".*", "%", ".*").Replace(pat)
+		t.match = regexp.MustCompile("(?i)" + pat)
+		for _, g := range t.groups {
+			g.open = t.count(g) > 0
+		}
+	}
+	nodes, _ := t.visible()
+	t.sel, t.top = 0, 0
+	for i, n := range nodes {
+		if n.name != "" { // the first object
+			t.sel = i
+			break
+		}
+	}
+}
+
+// shows reports whether an object passes the filter.
+func (t *objTree) shows(n *treeNode) bool {
+	return t.match == nil || n.name == "" || t.match.MatchString(n.name)
+}
+
+// count is the number of a group's objects that pass the filter.
+func (t *objTree) count(g *treeNode) int {
+	c := 0
+	for _, n := range g.children {
+		if t.shows(n) {
+			c++
+		}
+	}
+	return c
 }
 
 // visible returns the nodes shown, in order, with their depth.
@@ -64,6 +107,9 @@ func (t *objTree) visible() ([]*treeNode, []int) {
 	var walk func(ns []*treeNode, d int)
 	walk = func(ns []*treeNode, d int) {
 		for _, n := range ns {
+			if d == 0 && t.match != nil && t.count(n) == 0 || d == 1 && !t.shows(n) {
+				continue // filtered out (a group with no matching objects, or an object)
+			}
 			nodes = append(nodes, n)
 			depth = append(depth, d)
 			if n.open {
@@ -123,7 +169,7 @@ func (m *Model) loadTree(reload bool) tea.Cmd {
 		old := t
 		t = &objTree{}
 		if old != nil {
-			t.sel, t.top = old.sel, old.top
+			t.sel, t.top, t.filter, t.match = old.sel, old.top, old.filter, old.match
 		}
 		m.trees[name] = t
 	}
@@ -158,6 +204,9 @@ func (m *Model) treeObjectsLoaded(msg treeObjectsMsg) {
 		gn := &treeNode{label: g.title, extra: fmt.Sprint(len(objs)), objType: g.typ}
 		for _, o := range objs {
 			gn.children = append(gn.children, &treeNode{label: o.Name, objType: o.Type, name: o.Name, parent: gn, invalid: !o.Valid})
+		}
+		if t.match != nil {
+			gn.open = t.count(gn) > 0
 		}
 		t.groups = append(t.groups, gn)
 	}
@@ -308,6 +357,9 @@ func (m *Model) updateTree(key string) tea.Cmd {
 			}
 			m.setStatus("s queries tables, views and synonyms", true)
 		}
+	case "/", "f":
+		m.askTreeFilter()
+		return nil
 	case "r":
 		m.setStatus("Reloading the object tree...", false)
 		return m.loadTree(true)
@@ -404,6 +456,22 @@ func (m *Model) treeView(w, h int) string {
 	}
 	nodes, depth := t.visible()
 	vis := max(h-2, 1)
+	filterLine := ""
+	if t.filter != "" || m.mode == modePrompt && m.prompt.onChange != nil {
+		vis = max(vis-1, 1) // the last line shows the filter
+		n := 0
+		for _, g := range t.groups {
+			n += t.count(g)
+		}
+		word := "matches"
+		if n == 1 {
+			word = "match"
+		}
+		filterLine = ansi.Truncate(treeGroupStyle.Render("/ ")+t.filter+treeDimStyle.Render(fmt.Sprintf("  %d %s", n, word)), w-2, "…")
+	}
+	if len(nodes) == 0 {
+		return box(title, strings.Repeat("\n", vis-1)+hintText.Render("no match")+"\n"+filterLine, w, h, focused)
+	}
 	t.sel = min(max(t.sel, 0), len(nodes)-1)
 	if t.sel < t.top {
 		t.top = t.sel
@@ -429,9 +497,13 @@ func (m *Model) treeView(w, h int) string {
 		if n.invalid {
 			label += " ✗"
 		}
+		extra := n.extra
+		if n.parent == nil && t.match != nil { // a group: matching / all objects
+			extra = fmt.Sprintf("%d/%d", t.count(n), len(n.children))
+		}
 		plain := strings.Repeat("  ", depth[i]) + mark + label
-		if n.extra != "" {
-			plain += "  " + n.extra
+		if extra != "" {
+			plain += "  " + extra
 		}
 		plain = ansi.Truncate(plain, iw, "…")
 		var line string
@@ -450,11 +522,17 @@ func (m *Model) treeView(w, h int) string {
 				body = treeBadStyle.Render(label)
 			}
 			line = ansi.Truncate(head+body, iw, "…")
-			if n.extra != "" && ansi.StringWidth(line) < iw {
-				line += ansi.Truncate(treeDimStyle.Render("  "+n.extra), iw-ansi.StringWidth(line), "…")
+			if extra != "" && ansi.StringWidth(line) < iw {
+				line += ansi.Truncate(treeDimStyle.Render("  "+extra), iw-ansi.StringWidth(line), "…")
 			}
 		}
 		lines = append(lines, line)
+	}
+	if filterLine != "" {
+		for len(lines) < vis {
+			lines = append(lines, "")
+		}
+		lines = append(lines, filterLine)
 	}
 	return box(title, strings.Join(lines, "\n"), w, h, focused)
 }
@@ -510,4 +588,27 @@ func (m *Model) ddlLoaded(msg ddlMsg) tea.Cmd {
 	m.ddlName = msg.objType + " " + msg.name
 	m.setStatus(fmt.Sprintf("DDL of %s %s (from DBMS_METADATA)", strings.ToLower(msg.objType), msg.name), false)
 	return cmd
+}
+
+// askTreeFilter edits the object tree's name filter on the bottom line; the
+// tree follows as you type. Enter keeps it, an empty filter shows all
+// objects, Esc goes back to the previous filter.
+func (m *Model) askTreeFilter() {
+	t := m.tree()
+	if t == nil || t.groups == nil {
+		m.setStatus("The object tree is not loaded yet", true)
+		return
+	}
+	old := t.filter
+	m.ask("Filter objects (part of the name, * = any text; empty = all):", old, false, func(v string) tea.Cmd {
+		t.setFilter(v)
+		if t.filter == "" {
+			m.setStatus("Object filter cleared", false)
+		} else {
+			m.setStatus("Object filter: "+t.filter, false)
+		}
+		return nil
+	})
+	m.prompt.onChange = func(v string) { t.setFilter(v) }
+	m.prompt.onCancel = func() { t.setFilter(old) }
 }
