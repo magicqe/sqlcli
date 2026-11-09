@@ -20,10 +20,10 @@ func TestF12AndCtrlArrows(t *testing.T) {
 	}{
 		{focusEditor, tea.KeyDown, focusResults},
 		{focusResults, tea.KeyUp, focusEditor},
-		{focusEditor, tea.KeyLeft, focusConns},
-		{focusConns, tea.KeyRight, focusEditor},
+		{focusEditor, tea.KeyLeft, focusTree}, // from the right panels to the object tree
 		{focusResults, tea.KeyLeft, focusTree},
-		{focusTree, tea.KeyRight, focusResults},
+		{focusConns, tea.KeyRight, focusEditor}, // from the left panels to the SQL editor
+		{focusTree, tea.KeyRight, focusEditor},
 		{focusConns, tea.KeyDown, focusTree},
 		{focusTree, tea.KeyUp, focusConns},
 		{focusConns, tea.KeyUp, focusConns}, // nothing above: stays
@@ -39,7 +39,7 @@ func TestF12AndCtrlArrows(t *testing.T) {
 	m.focus = focusEditor
 	press(m, key(tea.KeyF2)) // hide the left column
 	press(m, key(tea.KeyLeft, tea.ModCtrl))
-	if !m.showConns || m.focus != focusConns {
+	if !m.showConns || m.focus != focusTree {
 		t.Fatalf("Ctrl-Left to a hidden panel: show=%v focus=%v", m.showConns, m.focus)
 	}
 	m.focus = focusEditor

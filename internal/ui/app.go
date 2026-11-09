@@ -3514,12 +3514,13 @@ func (m *Model) jumpTo(f focus) {
 
 // jumpDirection moves to the panel left / right / up / down of the focused
 // one (Ctrl-arrows): connections and object tree on the left, SQL editor
-// and results on the right.
+// and results on the right. Ctrl-→ from either left panel goes to the SQL
+// editor, Ctrl-← from either right panel to the object tree.
 func (m *Model) jumpDirection(dir string) {
 	next := map[focus]map[string]focus{
 		focusConns:   {"right": focusEditor, "down": focusTree},
-		focusTree:    {"right": focusResults, "up": focusConns},
-		focusEditor:  {"left": focusConns, "down": focusResults},
+		focusTree:    {"right": focusEditor, "up": focusConns},
+		focusEditor:  {"left": focusTree, "down": focusResults},
 		focusResults: {"left": focusTree, "up": focusEditor},
 	}
 	if f, ok := next[m.focus][dir]; ok {

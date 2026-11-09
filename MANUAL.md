@@ -131,7 +131,7 @@ The focused pane has a blue border. Switch panes with:
 | F3 | show the results panel (focused) / hide it |
 | F4 | show the SQL panel (focused) / hide it |
 | F12 | object tree (shows the left panel if hidden) |
-| Ctrl-← / → / ↑ / ↓ | the panel to the left / right / above / below: connections and object tree on the left, SQL editor and results on the right (a hidden panel is shown) |
+| Ctrl-← / → / ↑ / ↓ | the panel to the left / right / above / below: connections and object tree on the left, SQL editor and results on the right (a hidden panel is shown). Ctrl-→ from the connections or the object tree goes to the SQL editor; Ctrl-← from the SQL editor or the results goes to the object tree |
 | Tab / Shift-Tab | next / previous panel, in the order connections → object tree → results → SQL editor; hidden panels are skipped (in the editor, Tab indents) |
 | Esc (in Connections/Results/tree) | back to the editor |
 
