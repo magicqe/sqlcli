@@ -709,11 +709,36 @@ func (m *Model) updatePrompt(key, text string) tea.Cmd {
 // addConnectionWizard asks for the fields of a new connection and saves config.
 func (m *Model) addConnectionWizard() {
 	var c config.Connection
+	yn := func(label string, set func(bool), next func() tea.Cmd) {
+		m.ask(label, "no", false, func(v string) tea.Cmd {
+			b, ok := parseYesNo(v, false)
+			if !ok {
+				m.setStatus(fmt.Sprintf("%q is not yes or no; connection not added", v), true)
+				return nil
+			}
+			set(b)
+			return next()
+		})
+	}
+	// the last questions: read-only, SYSDBA, then save
+	askFlags := func() tea.Cmd {
+		yn("Read-only? (yes/no):", func(b bool) { c.ReadOnly = b }, func() tea.Cmd {
+			yn("Connect as SYSDBA? (yes/no):", func(b bool) { c.SysDBA = b }, func() tea.Cmd { return m.saveNewConnection(c) })
+			return nil
+		})
+		return nil
+	}
 	m.ask("Connection name:", "", false, func(v string) tea.Cmd {
 		c.Name = strings.TrimSpace(v)
 		if c.Name == "" {
 			m.setStatus("Name is required", true)
 			return nil
+		}
+		for _, o := range m.cfg.Connections {
+			if strings.EqualFold(o.Name, c.Name) {
+				m.setStatus(fmt.Sprintf("A connection named %q already exists; connection not added", o.Name), true)
+				return nil
+			}
 		}
 		m.ask("User:", "", false, func(v string) tea.Cmd {
 			c.User = strings.TrimSpace(v)
@@ -722,11 +747,11 @@ func (m *Model) addConnectionWizard() {
 				m.ask("Password (empty = take it from an env var):", "", true, func(v string) tea.Cmd {
 					if v != "" {
 						c.Password = v
-						return m.saveNewConnection(c)
+						return askFlags()
 					}
 					m.ask("Password env var:", "SQLCLI_PASSWORD", false, func(v string) tea.Cmd {
 						c.PasswordEnv = strings.TrimSpace(v)
-						return m.saveNewConnection(c)
+						return askFlags()
 					})
 					return nil
 				})

@@ -340,7 +340,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
         </tbody>
       </table></div>
       <h3>Adding a connection</h3>
-      <p>Pressing <kbd>a</kbd> asks four questions on the bottom line:</p>
+      <p>Pressing <kbd>a</kbd> asks these questions on the bottom line:</p>
       <ol class="steps">
         <li><strong>Connection name.</strong> Any label. You use it with <code>-c</code>.</li>
         <li><strong>User.</strong> The database user.</li>
@@ -352,8 +352,10 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
           </ul>
         </li>
         <li><strong>Password.</strong> Shown as <code>*</code>. Leave it empty to read the password from an environment variable instead, then enter the variable name (default <code>SQLCLI_PASSWORD</code>).</li>
+        <li><strong>Read-only?</strong> <code>yes</code> refuses DML and DDL on this connection (<code>read_only</code>). Pre-filled with <code>no</code>.</li>
+        <li><strong>Connect as SYSDBA?</strong> <code>yes</code> connects with the SYSDBA role (<code>sysdba</code>). Pre-filled with <code>no</code>.</li>
       </ol>
-      <p>Added and deleted connections are saved to the configuration file straight away. Press <kbd>Esc</kbd> at any question to cancel.</p>
+      <p>Added and deleted connections are saved to the configuration file straight away. Press <kbd>Esc</kbd> at any question to cancel. A name another connection already uses is refused.</p>
       <h3 id="edit-conn">Editing and viewing a connection</h3>
       <p><kbd>e</kbd> edits the selected connection. sqlcli asks, on the bottom line, for:</p>
       <ol class="steps">

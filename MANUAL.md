@@ -198,9 +198,14 @@ Adding (**a**) asks, on the bottom line, for:
 4. **Password**: typed as `*`. Leave it empty to read the password from an
    environment variable instead, and then enter the variable name
    (default `SQLCLI_PASSWORD`).
+5. **Read-only?**: `yes` refuses DML and DDL on this connection
+   (`read_only`). Pre-filled with `no`.
+6. **Connect as SYSDBA?**: `yes` connects with the SYSDBA role (`sysdba`).
+   Pre-filled with `no`.
 
 Added and deleted connections are saved to the configuration file at once.
-Press Esc at any question to cancel.
+Press Esc at any question to cancel. A name another connection already uses
+is refused.
 
 ### Editing and viewing a connection
 

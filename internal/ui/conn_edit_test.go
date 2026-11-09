@@ -159,3 +159,54 @@ func TestViewConnection(t *testing.T) {
 		t.Fatalf("rep view:\n%s", s)
 	}
 }
+
+func TestAddConnectionAsksReadOnlyAndSysdba(t *testing.T) {
+	m, p := connModel(t)
+	press(m, key('a'))
+	answer(m, "dba")
+	answer(m, "sys")
+	answer(m, "dbhost:1521/ORCL")
+	answer(m, "pw")
+	if !strings.Contains(m.prompt.label, "Read-only?") || string(m.prompt.input) != "no" {
+		t.Fatalf("read-only question: %q %q", m.prompt.label, string(m.prompt.input))
+	}
+	answer(m, "no")
+	if !strings.Contains(m.prompt.label, "SYSDBA?") || string(m.prompt.input) != "no" {
+		t.Fatalf("sysdba question: %q %q", m.prompt.label, string(m.prompt.input))
+	}
+	answer(m, "yes")
+	c := reload(t, p).Connections[2]
+	if c.Name != "dba" || c.User != "sys" || c.Password != "pw" || c.ReadOnly || !c.SysDBA {
+		t.Fatalf("saved: %+v", c)
+	}
+
+	// with an env var password; Enter keeps the defaults (no, no)
+	press(m, key('a'))
+	answer(m, "ro")
+	answer(m, "report")
+	answer(m, "REPDB")
+	answer(m, "")
+	answer(m, "RO_PW")
+	answer(m, "y")
+	press(m, key(tea.KeyEnter))
+	c = reload(t, p).Connections[3]
+	if c.Name != "ro" || c.PasswordEnv != "RO_PW" || !c.ReadOnly || c.SysDBA {
+		t.Fatalf("saved: %+v", c)
+	}
+
+	// a bad answer or a duplicate name adds nothing
+	press(m, key('a'))
+	answer(m, "x")
+	answer(m, "u")
+	answer(m, "cs")
+	answer(m, "pw")
+	answer(m, "maybe")
+	if n := len(reload(t, p).Connections); n != 4 || !m.statusErr {
+		t.Fatalf("bad yes/no: %d connections, %q", n, m.status)
+	}
+	press(m, key('a'))
+	answer(m, "ORA")
+	if m.mode == modePrompt || !strings.Contains(m.status, "already exists") {
+		t.Fatalf("duplicate: mode %v %q", m.mode, m.status)
+	}
+}
