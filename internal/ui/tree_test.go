@@ -132,7 +132,7 @@ func TestPanelKeyHints(t *testing.T) {
 	m.res.set(&db.Result{IsQuery: true, Columns: []string{"N"}, Rows: [][]string{{"1"}}}, nil, nil, "") // a grid
 	for f, want := range map[focus]string{
 		focusConns:   "Enter connect  a add  e edit  v view  d delete",
-		focusTree:    "Enter open  ← close  / filter  i insert name  d desc  s select  ^D ddl",
+		focusTree:    "Enter open  ← close  / filter  x no filter  c collapse  i insert name  d desc  s select  ^D ddl",
 		focusResults: "Enter record  u edit  i insert  d delete  e export",
 		focusEditor:  "F1 help  F2 conns  F3 results",
 	} {
@@ -212,5 +212,43 @@ func TestObjectTreeFilter(t *testing.T) {
 	m.Update(treeObjectsMsg{conn: "ora", objs: []db.SchemaObject{{Type: "TABLE", Name: "EMP", Valid: true}, {Type: "TABLE", Name: "DEPT", Valid: true}}})
 	if s := screen(m); !strings.Contains(s, "DEPT") || strings.Contains(s, "EMP") || !strings.Contains(s, "/ dept  1 match") {
 		t.Fatalf("after reload:\n%s", s)
+	}
+}
+
+func TestObjectTreeClearFilterAndCollapse(t *testing.T) {
+	m := treeModel(t)
+	m.focus = focusTree
+	tr := m.tree()
+	tr.setFilter("emp_seq")
+	if n := tr.selected(); n == nil || n.name != "EMP_SEQ" {
+		t.Fatalf("selected %+v", n)
+	}
+	// x removes the filter and keeps the selected object
+	press(m, key('x'))
+	if tr.filter != "" || !strings.Contains(screen(m), "Packages  1") || m.status != "Object filter removed" {
+		t.Fatalf("x: filter %q status %q\n%s", tr.filter, m.status, screen(m))
+	}
+	if n := tr.selected(); n == nil || n.name != "EMP_SEQ" {
+		t.Fatalf("x should keep the selection: %+v", n)
+	}
+	press(m, key('x'))
+	if !strings.Contains(m.status, "No object filter") {
+		t.Fatalf("x without a filter: %q", m.status)
+	}
+
+	// c collapses everything and selects the group of the selection
+	tr.groups[0].open = true // Tables
+	tr.groups[1].open = true // Packages
+	tr.selectNode(tr.groups[2].children[0]) // EMP_SEQ again (opening groups moved it)
+	press(m, key('c'))
+	nodes, _ := tr.visible()
+	if len(nodes) != len(tr.groups) {
+		t.Fatalf("c: %d visible nodes, want %d groups", len(nodes), len(tr.groups))
+	}
+	if n := tr.selected(); n == nil || n.label != "Sequences" {
+		t.Fatalf("c should select the selection's group: %+v", n)
+	}
+	if s := ansi.Strip(m.bottomLine()); !strings.Contains(s, "x no filter") || !strings.Contains(s, "c collapse") {
+		t.Fatalf("hint: %q", s)
 	}
 }

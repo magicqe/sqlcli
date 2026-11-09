@@ -84,6 +84,18 @@ func (t *objTree) setFilter(f string) {
 	}
 }
 
+// selectNode selects n if it is shown (else keeps the selection in range).
+func (t *objTree) selectNode(n *treeNode) {
+	nodes, _ := t.visible()
+	for i, x := range nodes {
+		if x == n {
+			t.sel = i
+			return
+		}
+	}
+	t.sel = min(max(t.sel, 0), max(len(nodes)-1, 0))
+}
+
 // shows reports whether an object passes the filter.
 func (t *objTree) shows(n *treeNode) bool {
 	return t.match == nil || n.name == "" || t.match.MatchString(n.name)
@@ -360,6 +372,28 @@ func (m *Model) updateTree(key string) tea.Cmd {
 	case "/", "f":
 		m.askTreeFilter()
 		return nil
+	case "x": // remove the filter
+		if t.filter == "" {
+			m.setStatus("No object filter set (/ sets one)", false)
+			break
+		}
+		sel := n
+		t.setFilter("")
+		t.selectNode(sel)
+		m.setStatus("Object filter removed", false)
+	case "c": // collapse the whole tree
+		group := n
+		for group != nil && group.parent != nil {
+			group = group.parent
+		}
+		for _, g := range t.groups {
+			g.open = false
+			for _, o := range g.children {
+				o.open = false
+			}
+		}
+		t.top = 0
+		t.selectNode(group)
 	case "r":
 		m.setStatus("Reloading the object tree...", false)
 		return m.loadTree(true)

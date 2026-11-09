@@ -2213,7 +2213,8 @@ const helpText = `
  e           export to .csv/.tsv/.json
 
  OBJECT TREE (below the connections)  Enter/→ open · ← close · i insert name · d DESC · s select * · r reload
-                                      / or f filter by name (* = any text) · Ctrl-D DDL in a new tab (package: spec and body)
+                                      / or f filter by name (* = any text) · x remove filter · c collapse all
+                                      Ctrl-D DDL in a new tab (package: spec and body)
  TABS (each tab has its own editor, results and Oracle session)
  ^K O        new tab on the same connection      ^K N / ^K P   next / previous tab
  ^K Q        close tab (last tab: quit)          Ctrl-PgDn / Ctrl-PgUp, Alt-1..9   switch tab
@@ -3534,7 +3535,7 @@ func (m *Model) keyHints() [][2]string {
 		return [][2]string{{"Enter", "connect"}, {"a", "add"}, {"e", "edit"}, {"v", "view"}, {"d", "delete"},
 			{"Tab", "tree"}, {"Esc", "editor"}, {"F2", "hide"}, {"F1", "help"}}
 	case focusTree:
-		return [][2]string{{"Enter", "open"}, {"←", "close"}, {"/", "filter"}, {"i", "insert name"}, {"d", "desc"}, {"s", "select"},
+		return [][2]string{{"Enter", "open"}, {"←", "close"}, {"/", "filter"}, {"x", "no filter"}, {"c", "collapse"}, {"i", "insert name"}, {"d", "desc"}, {"s", "select"},
 			{"^D", "ddl"}, {"r", "reload"}, {"Tab", "results"}, {"Esc", "editor"}, {"F1", "help"}}
 	case focusResults:
 		if m.res.showText() {
