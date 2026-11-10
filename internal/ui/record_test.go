@@ -180,3 +180,33 @@ func TestSelectedRowColour(t *testing.T) {
 		t.Fatalf("custom colour not used:\n%q", v)
 	}
 }
+
+func TestRecordScrollsSideways(t *testing.T) {
+	m := mouseModel() // 100 wide: values get 100-2-4-3 = 91 characters
+	long := strings.Repeat("0123456789", 15) + "END"
+	m.res.set(&db.Result{IsQuery: true, Columns: []string{"ID", "TEXT"}, Rows: [][]string{{"1", long}}}, nil, nil, "")
+	m.focus = focusResults
+	press(m, key(tea.KeyEnter))
+	if s := screen(m); strings.Contains(s, "END") || !strings.Contains(s, "chars 1-91/153") {
+		t.Fatalf("start:\n%s", s)
+	}
+	press(m, key(tea.KeyRight, tea.ModShift))
+	press(m, key(tea.KeyRight, tea.ModShift))
+	if s := screen(m); m.mode != modeRecord || !strings.Contains(s, "END") || !strings.Contains(s, "chars 63-153/153") {
+		t.Fatalf("Shift-Right to the end: mode %v\n%s", m.mode, s)
+	}
+	press(m, key(tea.KeyLeft, tea.ModShift))
+	if m.recLeft != 17 || m.mode != modeRecord {
+		t.Fatalf("Shift-Left: recLeft %d", m.recLeft)
+	}
+	press(m, key(tea.KeyHome, tea.ModShift))
+	if m.recLeft != 0 {
+		t.Fatalf("Shift-Home: %d", m.recLeft)
+	}
+	// a short record has nothing to scroll
+	m.res.res.Rows[0][1] = "short"
+	press(m, key(tea.KeyRight, tea.ModShift))
+	if m.recordView(); m.recLeft != 0 || strings.Contains(screen(m), "chars") {
+		t.Fatalf("short value: recLeft %d", m.recLeft)
+	}
+}

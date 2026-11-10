@@ -350,24 +350,25 @@ func (m *Model) updateTree(key string) tea.Cmd {
 		if n != nil {
 			m.treeInsert(n)
 		}
-	case "d", "s":
+	case "d":
 		if obj := treeObject(n); obj != nil {
-			if key == "d" {
-				return m.execute([]string{"desc " + quoteIdent(obj.name)})
-			}
+			return m.execute([]string{"desc " + quoteIdent(obj.name)})
+		}
+	case "s": // select * in a new SQL tab, run at once
+		if obj := treeObject(n); obj != nil {
 			switch obj.objType {
 			case "TABLE", "VIEW", "MATERIALIZED VIEW", "SYNONYM":
-				// show the rows: results get the whole height, SQL panel hidden
-				m.showResults, m.showSQL = true, false
-				m.ed.ClosePopup()
-				m.focus = focusResults
-				m.layout()
-				if obj.objType == "TABLE" { // with ROWID, so the rows can be edited (u)
-					return m.execute([]string{"select rowid, t.* from " + quoteIdent(obj.name) + " t"})
-				}
-				return m.execute([]string{"select * from " + quoteIdent(obj.name)})
+				return m.openQueryTab("select * from " + quoteIdent(obj.name) + ";")
 			}
 			m.setStatus("s queries tables, views and synonyms", true)
+		}
+	case "e": // select rowid + the columns in a new SQL tab, ready for editing
+		if obj := treeObject(n); obj != nil {
+			if obj.objType != "TABLE" {
+				m.setStatus("e edits the rows of a table (views: s)", true)
+				break
+			}
+			return m.editTableTab(obj.name)
 		}
 	case "/", "f":
 		m.askTreeFilter()
@@ -645,4 +646,72 @@ func (m *Model) askTreeFilter() {
 	})
 	m.prompt.onChange = func(v string) { t.setFilter(v) }
 	m.prompt.onCancel = func() { t.setFilter(old) }
+}
+
+// ---- s / e: a new SQL tab with a query of the object ----
+
+// openQueryTab opens a new SQL tab on the current connection with sql and
+// runs it as soon as the tab's session is connected.
+func (m *Model) openQueryTab(sql string) tea.Cmd {
+	if m.conn == nil {
+		m.setStatus("Not connected", true)
+		return nil
+	}
+	if !m.showSQL || !m.showResults { // the new tab shows both
+		m.showSQL, m.showResults = true, true
+	}
+	cmd := m.openTab()
+	m.ed.SetText(sql)
+	m.ed.SetCursor(0, 0)
+	m.runOnConnect = true
+	return cmd
+}
+
+type editColsMsg struct {
+	tab   int
+	table string
+	cols  []string
+	err   error
+}
+
+// editTableTab reads the table's columns, then opens a tab with
+// "select rowid, col1, ... from table" (editable: u, i, d) and runs it.
+func (m *Model) editTableTab(table string) tea.Cmd {
+	if m.conn == nil {
+		m.setStatus("Not connected", true)
+		return nil
+	}
+	conn, id := m.conn, m.id
+	m.setStatus("Reading the columns of "+table+"...", false)
+	return func() tea.Msg {
+		infos, err := conn.ColumnInfos(context.Background(), table)
+		msg := editColsMsg{tab: id, table: table, err: err}
+		for _, c := range infos {
+			msg.cols = append(msg.cols, c.Name)
+		}
+		return msg
+	}
+}
+
+func (m *Model) editColsLoaded(msg editColsMsg) tea.Cmd {
+	if msg.err != nil {
+		m.setStatus(db.CleanError(msg.err), true)
+		return nil
+	}
+	if len(msg.cols) == 0 {
+		m.setStatus("No columns found for "+msg.table, true)
+		return nil
+	}
+	return m.openQueryTab(editTableSQL(msg.table, msg.cols))
+}
+
+// editTableSQL is the query e opens: the ROWID first, then every column.
+func editTableSQL(table string, cols []string) string {
+	var b strings.Builder
+	b.WriteString("select rowid")
+	for _, c := range cols {
+		b.WriteString(",\n       " + quoteIdent(c))
+	}
+	b.WriteString("\n  from " + quoteIdent(table) + ";")
+	return b.String()
 }

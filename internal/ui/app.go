@@ -91,13 +91,14 @@ type tab struct {
 	fetchAll bool // keep fetching batches until the cursor is exhausted
 	jumpEnd  bool // select the last row when the fetch-all finishes
 
-	afterFetch func() tea.Cmd // runs when a fetch-all completes (export)
-	file       string         // file the SQL was last saved to (^K D)
-	ddlName    string         // "PACKAGE TESTPKG" for a tab opened with the DDL of an object
-	env        *script.Env    // substitution variables and SET DEFINE (SQL*Plus)
-	spool      *spooler       // SPOOL file of this tab
-	pendingRow int            // row to select once enough rows are fetched
-	hasPending bool
+	afterFetch   func() tea.Cmd // runs when a fetch-all completes (export)
+	file         string         // file the SQL was last saved to (^K D)
+	ddlName      string         // "PACKAGE TESTPKG" for a tab opened with the DDL of an object
+	env          *script.Env    // substitution variables and SET DEFINE (SQL*Plus)
+	spool        *spooler       // SPOOL file of this tab
+	pendingRow   int            // row to select once enough rows are fetched
+	runOnConnect bool           // run the SQL panel's text once the tab is connected (tree s / e)
+	hasPending   bool
 
 	// last statement run, shown at the bottom of the SQL panel
 	runState   runState
@@ -144,6 +145,7 @@ type Model struct {
 
 	helpTop      int       // first visible line of the help screen
 	recTop       int       // first visible line of the record view
+	recLeft      int       // first visible column of the values in the record view (Shift-←→)
 	kPrefix      bool      // ^K pressed outside the editor
 	drag         dragState // mouse selection in progress
 	mouseBlock   bool      // the editor block was made by dragging (a click clears it)
@@ -813,7 +815,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.inBg {
 				m.focusEditor()
 			}
-			return tea.Batch(m.loadObjects(false), m.loadTree(false))
+			load := tea.Batch(m.loadObjects(false), m.loadTree(false))
+			if m.runOnConnect { // a tab opened from the object tree: run its query
+				m.runOnConnect = false
+				if !m.inBg {
+					m.focus = focusResults
+				}
+				return tea.Batch(load, m.execute(db.SplitStatements(m.ed.Text())))
+			}
+			return load
 		})
 
 	case execDoneMsg:
@@ -832,6 +842,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ddlMsg:
 		return m, m.ddlLoaded(msg)
+
+	case editColsMsg:
+		if t := m.findTab(msg.tab); t != nil {
+			m.tab = t // the new tab opens from the tab whose tree asked
+			return m, m.editColsLoaded(msg)
+		}
+		return m, nil
 
 	case editReadyMsg:
 		return m, m.onTab(msg.tab, func() tea.Cmd { return m.askCellValue(msg) })
@@ -1194,7 +1211,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.cyclePanel(1)
 		case "enter":
 			if m.res.selectedRow() != nil {
-				m.mode, m.recTop = modeRecord, 0
+				m.mode, m.recTop, m.recLeft = modeRecord, 0, 0
 				m.status = "" // the record view's bottom line shows only its own messages
 			}
 		case "o":
@@ -2047,6 +2064,18 @@ func valueLines(v string) []string {
 	return strings.Split(v, "\n")
 }
 
+// recValueWidth is the room for values in the record view: the screen
+// less the box borders, the column names and " │ ".
+func (m *Model) recValueWidth() int {
+	nw := 0
+	if r := m.res.res; r != nil {
+		for _, c := range r.Columns {
+			nw = max(nw, ansi.StringWidth(c))
+		}
+	}
+	return max(m.w-2-nw-3, 1)
+}
+
 func (m *Model) recordView() string {
 	r := m.res.res
 	row := m.res.selectedRow()
@@ -2060,6 +2089,22 @@ func (m *Model) recordView() string {
 	}
 	var lines []string
 	m.res.selCol = min(max(m.res.selCol, 0), len(r.Columns)-1)
+	// sideways scrolling (Shift-←→): show each value from column recLeft
+	vw := m.recValueWidth()
+	widest := 0
+	for _, v := range row {
+		for _, l := range valueLines(v) {
+			widest = max(widest, ansi.StringWidth(l))
+		}
+	}
+	m.recLeft = min(max(m.recLeft, 0), max(widest-vw, 0))
+	cut := func(vl []string) []string {
+		out := make([]string, len(vl))
+		for i, l := range vl {
+			out[i] = ansi.Cut(l, m.recLeft, m.recLeft+vw)
+		}
+		return out
+	}
 	for i, c := range r.Columns {
 		name := headerStyle.Render(fmt.Sprintf("%-*s", nw, c)) + sepStyle.Render(" │ ")
 		if i == m.res.selCol { // the field cursor
@@ -2068,6 +2113,9 @@ func (m *Model) recordView() string {
 				v = db.NullDisplay
 			}
 			vl := valueLines(v)
+			if row[i] != db.Null {
+				vl = cut(vl)
+			}
 			plain := fmt.Sprintf("%-*s │ %s", nw, c, vl[0])
 			lines = append(lines, selStyle.Render(plain+strings.Repeat(" ", max(m.w-2-ansi.StringWidth(plain), 0))))
 			for _, extra := range vl[1:] {
@@ -2079,7 +2127,7 @@ func (m *Model) recordView() string {
 			lines = append(lines, name+nullStyle.Render(db.NullDisplay))
 			continue
 		}
-		vl := valueLines(row[i])
+		vl := cut(valueLines(row[i]))
 		lines = append(lines, name+vl[0])
 		for _, extra := range vl[1:] {
 			lines = append(lines, strings.Repeat(" ", nw)+sepStyle.Render(" │ ")+extra)
@@ -2096,6 +2144,9 @@ func (m *Model) recordView() string {
 	if len(lines) > vis {
 		title += fmt.Sprintf("  lines %d-%d/%d", m.recTop+1, min(m.recTop+vis, len(lines)), len(lines))
 	}
+	if m.recLeft > 0 || widest > vw {
+		title += fmt.Sprintf("  chars %d-%d/%d (Shift-←→)", m.recLeft+1, min(m.recLeft+vw, widest), widest)
+	}
 	if m.running && m.fetching {
 		title += fmt.Sprintf("  fetching… %d rows (Ctrl-C stops)", len(r.Rows))
 	}
@@ -2105,7 +2156,7 @@ func (m *Model) recordView() string {
 		hintKey.Render("Home End") + hintText.Render(" first/last  ") +
 		hintKey.Render("u Enter") + hintText.Render(" edit  ") + hintKey.Render("i") + hintText.Render(" insert  ") +
 		hintKey.Render("d") + hintText.Render(" delete  ") +
-		hintKey.Render("Shift-↑↓") + hintText.Render(" scroll  ") +
+		hintKey.Render("Shift-↑↓←→") + hintText.Render(" scroll  ") +
 		hintKey.Render("other keys") + hintText.Render(" close")
 	if m.status != "" { // the result of an edit, insert or delete
 		st := hintKey
@@ -2163,6 +2214,12 @@ func (m *Model) updateRecord(key string) tea.Cmd {
 		if m.res.nearEnd() {
 			return m.fetch(false)
 		}
+	case "shift+left": // scroll long values sideways
+		m.recLeft = max(m.recLeft-max(m.recValueWidth()/2, 1), 0)
+	case "shift+right":
+		m.recLeft += max(m.recValueWidth()/2, 1)
+	case "shift+home":
+		m.recLeft = 0
 	case "shift+up":
 		m.recTop--
 	case "shift+down":
@@ -2232,12 +2289,12 @@ const helpText = `
  CLOB values open in a text editor panel: ^K X or Ctrl-S saves, Esc cancels (twice if changed),
              ^K D / ^K I save to / load from a file, ^K R inserts a file, ^K W writes the block,
              ^K F / ^L / ^R find / find next / search and replace
- Ctrl-C      stop fetching                 Shift-↑↓, wheel        scroll a long record
+ Ctrl-C      stop fetching                 Shift-↑↓←→, wheel      scroll a long record / long values
  Enter       show row as record
  o           grid / DBMS_OUTPUT
  e           export to .csv/.tsv/.json
 
- OBJECT TREE (below the connections)  Enter/→ open · ← close · i insert name · d DESC · s select * · r reload
+ OBJECT TREE (below the connections)  Enter/→ open · ← close · i insert name · d DESC · s select * (new tab) · e edit rows (new tab) · r reload
                                       / or f filter by name (* = any text) · x remove filter · c collapse all
                                       Ctrl-D DDL in a new tab (package: spec and body)
  TABS (each tab has its own editor, results and Oracle session)
@@ -3561,7 +3618,7 @@ func (m *Model) keyHints() [][2]string {
 		return [][2]string{{"Enter", "connect"}, {"a", "add"}, {"e", "edit"}, {"v", "view"}, {"d", "delete"},
 			{"Tab", "tree"}, {"Esc", "editor"}, {"F2", "hide"}, {"F1", "help"}}
 	case focusTree:
-		return [][2]string{{"Enter", "open"}, {"←", "close"}, {"/", "filter"}, {"x", "no filter"}, {"c", "collapse"}, {"i", "insert name"}, {"d", "desc"}, {"s", "select"},
+		return [][2]string{{"Enter", "open"}, {"←", "close"}, {"/", "filter"}, {"x", "no filter"}, {"c", "collapse"}, {"i", "insert name"}, {"d", "desc"}, {"s", "select"}, {"e", "edit rows"},
 			{"^D", "ddl"}, {"r", "reload"}, {"Tab", "results"}, {"Esc", "editor"}, {"F1", "help"}}
 	case focusResults:
 		if m.res.showText() {

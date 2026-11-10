@@ -287,7 +287,8 @@ connection, and is loaded again after `CREATE`, `DROP`, `ALTER` or `RENAME`.
 | ← | close, or go to the parent |
 | i | insert the name at the editor cursor (`package.member` for members) |
 | d | `DESC` the object |
-| s | `select * from` the table, view or synonym (for tables `select rowid, t.*`, so the rows can be edited with u); the results get the whole height (the SQL panel is hidden, F4 brings it back) |
+| s | open a **new SQL tab** with `select * from` the table, view or synonym and run it at once |
+| e | open a **new SQL tab** to edit the table's rows: `select rowid, col1, col2, … from table`, run at once; the result can be edited with u, i and d |
 | / or f | **filter** the objects by name (see below) |
 | x | remove the filter (the selected object stays selected) |
 | c | collapse the whole tree (groups and objects); the selection moves to its group |
@@ -730,8 +731,8 @@ replaces — each match is highlighted and the bottom line asks y / n / a /
 Esc. Only the panel's text changes; ^_ undoes the whole replace.
 
 Rows are found by their **ROWID**, so the result must come from one table and
-include a `ROWID` column. **s** in the object tree adds it for tables
-(`select rowid, t.* from table t`); in your own SQL write e.g.
+include a `ROWID` column. **e** in the object tree opens such a
+query for a table in a new tab (`select rowid, col1, … from table`); in your own SQL write e.g.
 `select rowid, e.* from emp e`. Without a ROWID, for joins, computed columns,
 binary columns (RAW, BLOB) and read-only connections, **u** says why it can't
 edit.
@@ -762,6 +763,7 @@ long values in full, NULL as `(null)`.
 | End (^E) | last record; fetches all remaining rows first, like End in the grid |
 | PgUp / PgDn (^U / ^V) | back / forward by `ui.record_page` records (default 10) |
 | Shift-↑ / Shift-↓, Shift-PgUp / Shift-PgDn, mouse wheel | scroll a record that is taller than the screen |
+| Shift-← / Shift-→, Shift-Home | scroll long values sideways by half the width / back to the start (the title shows `chars 63-153/153`) |
 | Ctrl-C | stop fetching |
 | other keys | close the record view (the grid keeps the record selected) |
 

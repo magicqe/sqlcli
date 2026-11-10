@@ -573,9 +573,9 @@ func TestUIObjectTree(t *testing.T) {
 	if len(obj.children) != 2 || obj.children[0].label != "ID" || obj.children[0].extra != "NUMBER(5) NOT NULL" || obj.children[1].extra != "VARCHAR2(10 CHAR)" {
 		t.Fatalf("columns: %+v", obj.children)
 	}
-	press(m, key('s')) // select * from the table
-	if !m.res.hasGrid() || m.res.res.Columns[0] != "ROWID" || m.res.res.Columns[1] != "ID" {
-		t.Fatalf("s: %q %+v", m.status, m.res.res)
+	press(m, key('s')) // select * from the table, in a new tab
+	if len(m.tabs) != 2 || m.ed.Text() != "select * from SQLCLI_TEST_TREE;" || !m.res.hasGrid() || m.res.res.Columns[0] != "ID" {
+		t.Fatalf("s: tabs %d %q %q %+v", len(m.tabs), m.ed.Text(), m.status, m.res.res)
 	}
 	m.focus = focusTree
 	press(m, key('d'))
@@ -670,12 +670,13 @@ func TestUITreeSelectShowsResults(t *testing.T) {
 	m.focus = focusTree
 	press(m, key(tea.KeyEnter))
 	press(m, key(tea.KeyDown)) // first table
-	press(m, key('s'))
-	if m.showSQL || !m.showResults || m.focus != focusResults || !m.res.hasGrid() {
-		t.Fatalf("s: sql=%v results=%v focus=%v status=%q", m.showSQL, m.showResults, m.focus, m.status)
+	m.showSQL = false
+	press(m, key('s')) // a new tab with the select, run at once
+	if len(m.tabs) != 2 || m.tabIndex(m.tab) != 1 || !strings.HasPrefix(m.ed.Text(), "select * from ") {
+		t.Fatalf("s: tabs %d active %d text %q", len(m.tabs), m.tabIndex(m.tab), m.ed.Text())
 	}
-	if _, h := m.paneHeights(); h != m.paneH() {
-		t.Fatalf("results should have the whole height: %d of %d", h, m.paneH())
+	if !m.showSQL || !m.showResults || m.focus != focusResults || !m.res.hasGrid() || m.conn == nil {
+		t.Fatalf("s: sql=%v results=%v focus=%v status=%q", m.showSQL, m.showResults, m.focus, m.status)
 	}
 }
 
@@ -703,9 +704,10 @@ func TestUIEditCells(t *testing.T) {
 			tr.sel = i
 		}
 	}
-	press(m, key('s')) // select rowid, t.* ...
-	if m.focus != focusResults || m.res.res.Columns[0] != "ROWID" {
-		t.Fatalf("s: %+v", m.res.res)
+	press(m, key('e')) // a new tab: select rowid, the columns ... (editable)
+	want := "select rowid,\n       ID,\n       NAME,\n       AMOUNT\n  from SQLCLI_TEST_GRID;"
+	if len(m.tabs) != 2 || m.ed.Text() != want || m.focus != focusResults || m.res.res == nil || m.res.res.Columns[0] != "ROWID" {
+		t.Fatalf("e: tabs %d text %q status %q", len(m.tabs), m.ed.Text(), m.status)
 	}
 	value := func() string {
 		r, _ := m.conn.Execute(ctx, "select name from sqlcli_test_grid where id = 1", 1)

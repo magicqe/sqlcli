@@ -132,7 +132,7 @@ func TestPanelKeyHints(t *testing.T) {
 	m.res.set(&db.Result{IsQuery: true, Columns: []string{"N"}, Rows: [][]string{{"1"}}}, nil, nil, "") // a grid
 	for f, want := range map[focus]string{
 		focusConns:   "Enter connect  a add  e edit  v view  d delete",
-		focusTree:    "Enter open  ← close  / filter  x no filter  c collapse  i insert name  d desc  s select  ^D ddl",
+		focusTree:    "Enter open  ← close  / filter  x no filter  c collapse  i insert name  d desc  s select  e edit rows  ^D ddl",
 		focusResults: "Enter record  u edit  i insert  d delete  e export",
 		focusEditor:  "F1 help  F2 conns  F3 results",
 	} {
@@ -237,8 +237,8 @@ func TestObjectTreeClearFilterAndCollapse(t *testing.T) {
 	}
 
 	// c collapses everything and selects the group of the selection
-	tr.groups[0].open = true // Tables
-	tr.groups[1].open = true // Packages
+	tr.groups[0].open = true                // Tables
+	tr.groups[1].open = true                // Packages
 	tr.selectNode(tr.groups[2].children[0]) // EMP_SEQ again (opening groups moved it)
 	press(m, key('c'))
 	nodes, _ := tr.visible()
@@ -250,5 +250,41 @@ func TestObjectTreeClearFilterAndCollapse(t *testing.T) {
 	}
 	if s := ansi.Strip(m.bottomLine()); !strings.Contains(s, "x no filter") || !strings.Contains(s, "c collapse") {
 		t.Fatalf("hint: %q", s)
+	}
+}
+
+func TestTreeSelectAndEditOpenTabs(t *testing.T) {
+	if got := editTableSQL("EMP", []string{"ID", "Name"}); got != "select rowid,\n       ID,\n       \"Name\"\n  from EMP;" {
+		t.Fatalf("edit SQL: %q", got)
+	}
+	m := treeModel(t)
+	m.focus = focusTree
+	tr := m.tree()
+	press(m, key(tea.KeyEnter))             // open Tables
+	tr.selectNode(tr.groups[0].children[0]) // EMP
+	cmd := m.updateTree("s")
+	if len(m.tabs) != 2 || m.ed.Text() != "select * from EMP;" || !m.runOnConnect || cmd == nil {
+		t.Fatalf("s: tabs %d text %q run %v", len(m.tabs), m.ed.Text(), m.runOnConnect)
+	}
+	// e on a package refuses; on a table it reads the columns first
+	m.tab = m.tabs[0]
+	m.focus = focusTree
+	tr.selectNode(tr.groups[0].children[0])
+	if m.updateTree("e") == nil || len(m.tabs) != 2 {
+		t.Fatal("e on a table should read its columns")
+	}
+	_, c := m.Update(editColsMsg{tab: m.tabs[0].id, table: "EMP", cols: []string{"ID", "ENAME"}})
+	if c == nil || len(m.tabs) != 3 || !strings.HasPrefix(m.ed.Text(), "select rowid,\n       ID,") || !m.runOnConnect {
+		t.Fatalf("e: tabs %d text %q", len(m.tabs), m.ed.Text())
+	}
+	m.tab = m.tabs[0]
+	m.focus = focusTree
+	press(m, key('c'))
+	tr.selectNode(tr.groups[1]) // Packages
+	press(m, key(tea.KeyEnter))
+	press(m, key(tea.KeyDown)) // TESTPKG
+	press(m, key('e'))
+	if len(m.tabs) != 3 || !strings.Contains(m.status, "e edits the rows of a table") {
+		t.Fatalf("e on a package: tabs %d %q", len(m.tabs), m.status)
 	}
 }
