@@ -171,8 +171,9 @@ bar says what was copied):
 * **DBMS_OUTPUT text:** the dragged lines are copied.
 
 sqlcli copies with the terminal's OSC 52 sequence, which most terminals and
-tmux support (also over SSH), and with `wl-copy`, `xclip` or `xsel` when one
-is installed. Hold Shift while dragging for the terminal's own selection.
+tmux support (also over SSH), and with the system clipboard through the
+`github.com/atotto/clipboard` library (on Linux it needs `xclip`, `xsel` or
+`wl-copy` installed; macOS and Windows work natively). Hold Shift while dragging for the terminal's own selection.
 
 ## 5. Connections
 

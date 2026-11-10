@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -18,6 +17,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/x/ansi"
 
 	"sqlcli/internal/complete"
@@ -3489,32 +3489,16 @@ func (m *Model) dragEnd() tea.Cmd {
 	return copyToClipboard(text)
 }
 
-// systemCopy puts text on the desktop clipboard with wl-copy, xclip or xsel
-// when available. Tests replace it.
+// systemCopy puts text on the system clipboard with
+// github.com/atotto/clipboard (xclip, xsel, wl-copy or Termux on Linux and
+// BSD, the native clipboard on macOS and Windows). Without one of those it
+// does nothing: the OSC 52 copy still works. Tests replace it.
 var systemCopy = func(text string) {
-	var args []string
-	switch {
-	case os.Getenv("WAYLAND_DISPLAY") != "" && hasCommand("wl-copy"):
-		args = []string{"wl-copy"}
-	case os.Getenv("DISPLAY") != "" && hasCommand("xclip"):
-		args = []string{"xclip", "-selection", "clipboard"}
-	case os.Getenv("DISPLAY") != "" && hasCommand("xsel"):
-		args = []string{"xsel", "--clipboard", "--input"}
-	default:
-		return
-	}
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdin = strings.NewReader(text)
-	_ = cmd.Run()
-}
-
-func hasCommand(name string) bool {
-	_, err := exec.LookPath(name)
-	return err == nil
+	_ = clipboard.WriteAll(text)
 }
 
 // copyToClipboard copies text with the terminal's OSC 52 sequence (works in
-// most terminals, also over SSH and in tmux) and with a desktop tool.
+// most terminals, also over SSH and in tmux) and with the system clipboard.
 func copyToClipboard(text string) tea.Cmd {
 	return tea.Batch(tea.SetClipboard(text), func() tea.Msg {
 		systemCopy(text)

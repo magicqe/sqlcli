@@ -321,7 +321,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
         <li><strong>Results grid:</strong> the dragged rows are copied as tab-separated values, one row per line, NULL as empty, ready to paste into a spreadsheet.</li>
         <li><strong>DBMS_OUTPUT text:</strong> the dragged lines are copied.</li>
       </ul>
-      <p>sqlcli copies with the terminal's OSC 52 sequence, which most terminals and tmux support (also over SSH), and with <code>wl-copy</code>, <code>xclip</code> or <code>xsel</code> when one is installed. Hold <kbd>Shift</kbd> while dragging for the terminal's own selection.</p>
+      <p>sqlcli copies with the terminal's OSC 52 sequence, which most terminals and tmux support (also over SSH), and with the system clipboard through the <code>github.com/atotto/clipboard</code> library (on Linux it needs <code>xclip</code>, <code>xsel</code> or <code>wl-copy</code> installed; macOS and Windows work natively). Hold <kbd>Shift</kbd> while dragging for the terminal's own selection.</p>
     </section>
 
     <!-- 5 -->
