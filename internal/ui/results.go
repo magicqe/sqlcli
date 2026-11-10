@@ -31,8 +31,9 @@ type resultView struct {
 	// (blockRow, blockCol) to the cell cursor (row, selCol)
 	blockOn            bool
 	blockRow, blockCol int
-	textTop            int // first visible text line
-	textLeft           int // horizontal scroll of the text view
+	blockAllCols       bool // whole rows: started with Shift-↑↓, until Shift-←→ narrows it
+	textTop            int  // first visible text line
+	textLeft           int  // horizontal scroll of the text view
 
 	widths []int
 	row    int // selected row
@@ -49,7 +50,7 @@ func (r *resultView) set(res *db.Result, messages, output []string, err string) 
 	r.row, r.top, r.colOff, r.selCol = 0, 0, 0, 0
 	r.edits = nil
 	r.textTop, r.textLeft = 0, 0
-	r.rangeOn, r.blockOn = false, false
+	r.rangeOn, r.blockOn, r.blockAllCols = false, false, false
 	r.compile = nil
 	r.widths = nil
 	r.textMode = !r.hasGrid()
@@ -361,7 +362,11 @@ func (r *resultView) summary() string {
 	}
 	s := fmt.Sprintf("row %d/%d%s  col %d/%d", min(r.row+1, len(r.res.Rows)), len(r.res.Rows), more, r.selCol+1, len(r.res.Columns))
 	if r1, r2, c1, c2, ok := r.blockRange(); ok {
-		s += fmt.Sprintf("  %d×%d selected", r2-r1+1, c2-c1+1)
+		if r.blockAllCols {
+			s += fmt.Sprintf("  %d row(s) selected", r2-r1+1)
+		} else {
+			s += fmt.Sprintf("  %d×%d selected", r2-r1+1, c2-c1+1)
+		}
 	}
 	if len(r.output) > 0 {
 		s += "  o: DBMS_OUTPUT"
@@ -533,8 +538,12 @@ func (r *resultView) extendBlock(key string) bool {
 	if !ok || r.showText() || !r.hasGrid() || len(r.res.Rows) == 0 {
 		return false
 	}
+	vertical := base != "left" && base != "right"
 	if !r.blockOn {
 		r.blockOn, r.blockRow, r.blockCol = true, r.row, r.selCol
+		r.blockAllCols = vertical // Shift-↑↓ select whole rows
+	} else if !vertical {
+		r.blockAllCols = false // Shift-←→ narrow to the columns from the start column
 	}
 	r.handleKey(base)
 	return true
@@ -544,6 +553,9 @@ func (r *resultView) extendBlock(key string) bool {
 func (r *resultView) blockRange() (r1, r2, c1, c2 int, ok bool) {
 	if !r.blockOn || r.showText() || !r.hasGrid() {
 		return 0, 0, 0, 0, false
+	}
+	if r.blockAllCols {
+		return min(r.blockRow, r.row), max(r.blockRow, r.row), 0, len(r.res.Columns) - 1, true
 	}
 	return min(r.blockRow, r.row), max(r.blockRow, r.row), min(r.blockCol, r.selCol), max(r.blockCol, r.selCol), true
 }

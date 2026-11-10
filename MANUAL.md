@@ -692,12 +692,16 @@ to focus it, or press F3 twice.
 | e | export the result to a .csv, .tsv or .json file ([Exporting](#exporting)) |
 | c | copy the cell under the cell cursor to the clipboard (the value as it is; NULL copies as empty) |
 | C | copy the current row: one `COLUMN: value` line per column |
-| Shift-↑ ↓ ← →, Shift-PgUp / PgDn / Home / End | **select a block of cells** from the current cell; c then copies it, C copies it with the column names (see below) |
+| Shift-↑ ↓ ← →, Shift-PgUp / PgDn / Home / End | **select rows** (Shift-↑↓: whole rows) **or a block of cells** (Shift-←→); c then copies it, C copies it with the column names (see below) |
 | Esc / Tab | back to the editor |
 
-**Selecting several cells.** Shift with the cursor keys selects a rectangular
-block of cells, from the cell where you started to the cell cursor; the cells
-are highlighted and the footer shows its size (`3×2 selected`). **c** copies
+**Selecting several rows and cells.** **Shift-↑ / Shift-↓** (and Shift-PgUp
+/ PgDn / Home / End) select **whole rows**, from the row where you started to
+the cursor; the footer shows `3 row(s) selected`. **Shift-← / Shift-→** select
+a rectangular block of cells instead: started on their own, from the current
+cell; after Shift-↑↓, they narrow the selected rows to the columns from the
+one you started on to the cell cursor (`3×2 selected`). The selection is
+highlighted. **c** copies
 the block as tab-separated text — one line per row, NULL as empty, values
 with tabs, line breaks or quotes in double quotes — so it pastes into a
 spreadsheet; **C** adds a first line with the column names. Esc or any other

@@ -186,3 +186,37 @@ func TestGridBlockSelection(t *testing.T) {
 		t.Fatalf("single cell: %q", (*clip)[3])
 	}
 }
+
+func TestGridShiftUpDownSelectsRows(t *testing.T) {
+	clip := fakeClipboard(t)
+	m := editModel("select * from t", []string{"ID", "NAME", "NOTE"}, [][]string{
+		{"1", "Anna", "a"}, {"2", "Bob", "b"}, {"3", "Cyril", "c"}})
+	press(m, key(tea.KeyRight)) // cursor on NAME: whole rows are selected anyway
+	press(m, key(tea.KeyDown))
+	press(m, key(tea.KeyDown, tea.ModShift))
+	press(m, key(tea.KeyUp, tea.ModShift))
+	press(m, key(tea.KeyUp, tea.ModShift)) // rows 1-2
+	if r1, r2, c1, c2, ok := m.res.blockRange(); !ok || r1 != 0 || r2 != 1 || c1 != 0 || c2 != 2 {
+		t.Fatalf("rows: %d-%d x %d-%d", r1, r2, c1, c2)
+	}
+	if !strings.Contains(m.res.summary(), "2 row(s) selected") {
+		t.Fatalf("summary %q", m.res.summary())
+	}
+	press(m, key('c'))
+	press(m, key('C'))
+	if (*clip)[0] != "1\tAnna\ta\n2\tBob\tb\n" || (*clip)[1] != "ID\tNAME\tNOTE\n1\tAnna\ta\n2\tBob\tb\n" || !strings.Contains(m.status, "2 row(s) with column names") {
+		t.Fatalf("copies %q status %q", *clip, m.status)
+	}
+	// Shift-→ narrows to the columns from the start column (NAME) to the cursor
+	press(m, key(tea.KeyRight, tea.ModShift))
+	press(m, key('c'))
+	if (*clip)[2] != "Anna\ta\nBob\tb\n" || !strings.Contains(m.res.summary(), "2×2 selected") {
+		t.Fatalf("narrowed: %q %q", (*clip)[2], m.res.summary())
+	}
+	// in the view, every column of the selected rows is highlighted
+	press(m, key(tea.KeyEscape))
+	press(m, key(tea.KeyDown, tea.ModShift))
+	if v := m.res.view(true); strings.Count(v, "48;5;24") < 3 {
+		t.Fatalf("whole rows should be highlighted:\n%q", v)
+	}
+}

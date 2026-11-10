@@ -2175,11 +2175,14 @@ func valueLines(v string) []string {
 // tab-separated text (header: with the column names first).
 func (m *Model) copyBlock(header bool) tea.Cmd {
 	r1, r2, c1, c2, _ := m.res.blockRange()
-	what := "cells"
-	if header {
-		what = "cells with column names"
+	what := fmt.Sprintf("%d×%d cells", r2-r1+1, c2-c1+1)
+	if m.res.blockAllCols {
+		what = fmt.Sprintf("%d row(s)", r2-r1+1)
 	}
-	m.setStatus(fmt.Sprintf("Copied %d×%d %s to the clipboard (tab-separated)", r2-r1+1, c2-c1+1, what), false)
+	if header {
+		what += " with column names"
+	}
+	m.setStatus(fmt.Sprintf("Copied %s to the clipboard (tab-separated)", what), false)
 	return copyToClipboard(m.res.blockText(header))
 }
 
@@ -2473,7 +2476,7 @@ const helpText = `
  o           grid / DBMS_OUTPUT
  e           export to .csv/.tsv/.json
  c / C       copy the cell / the row to the clipboard
- Shift-arrows select a block of cells; then c / C copy it (tab-separated / with header)
+ Shift-↑↓    select whole rows; Shift-←→ a block of cells; c / C copy (tab-separated / with header)
 
  OBJECT TREE (below the connections)  Enter/→ open · ← close · i insert name · d DESC · s select * (new tab) · e edit rows (new tab) · r reload
                                       / or f filter by name (* = any text) · x remove filter · c collapse all
