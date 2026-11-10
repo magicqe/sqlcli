@@ -692,7 +692,16 @@ to focus it, or press F3 twice.
 | e | export the result to a .csv, .tsv or .json file ([Exporting](#exporting)) |
 | c | copy the cell under the cell cursor to the clipboard (the value as it is; NULL copies as empty) |
 | C | copy the current row: one `COLUMN: value` line per column |
+| Shift-↑ ↓ ← →, Shift-PgUp / PgDn / Home / End | **select a block of cells** from the current cell; c then copies it, C copies it with the column names (see below) |
 | Esc / Tab | back to the editor |
+
+**Selecting several cells.** Shift with the cursor keys selects a rectangular
+block of cells, from the cell where you started to the cell cursor; the cells
+are highlighted and the footer shows its size (`3×2 selected`). **c** copies
+the block as tab-separated text — one line per row, NULL as empty, values
+with tabs, line breaks or quotes in double quotes — so it pastes into a
+spreadsheet; **C** adds a first line with the column names. Esc or any other
+key clears the selection.
 
 ### Editing cells
 

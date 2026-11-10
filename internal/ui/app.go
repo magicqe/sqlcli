@@ -1205,7 +1205,17 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case focusTree:
 		return m.updateTree(key)
 	case focusResults:
-		m.res.rangeOn = false // a key ends a mouse selection
+		m.res.rangeOn = false       // a key ends a mouse selection
+		if m.res.extendBlock(key) { // Shift + cursor keys select a block of cells
+			return nil
+		}
+		if m.res.blockOn && key == "esc" { // Esc clears the selection first
+			m.res.blockOn = false
+			return nil
+		}
+		if key != "c" && key != "C" {
+			m.res.blockOn = false // any other key ends the selection
+		}
 		switch key {
 		case "esc":
 			m.focusEditor()
@@ -2161,8 +2171,24 @@ func valueLines(v string) []string {
 	return strings.Split(v, "\n")
 }
 
-// copyCell copies the value under the cell / field cursor (NULL as empty).
+// copyBlock copies the cells selected with Shift + cursor keys as
+// tab-separated text (header: with the column names first).
+func (m *Model) copyBlock(header bool) tea.Cmd {
+	r1, r2, c1, c2, _ := m.res.blockRange()
+	what := "cells"
+	if header {
+		what = "cells with column names"
+	}
+	m.setStatus(fmt.Sprintf("Copied %d×%d %s to the clipboard (tab-separated)", r2-r1+1, c2-c1+1, what), false)
+	return copyToClipboard(m.res.blockText(header))
+}
+
+// copyCell copies the value under the cell / field cursor (NULL as empty),
+// or in the grid the selected block of cells.
 func (m *Model) copyCell() tea.Cmd {
+	if _, _, _, _, ok := m.res.blockRange(); ok && m.mode == modeNormal {
+		return m.copyBlock(false)
+	}
 	row := m.res.selectedRow()
 	if m.res.showText() || row == nil {
 		m.setStatus("No cell to copy: run a query first", true)
@@ -2177,8 +2203,12 @@ func (m *Model) copyCell() tea.Cmd {
 	return copyToClipboard(v)
 }
 
-// copyRow copies the current row as "COLUMN: value" lines.
+// copyRow copies the current row as "COLUMN: value" lines, or in the
+// grid the selected block of cells with the column names.
 func (m *Model) copyRow() tea.Cmd {
+	if _, _, _, _, ok := m.res.blockRange(); ok && m.mode == modeNormal {
+		return m.copyBlock(true)
+	}
 	row := m.res.selectedRow()
 	if m.res.showText() || row == nil {
 		m.setStatus("No row to copy: run a query first", true)
@@ -2443,6 +2473,7 @@ const helpText = `
  o           grid / DBMS_OUTPUT
  e           export to .csv/.tsv/.json
  c / C       copy the cell / the row to the clipboard
+ Shift-arrows select a block of cells; then c / C copy it (tab-separated / with header)
 
  OBJECT TREE (below the connections)  Enter/→ open · ← close · i insert name · d DESC · s select * (new tab) · e edit rows (new tab) · r reload
                                       / or f filter by name (* = any text) · x remove filter · c collapse all
@@ -3772,7 +3803,10 @@ func (m *Model) keyHints() [][2]string {
 			}
 			return append(h, [2]string{"Tab", "editor"}, [2]string{"Esc", "editor"}, [2]string{"F1", "help"})
 		}
-		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Enter", "record"}, {"u", "edit"}, {"i", "insert"}, {"d", "delete"}, {"e", "export"}, {"c/C", "copy cell/row"}, {"End", "all rows"}}
+		if m.res.blockOn {
+			return [][2]string{{"Shift-arrows", "extend"}, {"c", "copy cells"}, {"C", "copy with header"}, {"Esc", "unselect"}, {"F1", "help"}}
+		}
+		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Shift-arrows", "select"}, {"Enter", "record"}, {"u", "edit"}, {"i", "insert"}, {"d", "delete"}, {"e", "export"}, {"c/C", "copy cell/row"}, {"End", "all rows"}}
 		if m.res.canToggle() {
 			h = append(h, [2]string{"o", "output"})
 		}

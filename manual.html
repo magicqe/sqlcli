@@ -671,6 +671,7 @@ end;
           <tr><td><kbd>u</kbd></td><td class="wrap-ok">Edit the current cell (see <a href="#edit-cells">Editing cells</a>)</td></tr>
           <tr><td><kbd>c</kbd></td><td class="wrap-ok">Copy the cell under the cell cursor to the clipboard (the value as it is; NULL copies as empty)</td></tr>
           <tr><td><kbd>C</kbd></td><td>Copy the current row: one <code>COLUMN: value</code> line per column</td></tr>
+          <tr><td><kbd>Shift</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd>, Shift-PgUp / PgDn / Home / End</td><td class="wrap-ok"><strong>Select a block of cells</strong> from the current cell (highlighted; the footer shows <code>3×2 selected</code>). <kbd>c</kbd> copies it as tab-separated text (one line per row, NULL as empty, values with tabs, line breaks or quotes in double quotes), so it pastes into a spreadsheet; <kbd>C</kbd> adds a line with the column names. <kbd>Esc</kbd> or any other key clears the selection.</td></tr>
           <tr><td><kbd>i</kbd> / <kbd>d</kbd></td><td>Insert a new row / delete the current row</td></tr>
           <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">Show the selected row as a record (see <a href="#record">Record view</a>)</td></tr>
           <tr><td><kbd>o</kbd></td><td class="wrap-ok">Switch between the grid and DBMS_OUTPUT (when a query produced both)</td></tr>

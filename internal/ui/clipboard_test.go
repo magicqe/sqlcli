@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"sqlcli/internal/db"
 )
@@ -141,5 +142,47 @@ func TestGridCopies(t *testing.T) {
 	press(m, key('c'))
 	if len(*clip) != 3 || !m.statusErr {
 		t.Fatalf("no result: %q %q", *clip, m.status)
+	}
+}
+
+func TestGridBlockSelection(t *testing.T) {
+	clip := fakeClipboard(t)
+	m := editModel("select * from t", []string{"ID", "NAME", "NOTE"}, [][]string{
+		{"1", "Anna", "a\tb"}, {"2", db.Null, `say "hi"`}, {"3", "Cyril", "x"}})
+	press(m, key(tea.KeyDown, tea.ModShift))  // rows 1-2
+	press(m, key(tea.KeyRight, tea.ModShift)) // columns ID-NAME
+	if r1, r2, c1, c2, ok := m.res.blockRange(); !ok || r1 != 0 || r2 != 1 || c1 != 0 || c2 != 1 {
+		t.Fatalf("block %d-%d x %d-%d %v", r1, r2, c1, c2, ok)
+	}
+	if !strings.Contains(m.res.summary(), "2×2 selected") || !strings.Contains(m.res.view(true), "48;5;24") {
+		t.Fatalf("summary %q / no highlight", m.res.summary())
+	}
+	if s := ansi.Strip(m.bottomLine()); !strings.Contains(s, "c copy cells") || !strings.Contains(s, "Esc unselect") {
+		t.Fatalf("hints: %q", s)
+	}
+	press(m, key('c'))
+	press(m, key('C')) // the selection stays for another copy
+	if len(*clip) != 2 || (*clip)[0] != "1\tAnna\n2\t\n" || (*clip)[1] != "ID\tNAME\n1\tAnna\n2\t\n" {
+		t.Fatalf("copies: %q", *clip)
+	}
+	// extend to the NOTE column: quoting of tabs and quotes
+	press(m, key(tea.KeyRight, tea.ModShift))
+	press(m, key('c'))
+	if (*clip)[2] != "1\tAnna\t\"a\tb\"\n2\t\t\"say \"\"hi\"\"\"\n" || !strings.Contains(m.status, "2×3 cells") {
+		t.Fatalf("quoted: %q %q", (*clip)[2], m.status)
+	}
+	// Esc clears the selection (focus stays); a plain arrow too
+	press(m, key(tea.KeyEscape))
+	if m.res.blockOn || m.focus != focusResults {
+		t.Fatalf("Esc: block %v focus %v", m.res.blockOn, m.focus)
+	}
+	press(m, key(tea.KeyUp, tea.ModShift))
+	press(m, key(tea.KeyDown))
+	if m.res.blockOn {
+		t.Fatal("a plain key should end the selection")
+	}
+	press(m, key('c')) // a single cell again
+	if (*clip)[3] != "x" && (*clip)[3] != `say "hi"` {
+		t.Fatalf("single cell: %q", (*clip)[3])
 	}
 }

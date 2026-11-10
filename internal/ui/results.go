@@ -26,8 +26,13 @@ type resultView struct {
 	// rows (grid) or lines (text) selected by dragging the mouse
 	rangeOn        bool
 	rangeA, rangeB int
-	textTop        int // first visible text line
-	textLeft       int // horizontal scroll of the text view
+
+	// block of cells selected with Shift + cursor keys: from the anchor
+	// (blockRow, blockCol) to the cell cursor (row, selCol)
+	blockOn            bool
+	blockRow, blockCol int
+	textTop            int // first visible text line
+	textLeft           int // horizontal scroll of the text view
 
 	widths []int
 	row    int // selected row
@@ -44,7 +49,7 @@ func (r *resultView) set(res *db.Result, messages, output []string, err string) 
 	r.row, r.top, r.colOff, r.selCol = 0, 0, 0, 0
 	r.edits = nil
 	r.textTop, r.textLeft = 0, 0
-	r.rangeOn = false
+	r.rangeOn, r.blockOn = false, false
 	r.compile = nil
 	r.widths = nil
 	r.textMode = !r.hasGrid()
@@ -155,8 +160,9 @@ var (
 	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
 	sepStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	selStyle    = lipgloss.NewStyle().Background(lipgloss.Color("24")).Foreground(lipgloss.Color("255")).Bold(true)
-	selDimStyle = lipgloss.NewStyle().Background(lipgloss.Color("237")) // selected row, pane not focused
-	cellStyle   = lipgloss.NewStyle().Reverse(true).Bold(true)          // the cell cursor
+	selDimStyle = lipgloss.NewStyle().Background(lipgloss.Color("237"))                                  // selected row, pane not focused
+	cellStyle   = lipgloss.NewStyle().Reverse(true).Bold(true)                                           // the cell cursor
+	blockStyle  = lipgloss.NewStyle().Background(lipgloss.Color("24")).Foreground(lipgloss.Color("255")) // selected cells (Shift + cursor keys)
 	nullStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Italic(true)
 	errStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
 	okStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("114"))
@@ -259,14 +265,23 @@ func (r *resultView) view(focused bool) string {
 		for _, c := range cols {
 			line.WriteString(sepStyle.Render("│ "))
 			v := cell(row[c])
-			if row[c] == db.Null {
+			switch {
+			case r.blockOn && i == r.row && c == r.selCol && focused:
+				line.WriteString(cellStyle.Render(pad(v, r.widths[c])))
+			case r.inBlock(i, c):
+				line.WriteString(blockStyle.Render(pad(v, r.widths[c])))
+			case row[c] == db.Null:
 				line.WriteString(nullStyle.Render(pad(v, r.widths[c])))
-			} else {
+			default:
 				line.WriteString(pad(v, r.widths[c]))
 			}
 			line.WriteString(" ")
 		}
 		s := ansi.Truncate(line.String(), r.w, "")
+		if r.blockOn { // the block shows the selection; no row highlight
+			b.WriteString(s)
+			continue
+		}
 		if r.rangeOn && i >= min(r.rangeA, r.rangeB) && i <= max(r.rangeA, r.rangeB) && i != r.row {
 			s = selDimStyle.Render(ansi.Strip(s) + strings.Repeat(" ", max(r.w-ansi.StringWidth(s), 0)))
 		}
@@ -345,6 +360,9 @@ func (r *resultView) summary() string {
 		more = "+"
 	}
 	s := fmt.Sprintf("row %d/%d%s  col %d/%d", min(r.row+1, len(r.res.Rows)), len(r.res.Rows), more, r.selCol+1, len(r.res.Columns))
+	if r1, r2, c1, c2, ok := r.blockRange(); ok {
+		s += fmt.Sprintf("  %d×%d selected", r2-r1+1, c2-c1+1)
+	}
 	if len(r.output) > 0 {
 		s += "  o: DBMS_OUTPUT"
 	}
@@ -499,4 +517,74 @@ func (r *resultView) revertEdits() int {
 		r.clampRow()
 	}
 	return n
+}
+
+// ---- block selection (Shift + cursor keys) ----
+
+// extendBlock moves the cell cursor with a Shift + cursor key, starting a
+// block at the current cell first. It reports whether key was such a key.
+func (r *resultView) extendBlock(key string) bool {
+	base, ok := strings.CutPrefix(key, "shift+")
+	switch base {
+	case "up", "down", "left", "right", "pgup", "pgdown", "home", "end":
+	default:
+		ok = false
+	}
+	if !ok || r.showText() || !r.hasGrid() || len(r.res.Rows) == 0 {
+		return false
+	}
+	if !r.blockOn {
+		r.blockOn, r.blockRow, r.blockCol = true, r.row, r.selCol
+	}
+	r.handleKey(base)
+	return true
+}
+
+// blockRange returns the selected block (rows r1..r2, columns c1..c2).
+func (r *resultView) blockRange() (r1, r2, c1, c2 int, ok bool) {
+	if !r.blockOn || r.showText() || !r.hasGrid() {
+		return 0, 0, 0, 0, false
+	}
+	return min(r.blockRow, r.row), max(r.blockRow, r.row), min(r.blockCol, r.selCol), max(r.blockCol, r.selCol), true
+}
+
+func (r *resultView) inBlock(row, col int) bool {
+	r1, r2, c1, c2, ok := r.blockRange()
+	return ok && row >= r1 && row <= r2 && col >= c1 && col <= c2
+}
+
+// blockText is the block as tab-separated text (pastes into spreadsheets):
+// one line per row, NULL as empty, values with tabs, line breaks or quotes
+// in double quotes. header adds a first line with the column names.
+func (r *resultView) blockText(header bool) string {
+	r1, r2, c1, c2, ok := r.blockRange()
+	if !ok {
+		return ""
+	}
+	field := func(v string) string {
+		if v == db.Null {
+			return ""
+		}
+		if strings.ContainsAny(v, "\t\r\n\"") {
+			return `"` + strings.ReplaceAll(v, `"`, `""`) + `"`
+		}
+		return v
+	}
+	var b strings.Builder
+	line := func(vals []string) {
+		for i, v := range vals {
+			if i > 0 {
+				b.WriteByte('\t')
+			}
+			b.WriteString(field(v))
+		}
+		b.WriteByte('\n')
+	}
+	if header {
+		line(r.res.Columns[c1 : c2+1])
+	}
+	for i := r1; i <= r2 && i < len(r.res.Rows); i++ {
+		line(r.res.Rows[i][c1 : c2+1])
+	}
+	return b.String()
 }
