@@ -1226,6 +1226,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			return m.startDelete()
 		case "e":
 			return m.askExport()
+		case "c": // copy the cell under the cell cursor
+			return m.copyCell()
+		case "C": // copy the row, one "COLUMN: value" line per column
+			return m.copyRow()
 		case "end", "ctrl+e", "G":
 			m.res.handleKey("end")
 			if !m.res.showText() && m.res.res.More {
@@ -2157,6 +2161,33 @@ func valueLines(v string) []string {
 	return strings.Split(v, "\n")
 }
 
+// copyCell copies the value under the cell / field cursor (NULL as empty).
+func (m *Model) copyCell() tea.Cmd {
+	row := m.res.selectedRow()
+	if m.res.showText() || row == nil {
+		m.setStatus("No cell to copy: run a query first", true)
+		return nil
+	}
+	col := min(max(m.res.selCol, 0), len(row)-1)
+	v := row[col]
+	if v == db.Null {
+		v = ""
+	}
+	m.setStatus(fmt.Sprintf("Copied %s to the clipboard (%d characters)", m.res.res.Columns[col], len([]rune(v))), false)
+	return copyToClipboard(v)
+}
+
+// copyRow copies the current row as "COLUMN: value" lines.
+func (m *Model) copyRow() tea.Cmd {
+	row := m.res.selectedRow()
+	if m.res.showText() || row == nil {
+		m.setStatus("No row to copy: run a query first", true)
+		return nil
+	}
+	m.setStatus(fmt.Sprintf("Copied row %d to the clipboard (%d columns)", m.res.row+1, len(row)), false)
+	return copyToClipboard(recordText(m.res.res.Columns, row))
+}
+
 // recordText is a record as text for the clipboard: "COLUMN: value" per
 // field (NULL as empty), continuation lines of long values indented.
 func recordText(cols, row []string) string {
@@ -2354,23 +2385,9 @@ func (m *Model) updateRecord(key string) tea.Cmd {
 	case "u", "enter": // edit the field, in the text editor panel
 		return m.startCellEdit()
 	case "c": // copy the field's value
-		row := m.res.selectedRow()
-		if row == nil {
-			break
-		}
-		v := row[m.res.selCol]
-		if v == db.Null {
-			v = ""
-		}
-		m.setStatus(fmt.Sprintf("Copied %s to the clipboard (%d characters)", r.Columns[m.res.selCol], len([]rune(v))), false)
-		return copyToClipboard(v)
+		return m.copyCell()
 	case "C": // copy the whole record, one "COLUMN: value" line per field
-		row := m.res.selectedRow()
-		if row == nil {
-			break
-		}
-		m.setStatus(fmt.Sprintf("Copied record %d to the clipboard (%d fields)", m.res.row+1, len(row)), false)
-		return copyToClipboard(recordText(r.Columns, row))
+		return m.copyRow()
 	case "i":
 		return m.startInsert()
 	case "d":
@@ -2425,6 +2442,7 @@ const helpText = `
  Enter       show row as record
  o           grid / DBMS_OUTPUT
  e           export to .csv/.tsv/.json
+ c / C       copy the cell / the row to the clipboard
 
  OBJECT TREE (below the connections)  Enter/→ open · ← close · i insert name · d DESC · s select * (new tab) · e edit rows (new tab) · r reload
                                       / or f filter by name (* = any text) · x remove filter · c collapse all
@@ -3770,7 +3788,7 @@ func (m *Model) keyHints() [][2]string {
 			}
 			return append(h, [2]string{"Tab", "editor"}, [2]string{"Esc", "editor"}, [2]string{"F1", "help"})
 		}
-		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Enter", "record"}, {"u", "edit"}, {"i", "insert"}, {"d", "delete"}, {"e", "export"}, {"End", "all rows"}}
+		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Enter", "record"}, {"u", "edit"}, {"i", "insert"}, {"d", "delete"}, {"e", "export"}, {"c/C", "copy cell/row"}, {"End", "all rows"}}
 		if m.res.canToggle() {
 			h = append(h, [2]string{"o", "output"})
 		}

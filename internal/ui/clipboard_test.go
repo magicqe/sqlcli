@@ -118,7 +118,28 @@ func TestRecordViewCopies(t *testing.T) {
 	}
 	press(m, key('C'))
 	want := "ID:    7\nNOTE:  line 1\n       line 2\nEMPTY: \n"
-	if (*clip)[2] != want || m.mode != modeRecord || !strings.Contains(screen(m), "Copied record 1") {
+	if (*clip)[2] != want || m.mode != modeRecord || !strings.Contains(screen(m), "Copied row 1") {
 		t.Fatalf("C: %q", (*clip)[2])
+	}
+}
+
+func TestGridCopies(t *testing.T) {
+	clip := fakeClipboard(t)
+	m := editModel("select * from t", []string{"ID", "NAME"}, [][]string{{"1", "Anna"}, {"2", db.Null}})
+	press(m, key(tea.KeyRight)) // NAME
+	press(m, key('c'))
+	press(m, key(tea.KeyDown))
+	press(m, key('c')) // NULL
+	press(m, key('C'))
+	if len(*clip) != 3 || (*clip)[0] != "Anna" || (*clip)[1] != "" || (*clip)[2] != "ID:   2\nNAME: \n" {
+		t.Fatalf("copies: %q", *clip)
+	}
+	if m.mode != modeNormal || m.focus != focusResults || !strings.Contains(m.status, "Copied row 2") {
+		t.Fatalf("mode %v focus %v status %q", m.mode, m.focus, m.status)
+	}
+	m.res.set(nil, nil, nil, "")
+	press(m, key('c'))
+	if len(*clip) != 3 || !m.statusErr {
+		t.Fatalf("no result: %q %q", *clip, m.status)
 	}
 }

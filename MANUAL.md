@@ -689,6 +689,8 @@ to focus it, or press F3 twice.
 | Enter | show the selected row as a record ([Record view](#record-view)) |
 | o | switch between the grid and DBMS_OUTPUT (when a query produced both) |
 | e | export the result to a .csv, .tsv or .json file ([Exporting](#exporting)) |
+| c | copy the cell under the cell cursor to the clipboard (the value as it is; NULL copies as empty) |
+| C | copy the current row: one `COLUMN: value` line per column |
 | Esc / Tab | back to the editor |
 
 ### Editing cells
