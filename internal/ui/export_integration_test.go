@@ -87,8 +87,24 @@ func TestUIExport(t *testing.T) {
 
 	// bad extension
 	press(m, key('e'))
-	answer(m, filepath.Join(dir, "out.xlsx"))
-	if !m.statusErr || !strings.Contains(m.status, "use .csv, .tsv or .json") {
+	answer(m, filepath.Join(dir, "out.xml"))
+	if !m.statusErr || !strings.Contains(m.status, "use .csv, .tsv, .json, .xlsx or .xls") {
 		t.Fatalf("status: %q", m.status)
+	}
+
+	// Excel: all rows, numbers as numbers
+	for _, name := range []string{"out.xlsx", "out.xls"} {
+		press(m, key('e'))
+		answer(m, filepath.Join(dir, name))
+		if m.statusErr || !strings.Contains(m.status, "Exported 2500 row(s)") {
+			t.Fatalf("%s: %q", name, m.status)
+		}
+		if st, err := os.Stat(filepath.Join(dir, name)); err != nil || st.Size() < 1000 {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	b, _ = os.ReadFile(filepath.Join(dir, "out.xls"))
+	if strings.Count(string(b), "<Row>") != 2501 || !strings.Contains(string(b), `<Data ss:Type="Number">2500</Data>`) {
+		t.Fatalf(".xls content: %d rows", strings.Count(string(b), "<Row>"))
 	}
 }

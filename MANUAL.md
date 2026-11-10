@@ -689,7 +689,7 @@ to focus it, or press F3 twice.
 | i / d | insert a new row / delete the current row |
 | Enter | show the selected row as a record ([Record view](#record-view)) |
 | o | switch between the grid and DBMS_OUTPUT (when a query produced both) |
-| e | export the result to a .csv, .tsv or .json file ([Exporting](#exporting)) |
+| e | export the result to a .csv, .tsv, .json, .xlsx or .xls file ([Exporting](#exporting)) |
 | c | copy the cell under the cell cursor to the clipboard (the value as it is; NULL copies as empty) |
 | C | copy the current row: one `COLUMN: value` line per column |
 | Shift-↑ ↓ ← →, Shift-PgUp / PgDn / Home / End | **select rows** (Shift-↑↓: whole rows) **or a block of cells** (Shift-←→); c then copies it, C copies it with the column names (see below) |
@@ -832,6 +832,8 @@ extension picks the format:
 | `.csv` | comma-separated, header row, quoted where needed (RFC 4180) |
 | `.tsv` | tab-separated, header row |
 | `.json` | an array of objects, one per row, keys in column order |
+| `.xlsx` | Excel workbook (sheet `Result`), up to 1,048,575 rows |
+| `.xls` | Excel 2003 XML spreadsheet — opens in Excel (which may warn that the content is XML) and LibreOffice; up to 65,535 rows |
 
 * **All rows are exported**, not only those on screen: if the query has
   more rows on the server, sqlcli fetches them first (`Fetching all rows for
@@ -841,6 +843,10 @@ extension picks the format:
   string, dates as `YYYY-MM-DD HH:MI:SS`.
 * Duplicate column names (`select a.id, b.id ...`) become `ID` and `ID_2`
   in JSON.
+* In **Excel** files the header row is bold and frozen, with an autofilter.
+  `NUMBER` columns are numeric cells (values with more than 15 digits, which
+  Excel can't keep exactly, stay text), `DATE` and `TIMESTAMP` columns date
+  cells shown as `yyyy-mm-dd hh:mm:ss`, NULL an empty cell.
 * An existing file is only replaced after you confirm. The file is written
   to a temporary name first, so a failed export never leaves half a file.
 
@@ -1068,7 +1074,7 @@ Complete example with all settings:
 | ^K N / ^K P, Ctrl-PgDn / Ctrl-PgUp | next / previous tab |
 | Alt-1 … Alt-9 | go to tab |
 | ^K Q | close tab (last tab: quit) |
-| e (results pane) | export result to .csv / .tsv / .json |
+| e (results pane) | export result to .csv / .tsv / .json / .xlsx / .xls |
 
 ### Editor
 

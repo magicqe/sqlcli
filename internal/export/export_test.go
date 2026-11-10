@@ -85,7 +85,7 @@ func TestJSONEmpty(t *testing.T) {
 
 func TestWriteFile(t *testing.T) {
 	dir := t.TempDir()
-	if err := WriteFile(filepath.Join(dir, "out.xlsx"), cols, types, rows); err == nil {
+	if err := WriteFile(filepath.Join(dir, "out.xml"), cols, types, rows); err == nil {
 		t.Fatal("unknown extension accepted")
 	}
 	p := filepath.Join(dir, "out.CSV")

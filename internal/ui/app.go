@@ -2491,7 +2491,7 @@ const helpText = `
  Ctrl-C      stop fetching                 Shift-↑↓←→, wheel      scroll a long record / long values
  Enter       show row as record
  o           grid / DBMS_OUTPUT
- e           export to .csv/.tsv/.json
+ e           export to .csv/.tsv/.json/.xlsx/.xls
  c / C       copy the cell / the row to the clipboard
  Shift-↑↓    select whole rows; Shift-←→ a block of cells; c / C copy (tab-separated / with header)
  v / Space   selection mode: plain arrows extend the selection (when the terminal keeps Shift-arrows)
@@ -2593,7 +2593,7 @@ func (m *Model) askExport() tea.Cmd {
 	if def == "" {
 		def = "result.csv"
 	}
-	m.askFile("Export to (.csv, .tsv or .json):", def, func(v string) tea.Cmd {
+	m.askFile("Export to (.csv, .tsv, .json, .xlsx or .xls):", def, func(v string) tea.Cmd {
 		path := expandHome(strings.TrimSpace(v))
 		if path == "" {
 			return nil

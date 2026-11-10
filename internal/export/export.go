@@ -1,4 +1,4 @@
-// Package export writes query results as CSV, TSV or JSON.
+// Package export writes query results as CSV, TSV, JSON or Excel (.xlsx, .xls).
 package export
 
 import (
@@ -22,6 +22,8 @@ const (
 	CSV Format = iota
 	TSV
 	JSON
+	XLSX
+	XLS
 )
 
 // FormatFor picks the format from a file name's extension.
@@ -33,8 +35,12 @@ func FormatFor(path string) (Format, error) {
 		return TSV, nil
 	case ".json":
 		return JSON, nil
+	case ".xlsx":
+		return XLSX, nil
+	case ".xls":
+		return XLS, nil
 	}
-	return 0, fmt.Errorf("unknown file type %q: use .csv, .tsv or .json", filepath.Ext(path))
+	return 0, fmt.Errorf("unknown file type %q: use .csv, .tsv, .json, .xlsx or .xls", filepath.Ext(path))
 }
 
 // Write writes columns and rows to w. NULL (db.Null) becomes an empty
@@ -47,6 +53,10 @@ func Write(w io.Writer, f Format, cols, types []string, rows [][]string) error {
 		err = writeCSV(bw, f, cols, rows)
 	case JSON:
 		err = writeJSON(bw, cols, types, rows)
+	case XLSX:
+		err = writeXLSX(bw, cols, types, rows)
+	case XLS:
+		err = writeXLS(bw, cols, types, rows)
 	}
 	if err != nil {
 		return err
