@@ -32,6 +32,7 @@ type resultView struct {
 	blockOn            bool
 	blockRow, blockCol int
 	blockAllCols       bool // whole rows: started with Shift-↑↓, until Shift-←→ narrows it
+	blockSticky        bool // selection mode (v / Space): plain cursor keys extend the block
 	textTop            int  // first visible text line
 	textLeft           int  // horizontal scroll of the text view
 
@@ -50,7 +51,7 @@ func (r *resultView) set(res *db.Result, messages, output []string, err string) 
 	r.row, r.top, r.colOff, r.selCol = 0, 0, 0, 0
 	r.edits = nil
 	r.textTop, r.textLeft = 0, 0
-	r.rangeOn, r.blockOn, r.blockAllCols = false, false, false
+	r.rangeOn, r.blockOn, r.blockAllCols, r.blockSticky = false, false, false, false
 	r.compile = nil
 	r.widths = nil
 	r.textMode = !r.hasGrid()
@@ -548,6 +549,21 @@ func (r *resultView) extendBlock(key string) bool {
 	r.handleKey(base)
 	return true
 }
+
+// toggleSelectMode starts the selection mode (v / Space) on the current row,
+// selecting whole rows, or ends it with the selection.
+func (r *resultView) toggleSelectMode() {
+	if r.blockOn {
+		r.clearBlock()
+		return
+	}
+	if r.showText() || !r.hasGrid() || len(r.res.Rows) == 0 {
+		return
+	}
+	r.blockOn, r.blockRow, r.blockCol, r.blockAllCols, r.blockSticky = true, r.row, r.selCol, true, true
+}
+
+func (r *resultView) clearBlock() { r.blockOn, r.blockSticky = false, false }
 
 // blockRange returns the selected block (rows r1..r2, columns c1..c2).
 func (r *resultView) blockRange() (r1, r2, c1, c2 int, ok bool) {

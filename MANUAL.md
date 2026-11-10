@@ -707,6 +707,14 @@ with tabs, line breaks or quotes in double quotes — so it pastes into a
 spreadsheet; **C** adds a first line with the column names. Esc or any other
 key clears the selection.
 
+**Without Shift.** Some terminals keep Shift-↑ / Shift-↓ for themselves
+(scrolling their scrollback, e.g. Konsole, Terminator, Tilix), so sqlcli never
+sees them. Then use the **selection mode**: **v** or **Space** starts
+selecting whole rows at the cursor, the plain cursor keys extend the
+selection (← / → narrow it to columns), c / C copy, and v, Space or Esc end
+it. To see which keys reach sqlcli, start it with `SQLCLI_DEBUG_KEYS=1`: the
+status line then shows the name of each key (`key: "shift+down"`).
+
 ### Editing cells
 
 The grid has a **cell cursor**: ← / → move it between columns (the grid

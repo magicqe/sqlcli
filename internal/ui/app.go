@@ -1048,8 +1048,15 @@ func (m *Model) fetchDone(msg fetchMsg) tea.Cmd {
 	return nil
 }
 
+// debugKeys shows the name of every key received in the status line
+// (SQLCLI_DEBUG_KEYS=1), to see what the terminal sends.
+var debugKeys = os.Getenv("SQLCLI_DEBUG_KEYS") != ""
+
 func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	key, text := msg.String(), msg.Text
+	if debugKeys {
+		defer func() { m.status = fmt.Sprintf("key: %q  %s", key, m.status) }()
+	}
 
 	switch m.mode {
 	case modePrompt:
@@ -1205,16 +1212,26 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case focusTree:
 		return m.updateTree(key)
 	case focusResults:
-		m.res.rangeOn = false       // a key ends a mouse selection
-		if m.res.extendBlock(key) { // Shift + cursor keys select a block of cells
+		m.res.rangeOn = false  // a key ends a mouse selection
+		if m.res.blockSticky { // selection mode (v / Space): plain cursor keys extend it
+			switch key {
+			case "up", "down", "left", "right", "pgup", "pgdown", "home", "end":
+				key = "shift+" + key
+			}
+		}
+		if m.res.extendBlock(key) { // Shift + cursor keys select rows or a block of cells
+			return nil
+		}
+		if key == "v" || key == "space" { // selection mode, for terminals that keep Shift-arrows
+			m.res.toggleSelectMode()
 			return nil
 		}
 		if m.res.blockOn && key == "esc" { // Esc clears the selection first
-			m.res.blockOn = false
+			m.res.clearBlock()
 			return nil
 		}
 		if key != "c" && key != "C" {
-			m.res.blockOn = false // any other key ends the selection
+			m.res.clearBlock() // any other key ends the selection
 		}
 		switch key {
 		case "esc":
@@ -2477,6 +2494,7 @@ const helpText = `
  e           export to .csv/.tsv/.json
  c / C       copy the cell / the row to the clipboard
  Shift-↑↓    select whole rows; Shift-←→ a block of cells; c / C copy (tab-separated / with header)
+ v / Space   selection mode: plain arrows extend the selection (when the terminal keeps Shift-arrows)
 
  OBJECT TREE (below the connections)  Enter/→ open · ← close · i insert name · d DESC · s select * (new tab) · e edit rows (new tab) · r reload
                                       / or f filter by name (* = any text) · x remove filter · c collapse all
@@ -3806,10 +3824,13 @@ func (m *Model) keyHints() [][2]string {
 			}
 			return append(h, [2]string{"Tab", "editor"}, [2]string{"Esc", "editor"}, [2]string{"F1", "help"})
 		}
+		if m.res.blockSticky {
+			return [][2]string{{"arrows", "extend"}, {"c", "copy cells"}, {"C", "copy with header"}, {"v/Esc", "unselect"}, {"F1", "help"}}
+		}
 		if m.res.blockOn {
 			return [][2]string{{"Shift-arrows", "extend"}, {"c", "copy cells"}, {"C", "copy with header"}, {"Esc", "unselect"}, {"F1", "help"}}
 		}
-		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Shift-arrows", "select"}, {"Enter", "record"}, {"u", "edit"}, {"i", "insert"}, {"d", "delete"}, {"e", "export"}, {"c/C", "copy cell/row"}, {"End", "all rows"}}
+		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Shift-arrows/v", "select"}, {"Enter", "record"}, {"u", "edit"}, {"i", "insert"}, {"d", "delete"}, {"e", "export"}, {"c/C", "copy cell/row"}, {"End", "all rows"}}
 		if m.res.canToggle() {
 			h = append(h, [2]string{"o", "output"})
 		}

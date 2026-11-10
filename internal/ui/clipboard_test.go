@@ -220,3 +220,32 @@ func TestGridShiftUpDownSelectsRows(t *testing.T) {
 		t.Fatalf("whole rows should be highlighted:\n%q", v)
 	}
 }
+
+func TestGridSelectMode(t *testing.T) {
+	clip := fakeClipboard(t)
+	m := editModel("select * from t", []string{"ID", "NAME"}, [][]string{{"1", "a"}, {"2", "b"}, {"3", "c"}})
+	press(m, key('v')) // selection mode: plain arrows extend, whole rows
+	press(m, key(tea.KeyDown))
+	press(m, key(tea.KeyDown))
+	if r1, r2, c1, c2, ok := m.res.blockRange(); !ok || r1 != 0 || r2 != 2 || c1 != 0 || c2 != 1 {
+		t.Fatalf("v + Down Down: %d-%d x %d-%d %v", r1, r2, c1, c2, ok)
+	}
+	if s := ansi.Strip(m.bottomLine()); !strings.Contains(s, "arrows extend") {
+		t.Fatalf("hints: %q", s)
+	}
+	press(m, key('C'))
+	if (*clip)[0] != "ID\tNAME\n1\ta\n2\tb\n3\tc\n" || !m.res.blockOn {
+		t.Fatalf("copy: %q", *clip)
+	}
+	press(m, key('v')) // ends the mode and the selection
+	press(m, key(tea.KeyUp))
+	if m.res.blockOn || m.res.row != 1 {
+		t.Fatalf("after v: block %v row %d", m.res.blockOn, m.res.row)
+	}
+	press(m, key(tea.KeySpace)) // Space works too; Esc ends it
+	press(m, key(tea.KeyUp))
+	press(m, key(tea.KeyEscape))
+	if m.res.blockOn || m.res.blockSticky || m.focus != focusResults {
+		t.Fatal("Esc should end the selection mode")
+	}
+}
