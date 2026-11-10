@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"sqlcli/internal/config"
 	"sqlcli/internal/db"
@@ -108,4 +109,54 @@ func TestBackgroundResultGoesToItsTab(t *testing.T) {
 	}
 	// a result for a closed tab is ignored
 	m.Update(execDoneMsg{tab: 999})
+}
+
+func TestTabBarScrolls(t *testing.T) {
+	m := newTabsModel()
+	m.Update(tea.WindowSizeMsg{Width: 60, Height: 30})
+	for i := 0; i < 11; i++ { // 12 tabs: " 1 SQL " ... wider than 60
+		m.newTab()
+	}
+	bar := func() string { return ansi.Strip(m.tabBar()) }
+	m.switchTab(0)
+	if b := bar(); !strings.Contains(b, " 1 ") || strings.Contains(b, " 12 ") || !strings.HasSuffix(b, "▶") || strings.Contains(b, "◀") {
+		t.Fatalf("start: %q", b)
+	}
+	if w := ansi.StringWidth(bar()); w > 60 {
+		t.Fatalf("bar too wide: %d", w)
+	}
+	// the active tab is kept in view
+	m.switchTab(11)
+	if b := bar(); !strings.Contains(b, " 12 ") || !strings.HasPrefix(b, "◀") || strings.Contains(b, "▶") {
+		t.Fatalf("last tab active: %q", b)
+	}
+	// clicks: ◀ scrolls, a label switches
+	m.Update(tea.MouseClickMsg{X: 0, Y: 0, Button: tea.MouseLeft})
+	first := m.tabFirst
+	if m.tabIndex(m.tab) != 11 || !strings.HasSuffix(bar(), "▶") {
+		t.Fatalf("◀ should scroll, not switch: active %d bar %q", m.tabIndex(m.tab), bar())
+	}
+	items := m.tabLayout()
+	var it tabItem
+	for _, x := range items {
+		if x.idx == first {
+			it = x
+		}
+	}
+	m.Update(tea.MouseClickMsg{X: it.x + 1, Y: 0, Button: tea.MouseLeft})
+	if m.tabIndex(m.tab) != first {
+		t.Fatalf("click on tab %d: active %d", first, m.tabIndex(m.tab))
+	}
+	// the wheel over the bar scrolls it
+	m.switchTab(0)
+	bar()
+	m.Update(tea.MouseWheelMsg{X: 5, Y: 0, Button: tea.MouseWheelDown})
+	if m.tabFirst != 1 || !strings.HasPrefix(bar(), "◀") || m.tabIndex(m.tab) != 0 {
+		t.Fatalf("wheel: first %d bar %q", m.tabFirst, bar())
+	}
+	// a wide screen shows every tab, no markers
+	m.Update(tea.WindowSizeMsg{Width: 400, Height: 30})
+	if b := bar(); strings.ContainsAny(b, "◀▶") || !strings.Contains(b, " 12 ") {
+		t.Fatalf("wide: %q", b)
+	}
 }

@@ -146,6 +146,8 @@ type Model struct {
 	helpTop      int       // first visible line of the help screen
 	recTop       int       // first visible line of the record view
 	recLeft      int       // first visible column of the values in the record view (Shift-←→)
+	tabFirst     int       // first tab shown on a scrolled tab bar
+	tabFollow    *tab      // the active tab the bar last scrolled to
 	kPrefix      bool      // ^K pressed outside the editor
 	drag         dragState // mouse selection in progress
 	mouseBlock   bool      // the editor block was made by dragging (a click clears it)
@@ -1708,41 +1710,132 @@ func (m *Model) tabLabels() []string {
 	return out
 }
 
-func (m *Model) tabBar() string {
-	var parts []string
-	if l := m.sessionLabel(); l != "" {
-		parts = append(parts, sessionStyle.Render(l))
-	}
-	if len(m.tabs) == 1 && len(parts) > 0 {
-		return ansi.Truncate(parts[0], m.w, "…") // session name only
-	}
-	for i, label := range m.tabLabels() {
-		if m.tabs[i] == m.tab {
-			parts = append(parts, tabActive.Render(label))
-		} else {
-			parts = append(parts, tabInactive.Render(label))
-		}
-	}
-	return ansi.Truncate(strings.Join(parts, hintText.Render("│")), m.w, "…")
+// tab bar items: a tab (idx >= 0), the session name, or a scroll marker
+const (
+	tabItemSession = -1
+	tabItemLeft    = -2 // ◀: more tabs to the left
+	tabItemRight   = -3 // ▶: more tabs to the right
+)
+
+type tabItem struct {
+	idx  int
+	x, w int    // screen columns
+	text string // label (plain)
 }
 
-// tabAt returns the index of the tab whose label is at column x, or -1.
-func (m *Model) tabAt(x int) int {
-	if len(m.tabs) == 1 {
-		return -1 // only the session name is shown
-	}
-	pos := 0
+// tabLayout places the session name and the tab labels on the tab bar.
+// When the labels don't fit, the bar scrolls: it starts at tab tabFirst,
+// keeps the active tab in view (whenever the active tab changes) and shows
+// ◀ / ▶ where tabs are hidden.
+func (m *Model) tabLayout() []tabItem {
+	var items []tabItem
+	x := 0
 	if l := m.sessionLabel(); l != "" {
-		pos = ansi.StringWidth(l) + 1 // session name and separator
+		items = append(items, tabItem{idx: tabItemSession, x: 0, w: ansi.StringWidth(l), text: l})
+		x = ansi.StringWidth(l) + 1
 	}
-	for i, label := range m.tabLabels() {
-		w := ansi.StringWidth(label)
-		if x >= pos && x < pos+w {
-			return i
+	if len(m.tabs) == 1 && len(items) > 0 {
+		return items // session name only
+	}
+	labels := m.tabLabels()
+	total := 0
+	for _, l := range labels {
+		total += ansi.StringWidth(l) + 1
+	}
+	avail := m.w - x
+	if total-1 <= avail { // everything fits
+		m.tabFirst = 0
+		for i, l := range labels {
+			w := ansi.StringWidth(l)
+			items = append(items, tabItem{idx: i, x: x, w: w, text: l})
+			x += w + 1
 		}
-		pos += w + 1 // separator
+		return items
 	}
-	return -1
+	room := max(avail-4, 1)       // "◀│" and "│▶"
+	last := func(first int) int { // the last tab that fits from first
+		used, i := 0, first
+		for ; i < len(labels); i++ {
+			used += ansi.StringWidth(labels[i]) + 1
+			if used-1 > room {
+				break
+			}
+		}
+		return max(i-1, first)
+	}
+	active := m.tabIndex(m.tab)
+	m.tabFirst = min(max(m.tabFirst, 0), len(labels)-1)
+	if m.tabFollow != m.tab { // the active tab changed: bring it into view
+		m.tabFollow = m.tab
+		if active < m.tabFirst {
+			m.tabFirst = active
+		}
+		for active > last(m.tabFirst) {
+			m.tabFirst++
+		}
+	}
+	for m.tabFirst > 0 && last(m.tabFirst-1) == len(labels)-1 {
+		m.tabFirst-- // no empty space after the last tab
+	}
+	first, lastI := m.tabFirst, last(m.tabFirst)
+	if first > 0 {
+		items = append(items, tabItem{idx: tabItemLeft, x: x, w: 1, text: "◀"})
+	}
+	x += 2
+	for i := first; i <= lastI; i++ {
+		l := ansi.Truncate(labels[i], room, "…")
+		w := ansi.StringWidth(l)
+		items = append(items, tabItem{idx: i, x: x, w: w, text: l})
+		x += w + 1
+	}
+	if lastI < len(labels)-1 {
+		items = append(items, tabItem{idx: tabItemRight, x: m.w - 1, w: 1, text: "▶"})
+	}
+	return items
+}
+
+// scrollTabs moves the tab bar's view by d tabs (mouse wheel, ◀ / ▶).
+func (m *Model) scrollTabs(d int) {
+	m.tabFollow = m.tab // don't snap back to the active tab
+	m.tabFirst = min(max(m.tabFirst+d, 0), max(len(m.tabs)-1, 0))
+}
+
+func (m *Model) tabBar() string {
+	var b strings.Builder
+	x := 0
+	for _, it := range m.tabLayout() {
+		if it.x > x {
+			gap := it.x - x
+			if it.idx == tabItemRight {
+				b.WriteString(strings.Repeat(" ", gap-1) + hintText.Render("│"))
+			} else {
+				b.WriteString(hintText.Render("│") + strings.Repeat(" ", gap-1))
+			}
+		}
+		switch {
+		case it.idx == tabItemSession:
+			b.WriteString(sessionStyle.Render(it.text))
+		case it.idx < 0:
+			b.WriteString(hintKey.Render(it.text))
+		case m.tabs[it.idx] == m.tab:
+			b.WriteString(tabActive.Render(it.text))
+		default:
+			b.WriteString(tabInactive.Render(it.text))
+		}
+		x = it.x + it.w
+	}
+	return ansi.Truncate(b.String(), m.w, "…")
+}
+
+// tabAt returns the tab bar item at column x: a tab index, tabItemLeft /
+// tabItemRight for the scroll markers, or tabItemSession (-1) for nothing.
+func (m *Model) tabAt(x int) int {
+	for _, it := range m.tabLayout() {
+		if it.idx != tabItemSession && x >= it.x && x < it.x+it.w {
+			return it.idx
+		}
+	}
+	return tabItemSession
 }
 
 var (
@@ -2338,6 +2431,14 @@ func (m *Model) wheel(msg tea.MouseWheelMsg) tea.Cmd {
 	if msg.Button != tea.MouseWheelUp && msg.Button != tea.MouseWheelDown {
 		return nil
 	}
+	if msg.Y < m.tabBarH() { // the tab bar scrolls sideways
+		if key == "up" {
+			m.scrollTabs(-1)
+		} else {
+			m.scrollTabs(1)
+		}
+		return nil
+	}
 	if msg.X < m.connWidth() {
 		if t := m.tree(); t != nil && msg.Y-m.tabBarH() >= m.connBoxHeight() {
 			for i := 0; i < 3; i++ {
@@ -2350,9 +2451,6 @@ func (m *Model) wheel(msg tea.MouseWheelMsg) tea.Cmd {
 			nodes, _ := t.visible()
 			t.sel = min(max(t.sel, 0), max(len(nodes)-1, 0))
 		}
-		return nil
-	}
-	if msg.Y < m.tabBarH() {
 		return nil
 	}
 	msg.Y -= m.tabBarH()
@@ -2473,8 +2571,13 @@ func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 	}
 	m.kPrefix = false
 	if m.tabBarH() > 0 && msg.Y == 0 {
-		if i := m.tabAt(msg.X); i >= 0 {
+		switch i := m.tabAt(msg.X); {
+		case i >= 0:
 			m.switchTab(i)
+		case i == tabItemLeft:
+			m.scrollTabs(-1)
+		case i == tabItemRight:
+			m.scrollTabs(1)
 		}
 		return nil
 	}

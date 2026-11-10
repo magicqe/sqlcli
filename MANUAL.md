@@ -94,7 +94,9 @@ transaction is open, sqlcli asks for confirmation and then rolls it back.
 
 * **Tab bar** (top, only with two or more tabs): one entry per SQL tab,
   showing its connection, `TX` for an open transaction and `…` while a
-  statement runs. See [Tabs](#tabs-several-sql-panels-and-connections).
+  statement runs. When the tabs are wider than the screen the bar scrolls:
+  the active tab is always in view, and `◀` / `▶` mark hidden tabs (click
+  them, or use the mouse wheel over the bar). See [Tabs](#tabs-several-sql-panels-and-connections).
 * **Connections** (left, top): saved connections. `●` marks the active tab's
   connection, `○` one open in another tab, `(ro)` a read-only connection. **F2** hides or shows this panel; when
   hidden, the editor and results use the full width. Below the connections
@@ -153,6 +155,7 @@ With `ui.mouse = true` (the default):
 | a row in the results grid | select it |
 | a connection | select it; **double-click** connects the current tab |
 | a tab in the tab bar | switch to that tab |
+| ◀ / ▶ in the tab bar, mouse wheel over it | scroll the tab bar when the tabs don't fit the screen width |
 | `[x]` on the SQL panel's top border | close the tab (on the last tab sqlcli asks before quitting) |
 | mouse wheel | scroll the pane under the pointer |
 

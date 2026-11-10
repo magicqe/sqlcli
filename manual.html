@@ -278,7 +278,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
         <figcaption>The focused pane has a blue border. Here the editor has focus and a transaction is open.</figcaption>
       </figure>
       <dl class="parts">
-        <dt>Tab bar</dt><dd>Shown with two or more tabs: one entry per SQL tab with its connection, <code>TX</code> for an open transaction and <code>…</code> while a statement runs. See <a href="#tabs">Tabs</a>.</dd>
+        <dt>Tab bar</dt><dd>Shown with two or more tabs: one entry per SQL tab with its connection, <code>TX</code> for an open transaction and <code>…</code> while a statement runs. When the tabs are wider than the screen the bar scrolls: the active tab is always in view, and <code>◀</code> / <code>▶</code> mark hidden tabs (click them, or use the mouse wheel over the bar). See <a href="#tabs">Tabs</a>.</dd>
         <dt>Connections</dt><dd>Top of the left panel: saved connections. Below them is the <a href="#tree">object tree</a> of the current schema. <code>●</code> marks the active tab's connection, <code>○</code> one open in another tab, <code>(ro)</code> a read-only one. <kbd>F2</kbd> hides or shows the panel; while it's hidden, the editor and results use the full width.</dd>
         <dt>SQL</dt><dd>The editor. The title names the active connection (<code>SQL · ora</code>), adds <code>(read-only)</code> for read-only connections, or says <code>not connected</code>. It shows <code>^K-</code> while a ^K command waits for its second key.</dd>
         <dt>SQL footer</dt><dd>The SQL panel's bottom border shows how the tab's last statement went: <code>● running 3.2s</code> while it runs (also <code>● fetching 12000 rows</code>, <code>● exporting</code>); <code>✓ 25 rows · 12ms · at 14:02:31</code> when it finished, with the row count following later fetches; <code>✓ 3 row(s) updated</code>, <code>✓ PL/SQL OK</code>, <code>✓ 4 statements, last: 25 rows</code>; <code>✗ ORA-00942: …</code> when it failed; <code>✗ timed out after 30s</code>; <code>■ cancelled after 2.1s</code> after Ctrl-C. Each tab keeps its own.</dd>
@@ -310,6 +310,7 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
           <tr><td>A row in the results grid</td><td>Select it</td></tr>
           <tr><td>A connection</td><td class="wrap-ok">Select it; <strong>double-click</strong> connects the current tab</td></tr>
           <tr><td>A tab in the tab bar</td><td>Switch to that tab</td></tr>
+          <tr><td><kbd>◀</kbd> / <kbd>▶</kbd> in the tab bar, wheel over it</td><td>Scroll the tab bar when the tabs don't fit the screen width</td></tr>
           <tr><td><code>[x]</code> on the SQL panel</td><td class="wrap-ok">Close the tab (on the last tab sqlcli asks before quitting)</td></tr>
           <tr><td>Mouse wheel</td><td>Scroll the pane under the pointer</td></tr>
         </tbody>
