@@ -98,3 +98,27 @@ func TestDragCopiesOutputLines(t *testing.T) {
 		t.Fatalf("status %q", m.status)
 	}
 }
+
+func TestRecordViewCopies(t *testing.T) {
+	clip := fakeClipboard(t)
+	m := editModel("select * from t", []string{"ID", "NOTE", "EMPTY"}, [][]string{{"7", "line 1\r\nline 2", db.Null}})
+	press(m, key(tea.KeyEnter)) // record view
+	press(m, key(tea.KeyDown))  // NOTE
+	press(m, key('c'))
+	if len(*clip) != 1 || (*clip)[0] != "line 1\r\nline 2" || m.mode != modeRecord {
+		t.Fatalf("c: %q mode %v", *clip, m.mode)
+	}
+	if !strings.Contains(screen(m), "Copied NOTE to the clipboard (14 characters)") {
+		t.Fatalf("status in the record view:\n%s", screen(m))
+	}
+	press(m, key(tea.KeyDown)) // EMPTY: NULL copies as nothing
+	press(m, key('c'))
+	if (*clip)[1] != "" {
+		t.Fatalf("NULL: %q", (*clip)[1])
+	}
+	press(m, key('C'))
+	want := "ID:    7\nNOTE:  line 1\n       line 2\nEMPTY: \n"
+	if (*clip)[2] != want || m.mode != modeRecord || !strings.Contains(screen(m), "Copied record 1") {
+		t.Fatalf("C: %q", (*clip)[2])
+	}
+}

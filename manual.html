@@ -692,6 +692,8 @@ end;
           <tr><td><kbd>↓</kbd> / <kbd>↑</kbd> &nbsp;<kbd>^N</kbd> / <kbd>^P</kbd>, <kbd>Ctrl-↓</kbd> / <kbd>Ctrl-↑</kbd>, <kbd>Tab</kbd> / <kbd>Shift-Tab</kbd></td><td>Next / previous field (the field cursor)</td></tr>
           <tr><td><kbd>u</kbd> / <kbd>Enter</kbd></td><td class="wrap-ok">Edit the field under the field cursor in the text editor panel, whatever its type (<kbd>^K X</kbd> or <kbd>Ctrl-S</kbd> saves, <kbd>Esc</kbd> cancels; the record view stays open and its bottom line shows the result)</td></tr>
           <tr><td><kbd>i</kbd> / <kbd>d</kbd></td><td>Insert a new row / delete this row</td></tr>
+          <tr><td><kbd>c</kbd></td><td class="wrap-ok">Copy the field under the field cursor to the clipboard (the value as it is; NULL copies as empty)</td></tr>
+          <tr><td><kbd>C</kbd></td><td>Copy the whole record: one <code>COLUMN: value</code> line per field</td></tr>
           <tr><td><kbd>Home</kbd> &nbsp;<kbd>^A</kbd></td><td>First record</td></tr>
           <tr><td><kbd>End</kbd> &nbsp;<kbd>^E</kbd></td><td class="wrap-ok">Last record. Fetches all remaining rows first, like End in the grid.</td></tr>
           <tr><td><kbd>PgUp</kbd> <kbd>PgDn</kbd> &nbsp;<kbd>^U</kbd> <kbd>^V</kbd></td><td class="wrap-ok">Back / forward by <code>ui.record_page</code> records (default 10)</td></tr>

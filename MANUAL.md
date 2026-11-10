@@ -762,6 +762,8 @@ long values in full, NULL as `(null)`.
 | ↓ / ↑ (^N / ^P), Ctrl-↓ / Ctrl-↑, Tab / Shift-Tab | next / previous field (the field cursor) |
 | u / Enter | edit the field under the field cursor in the text editor panel, whatever its type (^K X or Ctrl-S saves, Esc cancels; the record view stays open and its bottom line shows the result) |
 | i / d | insert a new row / delete this row |
+| c | copy the field under the field cursor to the clipboard (the value as it is; NULL copies as empty) |
+| C | copy the whole record: one `COLUMN: value` line per field |
 | Home (^A) | first record |
 | End (^E) | last record; fetches all remaining rows first, like End in the grid |
 | PgUp / PgDn (^U / ^V) | back / forward by `ui.record_page` records (default 10) |

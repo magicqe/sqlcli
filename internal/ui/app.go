@@ -2157,6 +2157,25 @@ func valueLines(v string) []string {
 	return strings.Split(v, "\n")
 }
 
+// recordText is a record as text for the clipboard: "COLUMN: value" per
+// field (NULL as empty), continuation lines of long values indented.
+func recordText(cols, row []string) string {
+	nw := 0
+	for _, c := range cols {
+		nw = max(nw, len([]rune(c)))
+	}
+	var b strings.Builder
+	for i, c := range cols {
+		v := row[i]
+		if v == db.Null {
+			v = ""
+		}
+		v = strings.ReplaceAll(strings.ReplaceAll(v, "\r\n", "\n"), "\n", "\n"+strings.Repeat(" ", nw+2))
+		fmt.Fprintf(&b, "%-*s %s\n", nw+1, c+":", v)
+	}
+	return b.String()
+}
+
 // recValueWidth is the room for values in the record view: the screen
 // less the box borders, the column names and " │ ".
 func (m *Model) recValueWidth() int {
@@ -2247,7 +2266,8 @@ func (m *Model) recordView() string {
 		hintKey.Render("↑↓") + hintText.Render(" field  ") +
 		hintKey.Render("PgUp PgDn") + hintText.Render(fmt.Sprintf(" ±%d records  ", m.cfg.UI.RecordPage)) +
 		hintKey.Render("Home End") + hintText.Render(" first/last  ") +
-		hintKey.Render("u Enter") + hintText.Render(" edit  ") + hintKey.Render("i") + hintText.Render(" insert  ") +
+		hintKey.Render("u Enter") + hintText.Render(" edit  ") +
+		hintKey.Render("c C") + hintText.Render(" copy field/record  ") + hintKey.Render("i") + hintText.Render(" insert  ") +
 		hintKey.Render("d") + hintText.Render(" delete  ") +
 		hintKey.Render("Shift-↑↓←→") + hintText.Render(" scroll  ") +
 		hintKey.Render("other keys") + hintText.Render(" close")
@@ -2333,6 +2353,24 @@ func (m *Model) updateRecord(key string) tea.Cmd {
 		m.keepFieldVisible()
 	case "u", "enter": // edit the field, in the text editor panel
 		return m.startCellEdit()
+	case "c": // copy the field's value
+		row := m.res.selectedRow()
+		if row == nil {
+			break
+		}
+		v := row[m.res.selCol]
+		if v == db.Null {
+			v = ""
+		}
+		m.setStatus(fmt.Sprintf("Copied %s to the clipboard (%d characters)", r.Columns[m.res.selCol], len([]rune(v))), false)
+		return copyToClipboard(v)
+	case "C": // copy the whole record, one "COLUMN: value" line per field
+		row := m.res.selectedRow()
+		if row == nil {
+			break
+		}
+		m.setStatus(fmt.Sprintf("Copied record %d to the clipboard (%d fields)", m.res.row+1, len(row)), false)
+		return copyToClipboard(recordText(r.Columns, row))
 	case "i":
 		return m.startInsert()
 	case "d":
@@ -2378,7 +2416,8 @@ const helpText = `
  arrows, PgUp/PgDn, wheel   scroll         ←→ / Home End          previous, next / first, last record
  End         fetch all rows, last row      PgUp / PgDn            ± record_page records
  ←→ / u      cell cursor / edit the cell (needs ROWID; F9 commit, F8 rollback)
- i / d       insert a row / delete the row (also in the record view: ↑↓ move between fields, u / Enter edit in the text panel)
+ i / d       insert a row / delete the row (also in the record view: ↑↓ move between fields, u / Enter edit in the text panel,
+             c / C copy the field / the whole record to the clipboard)
  CLOB values open in a text editor panel: ^K X or Ctrl-S saves, Esc cancels (twice if changed),
              ^K D / ^K I save to / load from a file, ^K R inserts a file, ^K W writes the block,
              ^K F / ^L / ^R find / find next / search and replace
