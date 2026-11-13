@@ -782,7 +782,7 @@ second line</pre>
           <tr><td><kbd>Esc</kbd> <kbd>F6</kbd></td><td>Close</td></tr>
         </tbody>
       </table></div>
-      <p>Failed statements are marked <code>✗</code>. The lower part shows the full SQL of the selected entry with its duration and row count, or its error.</p>
+      <p>Each line shows when the statement ran, the connection, its <strong>run time</strong> (<code>42ms</code>, <code>3.2s</code>, <code>1m23s</code>) and the SQL; failed statements are marked <code>✗</code>. The lower part shows the full SQL of the selected entry with its exact run time in milliseconds and row count, or its error.</p>
       <p>The browser lists the newest <code>history.max_entries</code> entries (default 500). The database itself is never trimmed. It's an ordinary SQLite file, so you can query it directly:</p>
 <pre><code>sqlite3 ~/.local/state/sqlcli/history.db \
   "select datetime(executed_at/1000,'unixepoch','localtime'), connection, sql

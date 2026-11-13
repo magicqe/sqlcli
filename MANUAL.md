@@ -910,8 +910,10 @@ Press **F6** to open the history browser:
 | Del | delete the entry from history |
 | Esc / F6 | close |
 
-Failed statements are marked `✗`. The lower part shows the full SQL of the
-selected entry, its duration and row count, or its error.
+Each line shows when the statement ran, the connection, its **run time**
+(`42ms`, `3.2s`, `1m23s`) and the SQL; failed statements are marked `✗`. The
+lower part shows the full SQL of the selected entry with its exact run time
+in milliseconds and row count, or its error.
 
 The browser shows the newest `history.max_entries` entries (default 500). The
 database itself is never trimmed automatically. It is a normal SQLite file,

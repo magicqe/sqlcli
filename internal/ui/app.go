@@ -2138,7 +2138,8 @@ func (m *Model) historyView() string {
 			flag = errStyle.Render("✗")
 		}
 		sqlOne := strings.Join(strings.Fields(e.SQL), " ")
-		meta := fmt.Sprintf("%s %-12s ", e.ExecutedAt.Format("2006-01-02 15:04:05"), ansi.Truncate(e.Connection, 12, "…"))
+		dur := fmtDuration(time.Duration(e.DurationMS) * time.Millisecond) // run time
+		meta := fmt.Sprintf("%s %-12s %7s ", e.ExecutedAt.Format("2006-01-02 15:04:05"), ansi.Truncate(e.Connection, 12, "…"), dur)
 		line := meta + flag + " " + sqlOne
 		line = ansi.Truncate(line, iw, "…")
 		if i == m.histSel {
@@ -2155,17 +2156,22 @@ func (m *Model) historyView() string {
 	lines = append(lines, sepStyle.Render(strings.Repeat("─", iw)))
 	if len(m.histEntries) > 0 {
 		e := m.histEntries[m.histSel]
-		info := fmt.Sprintf("%d ms, %d row(s)", e.DurationMS, e.Rows)
+		info := hintText.Render(fmt.Sprintf("run time %s (%d ms), %d row(s), %s on %s",
+			fmtDuration(time.Duration(e.DurationMS)*time.Millisecond), e.DurationMS, e.Rows,
+			e.ExecutedAt.Format("2006-01-02 15:04:05"), e.Connection))
 		if e.Error != "" {
-			info = errStyle.Render(firstLine(e.Error))
+			info = hintText.Render(fmt.Sprintf("run time %s: ", fmtDuration(time.Duration(e.DurationMS)*time.Millisecond))) + errStyle.Render(firstLine(e.Error))
 		}
-		lines = append(lines, hintText.Render(info))
+		lines = append(lines, ansi.Truncate(info, iw, "…"))
 		pl := strings.Split(e.SQL, "\n")
 		for i := 0; i < 6 && i < len(pl); i++ {
 			lines = append(lines, pl[i])
 		}
 	}
 	title := fmt.Sprintf("History (%d)  filter: %s▏", len(m.histEntries), string(m.histFilter))
+	if len(m.histEntries) > 0 {
+		title += "   when · connection · run time · SQL"
+	}
 	b := box(title, strings.Join(lines, "\n"), m.w, m.h-1, true)
 	hint := " " + hintKey.Render("Enter") + hintText.Render(" add at the end  ") + hintKey.Render("Tab") + hintText.Render(" insert at cursor  ") + hintKey.Render("^R") + hintText.Render(" replace all  ") +
 		hintKey.Render("Del") + hintText.Render(" delete  ") + hintKey.Render("type") + hintText.Render(" to filter  ") +

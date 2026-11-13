@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -69,5 +70,29 @@ func TestHistoryTabInsertsAndCtrlRReplaces(t *testing.T) {
 	press(m, key('r', tea.ModCtrl))
 	if m.ed.Text() != "x" {
 		t.Fatalf("Ctrl-R: %q", m.ed.Text())
+	}
+}
+
+func TestHistoryShowsRunTime(t *testing.T) {
+	m := historyModel(t)
+	now := time.Now()
+	m.hist.Add(history.Entry{Connection: "ora", SQL: "select 1 from dual", ExecutedAt: now, DurationMS: 42, Rows: 1})
+	m.hist.Add(history.Entry{Connection: "ora", SQL: "select slow from big", ExecutedAt: now, DurationMS: 83500, Rows: 7})
+	m.hist.Add(history.Entry{Connection: "rep", SQL: "select x from nope", ExecutedAt: now, DurationMS: 3200, Error: "ORA-00942: table or view does not exist"})
+	press(m, key(tea.KeyF6))
+	s := screen(m)
+	row := func(conn, dur, flag, sql string) string { return fmt.Sprintf("%-12s %7s %s %s", conn, dur, flag, sql) }
+	for _, want := range []string{row("rep", "3.2s", "✗", "select x from nope"), row("ora", "1m23s", " ", "select slow from big"),
+		row("ora", "42ms", " ", "select 1 from dual"), "run time · SQL"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("missing %q:\n%s", want, s)
+		}
+	}
+	if !strings.Contains(s, "run time 3.2s: ORA-00942") { // the newest (an error) is selected
+		t.Fatalf("preview of an error:\n%s", s)
+	}
+	press(m, key(tea.KeyDown))
+	if !strings.Contains(screen(m), "run time 1m23s (83500 ms), 7 row(s)") {
+		t.Fatalf("preview:\n%s", screen(m))
 	}
 }
