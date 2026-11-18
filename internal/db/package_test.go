@@ -286,7 +286,7 @@ func TestIntegrationJavaSource(t *testing.T) {
 	c := testConn(t)
 	ctx := context.Background()
 	src := "create or replace and compile java source named \"SqlcliTestHello\" as\n" +
-		"public class SqlcliTestHello {\n  public static String hi() { int i = 1; i--; return \"hi\" + i; }\n}\n/"
+		"public class SqlcliTestHello {\n  public static String hi() {\n    int i = 1; i--;\n    return \"hi\" + i;\n  }\n}\n/"
 	stmts := SplitStatements(src)
 	if len(stmts) != 1 {
 		t.Fatalf("split: %q", stmts)
@@ -315,13 +315,12 @@ func TestIntegrationJavaSource(t *testing.T) {
 		t.Fatal("JAVA SOURCE not among the schema objects")
 	}
 	ddl, err := c.DDL(ctx, "JAVA SOURCE", "SqlcliTestHello")
-	if err != nil || !strings.Contains(ddl, "SqlcliTestHello") || !strings.Contains(ddl, "i--;") {
+	// the source keeps its lines
+	if err != nil || !strings.Contains(ddl, "public class SqlcliTestHello {\n  public static String hi() {\n    int i = 1; i--;\n") ||
+		!strings.HasPrefix(ddl, "CREATE OR REPLACE AND COMPILE JAVA SOURCE NAMED ") || !strings.HasSuffix(ddl, "}\n/\n") {
 		t.Fatalf("DDL: %v\n%s", err, ddl)
 	}
-	// the DDL runs again as it is (after a drop: it has no OR REPLACE)
-	if _, err := c.Execute(ctx, `drop java source "SqlcliTestHello"`, 1); err != nil {
-		t.Fatal(CleanError(err))
-	}
+	// the DDL runs again as it is (OR REPLACE)
 	again := SplitStatements(ddl)
 	if len(again) != 1 {
 		t.Fatalf("DDL splits into %d statements:\n%s", len(again), ddl)

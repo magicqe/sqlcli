@@ -235,6 +235,9 @@ func (c *Conn) DDL(ctx context.Context, objectType, name string) (string, error)
 	end;`); err != nil {
 		return "", err
 	}
+	if objectType == "JAVA SOURCE" { // DBMS_METADATA drops the line breaks of Java sources
+		return javaSourceDDL(ctx, q, name)
+	}
 	var out []string
 	for i, mt := range parts {
 		rows, err := queryRows(ctx, q, `select dbms_metadata.get_ddl(:1, :2) from dual`, mt, name)
@@ -249,6 +252,28 @@ func (c *Conn) DDL(ctx context.Context, objectType, name string) (string, error)
 		}
 	}
 	return strings.Join(out, "\n\n") + "\n", nil
+}
+
+// javaSourceDDL builds the DDL of a Java source from USER_SOURCE, keeping
+// its lines, as CREATE OR REPLACE AND COMPILE so it can be run again.
+func javaSourceDDL(ctx context.Context, q execer, name string) (string, error) {
+	rows, err := queryRows(ctx, q, `select sys_context('userenv', 'current_schema'), text
+		from user_source where type = 'JAVA SOURCE' and name = :1 order by line`, name)
+	if err != nil {
+		return "", err
+	}
+	if len(rows) == 0 {
+		return "", fmt.Errorf("ORA-31603: object %q of type JAVA SOURCE not found in schema", name)
+	}
+	quote := func(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
+	var b strings.Builder
+	fmt.Fprintf(&b, "CREATE OR REPLACE AND COMPILE JAVA SOURCE NAMED %s.%s AS\n", quote(rows[0][0]), quote(name))
+	for _, r := range rows {
+		b.WriteString(strings.TrimRight(r[1], "\r\n"))
+		b.WriteByte('\n')
+	}
+	b.WriteString("/\n")
+	return b.String(), nil
 }
 
 // ColumnType returns a table column's data type (e.g. "NUMBER", "DATE",

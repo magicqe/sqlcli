@@ -316,7 +316,9 @@ keeps its own filter, also when it is reloaded (r).
 
 **Ctrl-D** opens a new SQL tab (with its own session on the same connection)
 holding the object's DDL from `DBMS_METADATA.GET_DDL`: for a package its
-specification and then its body, for a type its spec and body. Statements end
+specification and then its body, for a type its spec and body, for a Java
+source `CREATE OR REPLACE AND COMPILE JAVA SOURCE …` with its lines as
+stored (from `USER_SOURCE`). Statements end
 with `;` or `/`, so the tab can be run as it is (F7). The title shows
 `DDL PACKAGE NAME`, and ^K D offers `name.sql` as the file name. On a column
 or a package member, Ctrl-D uses its table or package. Reading the DDL
