@@ -998,7 +998,8 @@ Location: `~/.config/sqlcli/config.toml` (or `$XDG_CONFIG_HOME/sqlcli/config.tom
 or the path given with `-config`). It is plain TOML, so you can edit it in
 any text editor. Changes take effect the next time you start sqlcli.
 
-Complete example with all settings:
+Complete example with all settings (the repository's
+[`config.example.toml`](config.example.toml) is a commented copy to start from):
 
 ```toml
 [oracle]

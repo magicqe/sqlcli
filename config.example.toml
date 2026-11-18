@@ -1,0 +1,78 @@
+# sqlcli configuration example
+#
+# Copy to ~/.config/sqlcli/config.toml (Windows: %APPDATA%\sqlcli\config.toml)
+# or pass it with:  sqlcli -config ./config.example.toml
+# Every setting is optional; the values below are the defaults unless noted.
+# Yes/no settings accept true / false or "yes" / "no".
+
+[oracle]
+  # Oracle Instant Client directory (Windows: the one with oci.dll).
+  # Empty or missing = use $ORACLE_HOME.
+  lib_dir = "/usr/local/oracle"
+
+[editor]
+  tab_width = 4             # spaces inserted by Tab; also used for pasted tabs
+  auto_indent = true        # Enter keeps the indentation of the current line
+  syntax_highlight = true   # colour SQL keywords, strings, comments, numbers
+  completion = true         # code completion while typing (Ctrl-Space opens it)
+
+[query]
+  max_rows = 1000           # rows per fetch; more come when you scroll or press End
+  fetch_all = false         # true = fetch all rows of every query at once
+  timeout_seconds = 0       # cancel statements after N seconds; 0 = never
+  auto_commit = false       # true = commit every statement immediately
+  dbms_output = true        # show DBMS_OUTPUT in the results pane
+  substitution = true       # SQL*Plus &variables (SET DEFINE ON at start)
+
+[ui]
+  mouse = true              # clicks, wheel and drag-to-copy; hold Shift for the terminal's selection
+  show_connections = true   # connections panel and object tree visible at start (F2)
+  record_page = 10          # records PgUp / PgDn move in the record view
+  save_session_on_exit = true   # save the loaded session when quitting
+  selection_color = "24"    # selected result row: 256-colour number or "#rrggbb"
+
+[history]
+  path = ""                 # SQLite file; empty = ~/.local/state/sqlcli/history.db
+                            # (Windows: %LOCALAPPDATA%\sqlcli\history.db)
+  max_entries = 500         # entries listed in the history browser (F6)
+
+# Keyboard shortcuts of the global commands. Each action takes one key or a
+# list of keys; a configured action loses its default keys. Actions and
+# their defaults:
+#   help f1 · connections f2 · results f3 · sql f4 · run f5, ctrl+enter, alt+enter
+#   history f6 · run_all f7 · rollback f8 · commit f9 · sessions f10
+#   save_session ctrl+s · object_tree f12 · next_tab ctrl+pgdown · prev_tab ctrl+pgup
+#   panel_left / panel_right / panel_up / panel_down ctrl+arrows
+#   prev_panel shift+tab · cancel ctrl+c
+# SQLCLI_DEBUG_KEYS=1 shows the name of each key you press.
+[keys]
+  run = ["f5", "ctrl+enter"]    # example: drop alt+enter
+  # commit = "alt+c"
+  # rollback = "alt+r"
+
+# Connections: add and edit them in sqlcli too (a / e in the connections panel).
+# connect_string: TNS alias (from $TNS_ADMIN/tnsnames.ora), Easy Connect
+# host:port/service, or a full (DESCRIPTION=...) descriptor.
+
+[[connections]]
+  name = "dev"                       # label; also used with  sqlcli -c dev
+  user = "scott"
+  password_env = "DEV_PASSWORD"      # read the password from this environment variable
+  connect_string = "dbhost:1521/ORCLPDB1"
+
+[[connections]]
+  name = "prod-report"
+  user = "report"
+  password_env = "PROD_PASSWORD"
+  connect_string = "PROD"            # TNS alias
+  read_only = true                   # only queries: no DML, no DDL
+
+[[connections]]
+  name = "admin"
+  user = "sys"
+  password_env = "ORA_SYS_PASSWORD"
+  connect_string = "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=dbhost)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCLPDB1)))"
+  sysdba = true                      # connect AS SYSDBA
+
+# A password can also be stored in the file (plain text - keep the file private):
+#   password = "secret"

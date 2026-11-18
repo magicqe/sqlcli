@@ -67,3 +67,19 @@ func TestKeysConfigErrors(t *testing.T) {
 		}
 	}
 }
+
+// The example file in the repository must stay loadable.
+func TestExampleConfigLoads(t *testing.T) {
+	b, err := os.ReadFile("../../config.example.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadString(t, string(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Connections) != 3 || !cfg.Connections[1].ReadOnly || !cfg.Connections[2].SysDBA ||
+		cfg.Query.MaxRows != 1000 || cfg.UI.RecordPage != 10 || cfg.KeysFor("run")[1] != "ctrl+enter" {
+		t.Fatalf("example config: %+v", cfg)
+	}
+}
