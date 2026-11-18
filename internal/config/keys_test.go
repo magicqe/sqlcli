@@ -79,7 +79,19 @@ func TestExampleConfigLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(cfg.Connections) != 3 || !cfg.Connections[1].ReadOnly || !cfg.Connections[2].SysDBA ||
-		cfg.Query.MaxRows != 1000 || cfg.UI.RecordPage != 10 || cfg.KeysFor("run")[1] != "ctrl+enter" {
+		cfg.Query.MaxRows != 1000 || cfg.UI.RecordPage != 10 || cfg.KeysFor("run")[1] != "ctrl+enter" || len(cfg.Keys) != len(KeyActions) {
 		t.Fatalf("example config: %+v", cfg)
+	}
+	// it lists every action with exactly its default keys
+	for _, a := range KeyActions {
+		if got, want := strings.Join(cfg.KeysFor(a.Name), ","), strings.Join(a.Defaults, ","); got != want {
+			t.Errorf("%s: %s, defaults %s", a.Name, got, want)
+		}
+	}
+	km, _ := cfg.KeyMap()
+	for k, v := range km {
+		if v == "" {
+			t.Errorf("the example disables %s", k)
+		}
 	}
 }

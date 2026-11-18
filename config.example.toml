@@ -36,19 +36,34 @@
                             # (Windows: %LOCALAPPDATA%\sqlcli\history.db)
   max_entries = 500         # entries listed in the history browser (F6)
 
-# Keyboard shortcuts of the global commands. Each action takes one key or a
-# list of keys; a configured action loses its default keys. Actions and
-# their defaults:
-#   help f1 · connections f2 · results f3 · sql f4 · run f5, ctrl+enter, alt+enter
-#   history f6 · run_all f7 · rollback f8 · commit f9 · sessions f10
-#   save_session ctrl+s · object_tree f12 · next_tab ctrl+pgdown · prev_tab ctrl+pgup
-#   panel_left / panel_right / panel_up / panel_down ctrl+arrows
-#   prev_panel shift+tab · cancel ctrl+c
-# SQLCLI_DEBUG_KEYS=1 shows the name of each key you press.
+# Keyboard shortcuts of the global commands, here with their default keys.
+# Each action takes one key or a list of keys; change or delete lines as you
+# like (a deleted action keeps its defaults). Keys are named as sqlcli names
+# them: f1 ... f12, ctrl+s, alt+x, shift+tab, ctrl+shift+up, ctrl+pgdown
+# (case and "-" instead of "+" don't matter). SQLCLI_DEBUG_KEYS=1 shows the
+# name of each key you press. A key may belong to one action only.
+# Keys inside a panel, the editor's JOE keys and ^K commands are fixed.
 [keys]
-  run = ["f5", "ctrl+enter"]    # example: drop alt+enter
-  # commit = "alt+c"
-  # rollback = "alt+r"
+  help = "f1"                               # help screen
+  connections = "f2"                        # show / hide the connections panel
+  results = "f3"                            # show / hide the results panel
+  sql = "f4"                                # show / hide the SQL panel
+  run = ["f5", "ctrl+enter", "alt+enter"]   # run the statement at the cursor (or the block)
+  history = "f6"                            # SQL history
+  run_all = "f7"                            # run the whole SQL panel
+  rollback = "f8"                           # rollback
+  commit = "f9"                             # commit
+  sessions = "f10"                          # session window
+  save_session = "ctrl+s"                   # save the session
+  object_tree = "f12"                       # jump to the object tree
+  next_tab = "ctrl+pgdown"                  # next SQL tab
+  prev_tab = "ctrl+pgup"                    # previous SQL tab
+  panel_left = "ctrl+left"                  # panel to the left
+  panel_right = "ctrl+right"                # panel to the right
+  panel_up = "ctrl+up"                      # panel above
+  panel_down = "ctrl+down"                  # panel below
+  prev_panel = "shift+tab"                  # previous panel
+  cancel = "ctrl+c"                         # cancel the running statement
 
 # Connections: add and edit them in sqlcli too (a / e in the connections panel).
 # connect_string: TNS alias (from $TNS_ADMIN/tnsnames.ora), Easy Connect
