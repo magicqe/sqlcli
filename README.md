@@ -100,7 +100,8 @@ edited from the app (`a`, `e`) or by hand:
   read_only = true                   # refuse DML and DDL
 ```
 
-See the manual for all settings (`[editor]`, `[query]`, `[ui]`, `[history]`).
+See the manual for all settings (`[editor]`, `[query]`, `[ui]`, `[history]`, and
+`[keys]` to move the global shortcuts to other keys, e.g. `run = ["f5", "ctrl+t"]`).
 
 ## Essential keys
 

@@ -884,6 +884,39 @@ second line</pre>
           <tr><td><code>sysdba</code></td><td>no</td><td class="wrap-ok">Connect with the SYSDBA role</td></tr>
         </tbody>
       </table></div>
+      <h3 id="keys">Keyboard shortcuts</h3>
+      <p>The global commands can be moved to other keys in a <code>[keys]</code> section: each action takes one key or a list of keys. A configured action loses its default keys (so <code>run = "ctrl+t"</code> makes <kbd>F5</kbd> do nothing); actions you don't list keep theirs.</p>
+<pre><code>[keys]
+  run = ["f5", "ctrl+t"]   <span class="c"># keep F5, add Ctrl-T</span>
+  commit = "alt+c"
+  rollback = "alt+r"
+  help = "f11"</code></pre>
+      <p>Keys are written as sqlcli names them: <code>f1</code> … <code>f12</code>, <code>ctrl+s</code>, <code>alt+x</code>, <code>shift+tab</code>, <code>ctrl+shift+up</code>, <code>ctrl+pgdown</code>; case and <code>-</code> instead of <code>+</code> don't matter (<code>Ctrl-T</code>). Start sqlcli with <code>SQLCLI_DEBUG_KEYS=1</code> to see the name of each key you press in the status line. An unknown action, an empty list or a key given to two actions is an error when sqlcli starts. The bottom-line hints show the configured keys. Keys inside a panel (e.g. <kbd>u</kbd>, <kbd>c</kbd> in the results), the editor's JOE keys and the <kbd>^K</kbd> commands can't be changed.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Action</th><th>Default keys</th><th>Command</th></tr></thead>
+        <tbody>
+          <tr><td><code>help</code></td><td><code>f1</code></td><td>help screen</td></tr>
+          <tr><td><code>connections</code></td><td><code>f2</code></td><td>show / hide the connections panel</td></tr>
+          <tr><td><code>results</code></td><td><code>f3</code></td><td>show / hide the results panel</td></tr>
+          <tr><td><code>sql</code></td><td><code>f4</code></td><td>show / hide the SQL panel</td></tr>
+          <tr><td><code>run</code></td><td><code>f5</code>, <code>ctrl+enter</code>, <code>alt+enter</code></td><td>run the statement at the cursor (or the block)</td></tr>
+          <tr><td><code>history</code></td><td><code>f6</code></td><td>SQL history</td></tr>
+          <tr><td><code>run_all</code></td><td><code>f7</code></td><td>run the whole SQL panel</td></tr>
+          <tr><td><code>rollback</code></td><td><code>f8</code></td><td>rollback</td></tr>
+          <tr><td><code>commit</code></td><td><code>f9</code></td><td>commit</td></tr>
+          <tr><td><code>sessions</code></td><td><code>f10</code></td><td>session window</td></tr>
+          <tr><td><code>save_session</code></td><td><code>ctrl+s</code></td><td>save the session</td></tr>
+          <tr><td><code>object_tree</code></td><td><code>f12</code></td><td>jump to the object tree</td></tr>
+          <tr><td><code>next_tab</code></td><td><code>ctrl+pgdown</code></td><td>next SQL tab</td></tr>
+          <tr><td><code>prev_tab</code></td><td><code>ctrl+pgup</code></td><td>previous SQL tab</td></tr>
+          <tr><td><code>panel_left</code></td><td><code>ctrl+left</code></td><td>panel to the left</td></tr>
+          <tr><td><code>panel_right</code></td><td><code>ctrl+right</code></td><td>panel to the right</td></tr>
+          <tr><td><code>panel_up</code></td><td><code>ctrl+up</code></td><td>panel above</td></tr>
+          <tr><td><code>panel_down</code></td><td><code>ctrl+down</code></td><td>panel below</td></tr>
+          <tr><td><code>prev_panel</code></td><td><code>shift+tab</code></td><td>previous panel</td></tr>
+          <tr><td><code>cancel</code></td><td><code>ctrl+c</code></td><td>cancel the running statement</td></tr>
+        </tbody>
+      </table></div>
     </section>
 
     <!-- 12 -->

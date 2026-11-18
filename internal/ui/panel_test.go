@@ -122,3 +122,34 @@ func TestKeyHintOrder(t *testing.T) {
 		t.Fatalf("key hints: %q", lines[len(lines)-1])
 	}
 }
+
+func TestConfiguredKeys(t *testing.T) {
+	cfg := config.Default()
+	cfg.Connections = []config.Connection{{Name: "ora"}}
+	cfg.Keys = map[string]config.KeyList{"run": {"ctrl+t"}, "history": {"alt+h"}, "help": {"F11"}}
+	m := New(cfg, nil, "ora")
+	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
+	m.focus = focusEditor
+	m.ed.SetText("select 1 from dual")
+	s := ansi.Strip(m.bottomLine())
+	if !strings.Contains(s, "F11 help") || !strings.Contains(s, "^T run") || !strings.Contains(s, "Alt-H history") {
+		t.Fatalf("hints: %q", s)
+	}
+	press(m, key(tea.KeyF5)) // no longer runs
+	if strings.HasPrefix(m.status, "Not connected") {
+		t.Fatal("F5 should not run any more")
+	}
+	press(m, key('t', tea.ModCtrl)) // runs (and reports the missing connection)
+	if !strings.HasPrefix(m.status, "Not connected") {
+		t.Fatalf("Ctrl-T: %q", m.status)
+	}
+	press(m, key(tea.KeyF11))
+	if m.mode != modeHelp {
+		t.Fatalf("F11: mode %v", m.mode)
+	}
+	press(m, key(tea.KeyEscape))
+	press(m, key(tea.KeyF1)) // the editor gets F1 now: no help
+	if m.mode == modeHelp {
+		t.Fatal("F1 should not open the help any more")
+	}
+}

@@ -101,12 +101,13 @@ type Oracle struct {
 }
 
 type Config struct {
-	Oracle      Oracle       `toml:"oracle"`
-	Editor      Editor       `toml:"editor"`
-	Query       Query        `toml:"query"`
-	History     History      `toml:"history"`
-	UI          UI           `toml:"ui"`
-	Connections []Connection `toml:"connections"`
+	Oracle      Oracle             `toml:"oracle"`
+	Editor      Editor             `toml:"editor"`
+	Query       Query              `toml:"query"`
+	History     History            `toml:"history"`
+	UI          UI                 `toml:"ui"`
+	Keys        map[string]KeyList `toml:"keys,omitempty"` // action -> keys (see keys.go)
+	Connections []Connection       `toml:"connections"`
 
 	path string
 }
@@ -175,6 +176,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.UI.RecordPage <= 0 {
 		cfg.UI.RecordPage = 10
+	}
+	if _, err := cfg.KeyMap(); err != nil {
+		return nil, fmt.Errorf("config %s: %w", path, err)
 	}
 	if !validColor(cfg.UI.SelectionColor) {
 		return nil, fmt.Errorf("config %s: selection_color %q: use a number 0-255 or \"#rrggbb\"", path, cfg.UI.SelectionColor)

@@ -144,15 +144,16 @@ type Model struct {
 	catalogs map[string]*catalog // completion data per connection name
 	trees    map[string]*objTree // object tree per connection name
 
-	helpTop      int       // first visible line of the help screen
-	recTop       int       // first visible line of the record view
-	recLeft      int       // first visible column of the values in the record view (Shift-←→)
-	tabFirst     int       // first tab shown on a scrolled tab bar
-	tabFollow    *tab      // the active tab the bar last scrolled to
-	kPrefix      bool      // ^K pressed outside the editor
-	drag         dragState // mouse selection in progress
-	mouseBlock   bool      // the editor block was made by dragging (a click clears it)
-	lastClickAt  time.Time // for double-click on a connection
+	helpTop      int               // first visible line of the help screen
+	recTop       int               // first visible line of the record view
+	recLeft      int               // first visible column of the values in the record view (Shift-←→)
+	keymap       map[string]string // configured keys ([keys]) -> the default key of their action; "" = disabled
+	tabFirst     int               // first tab shown on a scrolled tab bar
+	tabFollow    *tab              // the active tab the bar last scrolled to
+	kPrefix      bool              // ^K pressed outside the editor
+	drag         dragState         // mouse selection in progress
+	mouseBlock   bool              // the editor block was made by dragging (a click clears it)
+	lastClickAt  time.Time         // for double-click on a connection
 	lastClickRow int
 
 	sessList     []history.SessionInfo // F10 session window
@@ -171,6 +172,7 @@ type Model struct {
 // New builds the UI model. initialConn, if non-empty, is connected at start.
 func New(cfg *config.Config, hist *history.Store, initialConn string) *Model {
 	m := &Model{cfg: cfg, hist: hist, showConns: cfg.UI.ShowConnections, showResults: true, showSQL: true}
+	m.keymap, _ = cfg.KeyMap() // checked when the config was loaded
 	SetSelectionColor(cfg.UI.SelectionColor)
 	m.tab = m.newTab()
 	for i, c := range cfg.Connections {
@@ -1092,7 +1094,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
-	// global keys
+	// global keys; [keys] in the config can move them to other keys
+	orig := key
+	key = m.globalKey(key)
 	switch key {
 	case "ctrl+c":
 		if m.running && m.cancel != nil {
@@ -1207,6 +1211,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
+	key = orig // the panels get the key as pressed
 	switch m.focus {
 	case focusConns:
 		return m.updateConns(key)
@@ -1514,7 +1519,9 @@ func (m *Model) reloadHistory() {
 
 func (m *Model) updateHistory(key, text string) tea.Cmd {
 	switch key {
-	case "esc", "f6", "ctrl+c":
+	case "esc", "ctrl+c":
+		m.mode = modeNormal
+	case m.firstKey("history"): // the history key closes it again
 		m.mode = modeNormal
 	case "up", "ctrl+p":
 		m.histSel = max(m.histSel-1, 0)
@@ -2516,6 +2523,7 @@ const helpText = `
 
  F5 runs the one statement the cursor is in. Statements end with ';', a blank line, or a '/' line.
  PL/SQL blocks (BEGIN/DECLARE/CREATE PROCEDURE ...) must end with a '/' line.
+ The F-keys, Ctrl-S and the panel keys above are the defaults: [keys] in the config file moves them.
 `
 
 // wheel scrolls the pane under the mouse pointer by three lines.
@@ -3251,7 +3259,7 @@ func (m *Model) reloadSessions() {
 
 func (m *Model) updateSessions(key string) tea.Cmd {
 	switch key {
-	case "esc", "f10", "ctrl+c", "q":
+	case "esc", "ctrl+c", "q", m.firstKey("sessions"):
 		m.mode = modeNormal
 	case "up", "ctrl+p", "k":
 		m.sessSel = max(m.sessSel-1, 0)
@@ -3843,38 +3851,55 @@ func (m *Model) jumpDirection(dir string) {
 	}
 }
 
+// globalKey translates a pressed key for the global commands: a key the
+// config ([keys]) gives to an action becomes the action's default key; a
+// default key the config took away becomes "" (no global command).
+func (m *Model) globalKey(key string) string {
+	if k, ok := m.keymap[key]; ok {
+		return k
+	}
+	return key
+}
+
+// firstKey is the first key of an action (as configured, or the default).
+func (m *Model) firstKey(action string) string { return m.cfg.KeysFor(action)[0] }
+
+// keyLabel is the label of an action's first key for hints ("F5", "^S").
+func (m *Model) keyLabel(action string) string { return config.KeyLabel(m.firstKey(action)) }
+
 // keyHints are the keys shown on the bottom line: those of the focused
 // panel, or the general ones in the editor.
 func (m *Model) keyHints() [][2]string {
 	switch m.focus {
 	case focusConns:
 		return [][2]string{{"Enter", "connect"}, {"a", "add"}, {"e", "edit"}, {"v", "view"}, {"d", "delete"},
-			{"Tab", "tree"}, {"Esc", "editor"}, {"F2", "hide"}, {"F1", "help"}}
+			{"Tab", "tree"}, {"Esc", "editor"}, {m.keyLabel("connections"), "hide"}, {m.keyLabel("help"), "help"}}
 	case focusTree:
 		return [][2]string{{"Enter", "open"}, {"←", "close"}, {"/", "filter"}, {"x", "no filter"}, {"c", "collapse"}, {"i", "insert name"}, {"d", "desc"}, {"s", "select"}, {"e", "edit rows"},
-			{"^D", "ddl"}, {"r", "reload"}, {"Tab", "results"}, {"Esc", "editor"}, {"F1", "help"}}
+			{"^D", "ddl"}, {"r", "reload"}, {"Tab", "results"}, {"Esc", "editor"}, {m.keyLabel("help"), "help"}}
 	case focusResults:
 		if m.res.showText() {
 			h := [][2]string{{"↑↓ PgUp PgDn", "scroll"}, {"←→", "sideways"}}
 			if m.res.canToggle() {
 				h = append(h, [2]string{"o", "grid"})
 			}
-			return append(h, [2]string{"Tab", "editor"}, [2]string{"Esc", "editor"}, [2]string{"F1", "help"})
+			return append(h, [2]string{"Tab", "editor"}, [2]string{"Esc", "editor"}, [2]string{m.keyLabel("help"), "help"})
 		}
 		if m.res.blockSticky {
-			return [][2]string{{"arrows", "extend"}, {"c", "copy cells"}, {"C", "copy with header"}, {"v/Esc", "unselect"}, {"F1", "help"}}
+			return [][2]string{{"arrows", "extend"}, {"c", "copy cells"}, {"C", "copy with header"}, {"v/Esc", "unselect"}, {m.keyLabel("help"), "help"}}
 		}
 		if m.res.blockOn {
-			return [][2]string{{"Shift-arrows", "extend"}, {"c", "copy cells"}, {"C", "copy with header"}, {"Esc", "unselect"}, {"F1", "help"}}
+			return [][2]string{{"Shift-arrows", "extend"}, {"c", "copy cells"}, {"C", "copy with header"}, {"Esc", "unselect"}, {m.keyLabel("help"), "help"}}
 		}
 		h := [][2]string{{"↑↓", "rows"}, {"←→", "columns"}, {"Shift-arrows/v", "select"}, {"Enter", "record"}, {"u", "edit"}, {"i", "insert"}, {"d", "delete"}, {"e", "export"}, {"c/C", "copy cell/row"}, {"End", "all rows"}}
 		if m.res.canToggle() {
 			h = append(h, [2]string{"o", "output"})
 		}
-		return append(h, [2]string{"Tab", "editor"}, [2]string{"F8/F9", "rollback/commit"}, [2]string{"F1", "help"})
+		return append(h, [2]string{"Tab", "editor"}, [2]string{m.keyLabel("rollback") + "/" + m.keyLabel("commit"), "rollback/commit"}, [2]string{m.keyLabel("help"), "help"})
 	}
-	return [][2]string{{"F1", "help"}, {"F2", "conns"}, {"F3", "results"}, {"F4", "sql"}, {"F5", "run"}, {"F6", "history"},
-		{"F7", "run all"}, {"F8", "rollback"}, {"F9", "commit"}, {"F10", "sessions"}, {"^K D/I", "save/load sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
+	return [][2]string{{m.keyLabel("help"), "help"}, {m.keyLabel("connections"), "conns"}, {m.keyLabel("results"), "results"},
+		{m.keyLabel("sql"), "sql"}, {m.keyLabel("run"), "run"}, {m.keyLabel("history"), "history"}, {m.keyLabel("run_all"), "run all"},
+		{m.keyLabel("rollback"), "rollback"}, {m.keyLabel("commit"), "commit"}, {m.keyLabel("sessions"), "sessions"}, {"^K D/I", "save/load sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
 }
 
 // ---- editing cells of the results grid (u) ----

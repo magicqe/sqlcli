@@ -1063,6 +1063,53 @@ Complete example with all settings:
 | `read_only` | no | refuse everything except queries |
 | `sysdba` | no | connect with the SYSDBA role |
 
+### Keyboard shortcuts
+
+The global commands can be moved to other keys in a `[keys]` section: each
+action takes one key or a list of keys. A configured action loses its
+default keys (so `run = "ctrl+t"` makes F5 do nothing); actions you don't
+list keep theirs.
+
+```toml
+[keys]
+  run = ["f5", "ctrl+t"]   # keep F5, add Ctrl-T
+  commit = "alt+c"
+  rollback = "alt+r"
+  help = "f11"
+```
+
+Keys are written as sqlcli names them: `f1` … `f12`, `ctrl+s`, `alt+x`,
+`shift+tab`, `ctrl+shift+up`, `ctrl+pgdown`; case and `-` instead of `+`
+don't matter (`Ctrl-T`). Start sqlcli with `SQLCLI_DEBUG_KEYS=1` to see the
+name of each key you press in the status line. An unknown action, an empty
+list or a key given to two actions is an error when sqlcli starts. The
+bottom-line hints show the configured keys. Keys inside a panel (e.g. `u`,
+`c` in the results), the editor's JOE keys and the `^K` commands can't be
+changed.
+
+| Action | Default keys | Command |
+|---|---|---|
+| `help` | `f1` | help screen |
+| `connections` | `f2` | show / hide the connections panel |
+| `results` | `f3` | show / hide the results panel |
+| `sql` | `f4` | show / hide the SQL panel |
+| `run` | `f5`, `ctrl+enter`, `alt+enter` | run the statement at the cursor (or the block) |
+| `history` | `f6` | SQL history |
+| `run_all` | `f7` | run the whole SQL panel |
+| `rollback` | `f8` | rollback |
+| `commit` | `f9` | commit |
+| `sessions` | `f10` | session window |
+| `save_session` | `ctrl+s` | save the session |
+| `object_tree` | `f12` | jump to the object tree |
+| `next_tab` | `ctrl+pgdown` | next SQL tab |
+| `prev_tab` | `ctrl+pgup` | previous SQL tab |
+| `panel_left` | `ctrl+left` | panel to the left |
+| `panel_right` | `ctrl+right` | panel to the right |
+| `panel_up` | `ctrl+up` | panel above |
+| `panel_down` | `ctrl+down` | panel below |
+| `prev_panel` | `shift+tab` | previous panel |
+| `cancel` | `ctrl+c` | cancel the running statement |
+
 ## 12. Files and locations
 
 | File | Default location | Override |
