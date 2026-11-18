@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -128,8 +129,14 @@ func DefaultPath() (string, error) {
 	return filepath.Join(dir, "sqlcli", "config.toml"), nil
 }
 
-// DefaultHistoryPath returns $XDG_STATE_HOME/sqlcli/history.db (or ~/.local/state/...).
+// DefaultHistoryPath returns $XDG_STATE_HOME/sqlcli/history.db (or
+// ~/.local/state/...); on Windows %LOCALAPPDATA%\sqlcli\history.db.
 func DefaultHistoryPath() (string, error) {
+	if runtime.GOOS == "windows" {
+		if d := os.Getenv("LOCALAPPDATA"); d != "" {
+			return filepath.Join(d, "sqlcli", "history.db"), nil
+		}
+	}
 	if d := os.Getenv("XDG_STATE_HOME"); d != "" {
 		return filepath.Join(d, "sqlcli", "history.db"), nil
 	}

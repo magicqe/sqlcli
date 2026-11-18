@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -1389,7 +1390,7 @@ func (m *Model) writeFile(name, content string) {
 }
 
 func expandHome(p string) string {
-	if strings.HasPrefix(p, "~/") {
+	if strings.HasPrefix(p, "~/") || filepath.Separator == '\\' && strings.HasPrefix(p, `~\`) {
 		if h, err := os.UserHomeDir(); err == nil {
 			return h + p[1:]
 		}
@@ -3677,7 +3678,7 @@ func (m *Model) completeFileName() {
 // matching names, sorted, directories with a trailing "/".
 func matchFiles(in string) (string, []string) {
 	dir, base := "", in
-	if i := strings.LastIndex(in, "/"); i >= 0 {
+	if i := strings.LastIndexAny(in, pathSeps); i >= 0 {
 		dir, base = in[:i+1], in[i+1:]
 	}
 	listDir := expandHome(dir)
@@ -3691,7 +3692,7 @@ func matchFiles(in string) (string, []string) {
 	var out []string
 	for _, e := range ents {
 		name := e.Name()
-		if !strings.HasPrefix(name, base) || (strings.HasPrefix(name, ".") && !strings.HasPrefix(base, ".")) {
+		if !hasNamePrefix(name, base) || (strings.HasPrefix(name, ".") && !strings.HasPrefix(base, ".")) {
 			continue
 		}
 		isDir := e.IsDir()
@@ -3707,6 +3708,19 @@ func matchFiles(in string) (string, []string) {
 	}
 	sort.Strings(out)
 	return dir, out
+}
+
+// pathSeps are the characters that separate path elements: "/", and on
+// Windows also "\".
+var pathSeps = "/" + string(filepath.Separator)
+
+// hasNamePrefix compares file names as the system does: ignoring case on
+// Windows.
+func hasNamePrefix(name, prefix string) bool {
+	if runtime.GOOS == "windows" {
+		return len(name) >= len(prefix) && strings.EqualFold(name[:len(prefix)], prefix)
+	}
+	return strings.HasPrefix(name, prefix)
 }
 
 func commonPrefix(names []string) string {

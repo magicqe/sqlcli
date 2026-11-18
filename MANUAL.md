@@ -50,6 +50,15 @@ make build          # same as: go build -o sqlcli ./cmd/sqlcli
 
 The result is a single binary, `./sqlcli`. Copy it anywhere on your `PATH`.
 
+**Windows.** `make build-windows` builds `sqlcli.exe` (64-bit) on Linux. godror
+needs cgo, so this needs the mingw-w64 C compiler (Debian/Ubuntu:
+`apt install gcc-mingw-w64-x86-64`), or another one given as `WINDOWS_CC`,
+e.g. `make build-windows WINDOWS_CC="zig cc -target x86_64-windows-gnu"`.
+On Windows, sqlcli.exe needs the Oracle Instant Client for Windows: set
+`ORACLE_HOME` (or `oracle.lib_dir`) to its directory, the one with `oci.dll`.
+Use Windows Terminal for the full-screen interface. The configuration is
+`%APPDATA%\sqlcli\config.toml`, the history `%LOCALAPPDATA%\sqlcli\history.db`.
+
 ## 3. Starting sqlcli
 
 ```sh
@@ -1058,8 +1067,8 @@ Complete example with all settings:
 
 | File | Default location | Override |
 |---|---|---|
-| configuration | `~/.config/sqlcli/config.toml` | `-config`, `$XDG_CONFIG_HOME` |
-| SQL history | `~/.local/state/sqlcli/history.db` | `history.path`, `$XDG_STATE_HOME` |
+| configuration | `~/.config/sqlcli/config.toml` (Windows: `%APPDATA%\sqlcli\config.toml`) | `-config`, `$XDG_CONFIG_HOME` |
+| SQL history | `~/.local/state/sqlcli/history.db` (Windows: `%LOCALAPPDATA%\sqlcli\history.db`) | `history.path`, `$XDG_STATE_HOME` |
 | TNS aliases | `$TNS_ADMIN/tnsnames.ora` | Oracle standard |
 
 ## 13. Key reference
@@ -1161,6 +1170,7 @@ internal/ui/         Bubble Tea user interface
 
 ```sh
 make build        # build ./sqlcli
+make build-windows  # build sqlcli.exe for Windows (needs mingw-w64)
 make test         # unit + integration tests (reads test.env if present)
 make test-unit    # unit tests only
 ```

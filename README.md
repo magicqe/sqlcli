@@ -65,7 +65,11 @@ or `wl-copy` when installed (OSC 52 terminal copy works without them).
 git clone https://github.com/magicqe/sqlcli.git
 cd sqlcli
 make build            # → ./sqlcli
+make build-windows    # → sqlcli.exe (64-bit Windows; needs mingw-w64: apt install gcc-mingw-w64-x86-64)
 ```
+
+On Windows, `sqlcli.exe` needs the Oracle Instant Client for Windows (`ORACLE_HOME`
+pointing at the directory with `oci.dll`); use Windows Terminal.
 
 ## Quick start
 

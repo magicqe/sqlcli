@@ -231,6 +231,7 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
 <pre><code>cd sqlcli
 make build          <span class="c"># same as: go build -o sqlcli ./cmd/sqlcli</span></code></pre>
       <p>The result is a single binary, <code>./sqlcli</code>. Copy it anywhere on your <code>PATH</code>.</p>
+      <p><strong>Windows.</strong> <code>make build-windows</code> builds <code>sqlcli.exe</code> (64-bit) on Linux. godror needs cgo, so this needs the mingw-w64 C compiler (Debian/Ubuntu: <code>apt install gcc-mingw-w64-x86-64</code>), or another one given as <code>WINDOWS_CC</code>, e.g. <code>make build-windows WINDOWS_CC="zig cc -target x86_64-windows-gnu"</code>. On Windows, sqlcli.exe needs the Oracle Instant Client for Windows: set <code>ORACLE_HOME</code> (or <code>oracle.lib_dir</code>) to its directory, the one with <code>oci.dll</code>. Use Windows Terminal for the full-screen interface. The configuration is <code>%APPDATA%\sqlcli\config.toml</code>, the history <code>%LOCALAPPDATA%\sqlcli\history.db</code>.</p>
     </section>
 
     <!-- 3 -->
@@ -1014,6 +1015,7 @@ internal/export/     <span class="c">CSV / TSV / JSON export</span>
 internal/history/    <span class="c">SQLite history store</span>
 internal/ui/         <span class="c">Bubble Tea user interface</span></code></pre>
 <pre><code>make build        <span class="c"># build ./sqlcli</span>
+make build-windows  <span class="c"># build sqlcli.exe for Windows (needs mingw-w64)</span>
 make test         <span class="c"># unit + integration tests (reads test.env if present)</span>
 make test-unit    <span class="c"># unit tests only</span></code></pre>
       <p>Integration tests run against a real database when these variables are set. <code>make test</code> reads them from <code>test.env</code>, which is git-ignored:</p>
