@@ -288,3 +288,31 @@ func TestTreeSelectAndEditOpenTabs(t *testing.T) {
 		t.Fatalf("e on a package: tabs %d %q", len(m.tabs), m.status)
 	}
 }
+
+func TestObjectTreeAllTypes(t *testing.T) {
+	m := treeModel(t)
+	m.Update(treeObjectsMsg{conn: "ora", objs: []db.SchemaObject{
+		{Type: "TABLE", Name: "EMP", Valid: true}, {Type: "JAVA SOURCE", Name: "Hello", Valid: true},
+		{Type: "JAVA CLASS", Name: "Hello", Valid: false}, {Type: "QUEUE", Name: "Q1", Valid: true},
+		{Type: "JOB", Name: "NIGHTLY", Valid: true}, {Type: "LIBRARY", Name: "LIBC", Valid: true},
+	}})
+	var titles []string
+	for _, g := range m.tree().groups {
+		titles = append(titles, g.label)
+	}
+	if got := strings.Join(titles, ","); got != "Tables,Java sources,Java classes,Jobs,Libraries,Queues" {
+		t.Fatalf("groups: %s", got)
+	}
+	if s := screen(m); !strings.Contains(s, "▸ Java sources  1") {
+		t.Fatalf("screen:\n%s", s)
+	}
+	// the filter finds it, Ctrl-D asks for its DDL
+	m.focus = focusTree
+	m.tree().setFilter("hello")
+	if n := m.tree().selected(); n == nil || n.objType != "JAVA SOURCE" {
+		t.Fatalf("selected %+v", n)
+	}
+	if m.updateTree("ctrl+d") == nil {
+		t.Fatal("Ctrl-D on a Java source should read its DDL")
+	}
+}

@@ -277,7 +277,10 @@ ones, all at the same time.
 
 The bottom of the connections panel shows the objects of the current tab's
 schema, grouped: Tables, Views, Materialized views, Packages, Procedures,
-Functions, Types, Sequences, Synonyms, Triggers and Indexes (with counts).
+Functions, Types, Sequences, Synonyms, Triggers, Indexes, Java sources, Java
+classes, Java resources and Database links (with counts), then every other
+object type of the schema (Jobs, Queues, Libraries …). Package and type
+bodies are part of their package or type; LOBs and partitions are not shown.
 Tables and views open to their columns with types (`ID  NUMBER(5) NOT
 NULL`), packages to their functions and procedures. Invalid objects are
 marked `✗`. The tree loads when a tab connects, follows the active tab's
@@ -531,6 +534,9 @@ sqlcli follows SQL\*Plus conventions:
   directly. A line starting with `CREATE`, `ALTER`, `DROP`, `GRANT` or
   `REVOKE` always starts a new statement. Type specs, external (`LANGUAGE
   JAVA` / `C`) procedures and `WITH FUNCTION` queries still need the `/`.
+* A **Java source** (`CREATE [OR REPLACE] [AND COMPILE] JAVA SOURCE …`) ends
+  only at a line holding only `/`. Its text is Java: `;`, quotes, `--` and
+  `//` inside it are left alone.
 * Strings may use Oracle's `q'[…]'` quoting (`[]`, `()`, `{}`, `<>` or any
   other delimiter); `;`, `'` and comment marks inside are just text.
 

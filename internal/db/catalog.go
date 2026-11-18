@@ -163,8 +163,8 @@ type SchemaObject struct {
 func (c *Conn) SchemaObjects(ctx context.Context) ([]SchemaObject, error) {
 	rows, err := c.metaQuery(ctx, `
 		select object_type, object_name, status from user_objects
-		 where object_type in ('TABLE', 'VIEW', 'MATERIALIZED VIEW', 'PACKAGE', 'PROCEDURE', 'FUNCTION',
-		                       'TYPE', 'SEQUENCE', 'SYNONYM', 'TRIGGER', 'INDEX')
+		 where object_type not in ('PACKAGE BODY', 'TYPE BODY', 'LOB', 'LOB PARTITION', 'LOB SUBPARTITION',
+		                           'TABLE PARTITION', 'TABLE SUBPARTITION', 'INDEX PARTITION', 'INDEX SUBPARTITION')
 		   and object_name not like 'BIN$%'
 		 order by object_name`)
 	if err != nil {
@@ -206,6 +206,8 @@ var metadataTypes = map[string][]string{
 	"PACKAGE": {"PACKAGE_SPEC", "PACKAGE_BODY"}, "TYPE": {"TYPE_SPEC", "TYPE_BODY"},
 	"PROCEDURE": {"PROCEDURE"}, "FUNCTION": {"FUNCTION"}, "SEQUENCE": {"SEQUENCE"},
 	"SYNONYM": {"SYNONYM"}, "TRIGGER": {"TRIGGER"}, "INDEX": {"INDEX"},
+	"JAVA SOURCE": {"JAVA_SOURCE"}, "DATABASE LINK": {"DB_LINK"}, "JOB": {"PROCOBJ"},
+	"PROGRAM": {"PROCOBJ"}, "SCHEDULE": {"PROCOBJ"},
 }
 
 // DDL returns the DDL of an object of the current schema from
@@ -214,8 +216,8 @@ var metadataTypes = map[string][]string{
 // missing body is left out. It doesn't open a transaction.
 func (c *Conn) DDL(ctx context.Context, objectType, name string) (string, error) {
 	parts, ok := metadataTypes[objectType]
-	if !ok {
-		return "", fmt.Errorf("no DDL for a %s", strings.ToLower(objectType))
+	if !ok { // other types: DBMS_METADATA's name is mostly the type with "_"
+		parts = []string{strings.ReplaceAll(objectType, " ", "_")}
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()

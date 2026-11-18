@@ -309,3 +309,29 @@ func TestRunCursorTrailingComment(t *testing.T) {
 		t.Fatalf("statement: %q", st.Text)
 	}
 }
+
+func TestSplitJavaSource(t *testing.T) {
+	script := "create or replace and compile java source named \"Hello\" as\n" +
+		"public class Hello {\n" +
+		"  public static String hi() {\n" +
+		"    int i = 0; i--;\n" +
+		"\n" +
+		"    return \"hi\";\n" +
+		"  }\n" +
+		"}\n" +
+		"/\n" +
+		"select 1 from dual;"
+	st := SplitStatements(script)
+	if len(st) != 2 || !strings.HasSuffix(st[0], "}") || !strings.Contains(st[0], "return \"hi\";") || st[1] != "select 1 from dual;" {
+		t.Fatalf("%d statements: %q", len(st), st)
+	}
+	// Java syntax: -- is code, quotes in // comments and "strings" don't matter
+	one := "create java source named x as class X { int f(int i) { i--; return i; } // don't\n String s = \"it's\"; }\n/\nselect 2 from dual;"
+	st = SplitStatements(one)
+	if len(st) != 2 || !strings.HasSuffix(st[0], "String s = \"it's\"; }") || st[1] != "select 2 from dual;" {
+		t.Fatalf("java syntax: %q", st)
+	}
+	if !isPLSQLText("CREATE JAVA SOURCE NAMED x AS class x {}") || !isPLSQLText("create or replace noforce java source named x as class x {}") {
+		t.Fatal("CREATE JAVA should end only at /")
+	}
+}

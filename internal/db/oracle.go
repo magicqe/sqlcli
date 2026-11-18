@@ -517,14 +517,15 @@ func RowsMessage(n int, more bool) string {
 	return fmt.Sprintf("%d row(s) selected.", n)
 }
 
-// rePLSQLStart matches statements that contain PL/SQL and therefore end
-// only at a "/" line: blocks, stored code, and queries with inline
-// functions (WITH FUNCTION / WITH PROCEDURE, Oracle 12c+).
+// rePLSQLStart matches statements that contain PL/SQL (or Java) and
+// therefore end only at a "/" line: blocks, stored code, CREATE JAVA, and
+// queries with inline functions (WITH FUNCTION / WITH PROCEDURE, 12c+).
 // reDDLLine matches a line starting with a DDL keyword (reserved words that
 // can't begin a line of PL/SQL code).
 var reDDLLine = regexp.MustCompile(`(?i)^(CREATE|ALTER|DROP|GRANT|REVOKE)\b`)
 
-var rePLSQLStart = regexp.MustCompile(`(?i)^(DECLARE|BEGIN|CREATE\s+(OR\s+REPLACE\s+)?(EDITIONABLE\s+|NONEDITIONABLE\s+)?(PROCEDURE|FUNCTION|PACKAGE|TRIGGER|TYPE)\b|WITH\s+(FUNCTION|PROCEDURE)\b)`)
+var rePLSQLStart = regexp.MustCompile(`(?i)^(DECLARE|BEGIN|CREATE\s+(OR\s+REPLACE\s+)?(EDITIONABLE\s+|NONEDITIONABLE\s+)?(PROCEDURE|FUNCTION|PACKAGE|TRIGGER|TYPE)\b|` +
+	`CREATE\s+(OR\s+REPLACE\s+)?(AND\s+(RESOLVE|COMPILE)\s+)?(NOFORCE\s+)?JAVA\b|WITH\s+(FUNCTION|PROCEDURE)\b)`)
 
 // Statement is one statement of a script with its position (0-based rows
 // and columns, end inclusive) in the script.
@@ -560,10 +561,17 @@ func ParseStatements(script string) []Statement {
 		qClose rune       // closing delimiter of a q'X...X' string (0: ordinary '...')
 		blk    plsqlBlock // where a PL/SQL unit ends (see plsqlblock.go)
 		word   []rune     // the word being read, outside strings and comments
+		lead   []string   // the statement's first words, to recognise CREATE ... JAVA
+		java   bool       // a CREATE JAVA statement: Java text, no SQL quotes or comments; ends at "/"
 	)
 	feedWord := func() {
 		if len(word) > 0 {
-			blk.feed(strings.ToUpper(string(word)))
+			w := strings.ToUpper(string(word))
+			blk.feed(w)
+			if !java && len(lead) < 8 {
+				lead = append(lead, w)
+				java = isCreateJava(lead)
+			}
 			word = word[:0]
 		}
 	}
@@ -587,7 +595,7 @@ func ParseStatements(script string) []Statement {
 			out = append(out, st)
 		}
 		pieces, started, st, hasCode = nil, false, Statement{}, false
-		blk, word = plsqlBlock{}, word[:0]
+		blk, word, lead, java = plsqlBlock{}, word[:0], nil, false
 	}
 	code := func(c, segStart int) { // record a code character of the current line
 		p, ci := len(pieces), c-segStart
@@ -622,7 +630,7 @@ func ParseStatements(script string) []Statement {
 			// A PL/SQL statement (package, procedure ...) normally ends at a
 			// "/" line. A line starting with DDL (CREATE, ALTER ...) can't be
 			// PL/SQL code, so it starts the next statement even without "/".
-			if started && hasCode && reDDLLine.MatchString(t) && isPLSQLText(text()) {
+			if started && hasCode && !java && reDDLLine.MatchString(t) && isPLSQLText(text()) {
 				flush()
 			}
 			if t == "" && !isPLSQLText(text()) {
@@ -636,6 +644,13 @@ func ParseStatements(script string) []Statement {
 			next := rune(0)
 			if c+1 < len(rs) {
 				next = rs[c+1]
+			}
+			if java { // Java source text: every character is code until the "/" line
+				if ch != ' ' && ch != '\t' {
+					mark(r, c)
+					code(c, segStart)
+				}
+				continue
 			}
 			switch {
 			case inBlockCmt:
@@ -733,6 +748,22 @@ func ParseStatements(script string) []Statement {
 	}
 	flush()
 	return out
+}
+
+// isCreateJava reports whether a statement's first words are CREATE [OR
+// REPLACE] [AND RESOLVE|COMPILE] [NOFORCE] JAVA.
+func isCreateJava(words []string) bool {
+	if len(words) < 2 || words[0] != "CREATE" || words[len(words)-1] != "JAVA" {
+		return false
+	}
+	for _, w := range words[1 : len(words)-1] {
+		switch w {
+		case "OR", "REPLACE", "AND", "RESOLVE", "COMPILE", "NOFORCE":
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // SplitStatements returns the statement texts of a script.

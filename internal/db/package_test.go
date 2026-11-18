@@ -281,3 +281,52 @@ func TestIntegrationClobEdit(t *testing.T) {
 	}
 	c.Rollback()
 }
+
+func TestIntegrationJavaSource(t *testing.T) {
+	c := testConn(t)
+	ctx := context.Background()
+	src := "create or replace and compile java source named \"SqlcliTestHello\" as\n" +
+		"public class SqlcliTestHello {\n  public static String hi() { int i = 1; i--; return \"hi\" + i; }\n}\n/"
+	stmts := SplitStatements(src)
+	if len(stmts) != 1 {
+		t.Fatalf("split: %q", stmts)
+	}
+	if _, err := c.Execute(ctx, stmts[0], 1); err != nil {
+		if strings.Contains(err.Error(), "ORA-29538") || strings.Contains(err.Error(), "ORA-00922") || strings.Contains(err.Error(), "ORA-00901") {
+			t.Skip("no Java in this database: " + CleanError(err))
+		}
+		t.Fatal(CleanError(err))
+	}
+	defer c.Execute(ctx, `drop java source "SqlcliTestHello"`, 1)
+	objs, err := c.SchemaObjects(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, o := range objs {
+		if o.Type == "JAVA SOURCE" && o.Name == "SqlcliTestHello" {
+			found = true
+		}
+		if o.Type == "PACKAGE BODY" || o.Type == "LOB" {
+			t.Fatalf("%s should not be listed", o.Type)
+		}
+	}
+	if !found {
+		t.Fatal("JAVA SOURCE not among the schema objects")
+	}
+	ddl, err := c.DDL(ctx, "JAVA SOURCE", "SqlcliTestHello")
+	if err != nil || !strings.Contains(ddl, "SqlcliTestHello") || !strings.Contains(ddl, "i--;") {
+		t.Fatalf("DDL: %v\n%s", err, ddl)
+	}
+	// the DDL runs again as it is (after a drop: it has no OR REPLACE)
+	if _, err := c.Execute(ctx, `drop java source "SqlcliTestHello"`, 1); err != nil {
+		t.Fatal(CleanError(err))
+	}
+	again := SplitStatements(ddl)
+	if len(again) != 1 {
+		t.Fatalf("DDL splits into %d statements:\n%s", len(again), ddl)
+	}
+	if _, err := c.Execute(ctx, again[0], 1); err != nil {
+		t.Fatalf("re-run DDL: %s\n%s", CleanError(err), again[0])
+	}
+}

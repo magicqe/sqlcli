@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -22,6 +23,24 @@ var treeGroups = []struct{ typ, title string }{
 	{"PACKAGE", "Packages"}, {"PROCEDURE", "Procedures"}, {"FUNCTION", "Functions"},
 	{"TYPE", "Types"}, {"SEQUENCE", "Sequences"}, {"SYNONYM", "Synonyms"},
 	{"TRIGGER", "Triggers"}, {"INDEX", "Indexes"},
+	{"JAVA SOURCE", "Java sources"}, {"JAVA CLASS", "Java classes"}, {"JAVA RESOURCE", "Java resources"},
+	{"DATABASE LINK", "Database links"},
+}
+
+// groupTitle is the tree title of an object type without a fixed group:
+// "QUEUE" -> "Queues", "JAVA DATA" -> "Java data".
+func groupTitle(typ string) string {
+	t := strings.ToLower(typ)
+	t = strings.ToUpper(t[:1]) + t[1:]
+	switch {
+	case strings.HasSuffix(t, "s"), strings.HasSuffix(t, "data"):
+		return t
+	case strings.HasSuffix(t, "x"), strings.HasSuffix(t, "ch"), strings.HasSuffix(t, "sh"):
+		return t + "es"
+	case strings.HasSuffix(t, "y") && !strings.HasSuffix(t, "ey") && !strings.HasSuffix(t, "ay"):
+		return t[:len(t)-1] + "ies"
+	}
+	return t + "s"
 }
 
 type treeNode struct {
@@ -208,7 +227,22 @@ func (m *Model) treeObjectsLoaded(msg treeObjectsMsg) {
 		byType[o.Type] = append(byType[o.Type], o)
 	}
 	t.groups = []*treeNode{}
+	groups := append([]struct{ typ, title string }{}, treeGroups...)
+	known := map[string]bool{}
 	for _, g := range treeGroups {
+		known[g.typ] = true
+	}
+	var other []string // types without a fixed group, after the others
+	for typ := range byType {
+		if !known[typ] {
+			other = append(other, typ)
+		}
+	}
+	sort.Strings(other)
+	for _, typ := range other {
+		groups = append(groups, struct{ typ, title string }{typ, groupTitle(typ)})
+	}
+	for _, g := range groups {
 		objs := byType[g.typ]
 		if len(objs) == 0 {
 			continue
