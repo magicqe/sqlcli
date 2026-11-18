@@ -1239,10 +1239,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		case "tab":
 			m.cyclePanel(1)
 		case "enter":
-			if m.res.selectedRow() != nil {
-				m.mode, m.recTop, m.recLeft = modeRecord, 0, 0
-				m.status = "" // the record view's bottom line shows only its own messages
-			}
+			m.openRecordView()
 		case "o":
 			m.res.toggleText()
 		case "u":
@@ -2495,7 +2492,7 @@ const helpText = `
              ^K D / ^K I save to / load from a file, ^K R inserts a file, ^K W writes the block,
              ^K F / ^L / ^R find / find next / search and replace
  Ctrl-C      stop fetching                 Shift-↑↓←→, wheel      scroll a long record / long values
- Enter       show row as record
+ Enter       show row as record (also a double click on the row)
  o           grid / DBMS_OUTPUT
  e           export to .csv/.tsv/.json/.xlsx/.xls
  c / C       copy the cell / the row to the clipboard
@@ -2746,12 +2743,32 @@ func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 	default: // results
 		m.focus = focusResults
 		m.res.rangeOn = false
+		m.res.clearBlock()
 		m.res.clickRow(y - edOuter - 1)
 		if i, ok := m.res.indexAt(y - edOuter - 1); ok {
+			// a double click on a grid row opens it in the record view
+			const resultClick = 200000 // keeps result rows apart from tree / connection rows
+			grid := !m.res.showText() && y-edOuter-1 >= 2
+			double := grid && i+resultClick == m.lastClickRow && time.Since(m.lastClickAt) < 400*time.Millisecond
+			m.lastClickRow, m.lastClickAt = i+resultClick, time.Now()
+			if double {
+				m.lastClickAt = time.Time{}
+				m.openRecordView()
+				return nil
+			}
 			m.drag = dragState{active: true, pane: focusResults, row: i}
 		}
 	}
 	return nil
+}
+
+// openRecordView shows the selected result row as a record (Enter, double click).
+func (m *Model) openRecordView() {
+	if m.res.showText() || m.res.selectedRow() == nil {
+		return
+	}
+	m.mode, m.recTop, m.recLeft = modeRecord, 0, 0
+	m.status = "" // the record view's bottom line shows only its own messages
 }
 
 // closeTabByMouse is the [x] button: like ^K Q, but closing the last tab

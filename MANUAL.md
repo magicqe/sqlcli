@@ -152,7 +152,7 @@ With `ui.mouse = true` (the default):
 |---|---|
 | a pane | focus it |
 | in the SQL editor | move the cursor there |
-| a row in the results grid | select it |
+| a row in the results grid | select it; **double-click** opens it in the record view |
 | a connection | select it; **double-click** connects the current tab |
 | a tab in the tab bar | switch to that tab |
 | ◀ / ▶ in the tab bar, mouse wheel over it | scroll the tab bar when the tabs don't fit the screen width |

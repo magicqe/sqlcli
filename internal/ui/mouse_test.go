@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -155,5 +156,41 @@ func TestHelpScrolls(t *testing.T) {
 	m.Update(key('q'))
 	if m.mode != modeNormal {
 		t.Fatal("other key should close help")
+	}
+}
+
+func TestDoubleClickOpensRecordView(t *testing.T) {
+	m := editModel("select * from t", []string{"ID", "NAME"}, [][]string{{"1", "Anna"}, {"2", "Bob"}, {"3", "Cyril"}})
+	m.focus = focusEditor
+	y, x := -1, 0
+	for i, l := range strings.Split(screen(m), "\n") {
+		if j := strings.Index(l, "Bob"); j >= 0 {
+			y, x = i, len([]rune(l[:j]))
+		}
+	}
+	if y < 0 {
+		t.Fatalf("row not on screen:\n%s", screen(m))
+	}
+	click(m, x, y) // a single click selects the row
+	m.Update(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft})
+	if m.mode != modeNormal || m.focus != focusResults || m.res.row != 1 {
+		t.Fatalf("single click: mode %v focus %v row %d", m.mode, m.focus, m.res.row)
+	}
+	click(m, x, y) // the second click: record view of that row
+	if m.mode != modeRecord || m.res.row != 1 || !strings.Contains(screen(m), "Record 2 of 3") {
+		t.Fatalf("double click: mode %v row %d\n%s", m.mode, m.res.row, screen(m))
+	}
+	// clicks on two different rows are not a double click
+	press(m, key(tea.KeyEscape))
+	click(m, x, y)
+	click(m, x, y+1)
+	if m.mode != modeNormal || m.res.row != 2 {
+		t.Fatalf("two rows: mode %v row %d", m.mode, m.res.row)
+	}
+	// a slow second click isn't either
+	m.lastClickAt = m.lastClickAt.Add(-time.Second)
+	click(m, x, y+1)
+	if m.mode != modeNormal {
+		t.Fatal("slow clicks should not open the record view")
 	}
 }
