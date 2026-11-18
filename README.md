@@ -121,6 +121,7 @@ See the manual for all settings (`[editor]`, `[query]`, `[ui]`, `[history]`).
 
 - [MANUAL.md](MANUAL.md) – the full user manual
 - [manual.html](manual.html) – the same as a web page
+- [CHANGELOG.md](CHANGELOG.md) – changes in each version
 
 ## Development
 
