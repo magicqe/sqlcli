@@ -18,7 +18,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/x/ansi"
 
 	"sqlcli/internal/complete"
@@ -1051,11 +1050,31 @@ func (m *Model) fetchDone(msg fetchMsg) tea.Cmd {
 	return nil
 }
 
+// isModifierOnly reports a key press of a modifier or lock key by itself.
+// On Windows, Bubble Tea reports these (and repeats them while the key is
+// held): taken as keys they used up the ^K prefix (^K F didn't search) and
+// ended Shift-arrow selections.
+func isModifierOnly(msg tea.KeyPressMsg) bool {
+	for _, c := range []rune{msg.Code, msg.BaseCode} {
+		switch c {
+		case tea.KeyLeftCtrl, tea.KeyRightCtrl, tea.KeyLeftShift, tea.KeyRightShift,
+			tea.KeyLeftAlt, tea.KeyRightAlt, tea.KeyLeftSuper, tea.KeyRightSuper,
+			tea.KeyLeftHyper, tea.KeyRightHyper, tea.KeyLeftMeta, tea.KeyRightMeta,
+			tea.KeyIsoLevel3Shift, tea.KeyIsoLevel5Shift, tea.KeyCapsLock, tea.KeyNumLock, tea.KeyScrollLock:
+			return true
+		}
+	}
+	return false
+}
+
 // debugKeys shows the name of every key received in the status line
 // (SQLCLI_DEBUG_KEYS=1), to see what the terminal sends.
 var debugKeys = os.Getenv("SQLCLI_DEBUG_KEYS") != ""
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
+	if isModifierOnly(msg) { // Windows reports Ctrl, Shift, Alt ... pressed alone
+		return nil
+	}
 	key, text := msg.String(), msg.Text
 	if debugKeys {
 		defer func() { m.status = fmt.Sprintf("key: %q  %s", key, m.status) }()
@@ -3573,18 +3592,11 @@ func (m *Model) dragEnd() tea.Cmd {
 	return copyToClipboard(text)
 }
 
-// systemCopy puts text on the system clipboard with
-// github.com/atotto/clipboard (xclip, xsel, wl-copy or Termux on Linux and
-// BSD, the native clipboard on macOS and Windows). Without one of those it
-// does nothing: the OSC 52 copy still works. Tests replace it.
-var systemCopy = func(text string) {
-	_ = clipboard.WriteAll(text)
-}
-
 // copyToClipboard copies text with the terminal's OSC 52 sequence (works in
 // most terminals, also over SSH and in tmux) and with the system clipboard.
 func copyToClipboard(text string) tea.Cmd {
 	return tea.Batch(tea.SetClipboard(text), func() tea.Msg {
+		defer func() { _ = recover() }() // a failing clipboard tool must not end sqlcli
 		systemCopy(text)
 		return nil
 	})

@@ -182,7 +182,9 @@ bar says what was copied):
 sqlcli copies with the terminal's OSC 52 sequence, which most terminals and
 tmux support (also over SSH), and with the system clipboard through the
 `github.com/atotto/clipboard` library (on Linux it needs `xclip`, `xsel` or
-`wl-copy` installed; macOS and Windows work natively). Hold Shift while dragging for the terminal's own selection.
+`wl-copy` installed; macOS works natively). On Windows sqlcli copies only
+with OSC 52, which Windows Terminal supports (the old console window
+doesn't). Hold Shift while dragging for the terminal's own selection.
 
 ## 5. Connections
 
