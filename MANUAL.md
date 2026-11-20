@@ -523,10 +523,20 @@ accepts `"yes"` / `"no"` and `"on"` / `"off"`.
 |---|---|
 | **F5** (also Ctrl-Enter / Alt-Enter if your terminal sends them) | the **marked block**, or else the **one statement the cursor is in** |
 | **F7** | the **whole buffer** as a script |
+| **Ctrl-F5** | the **execution plan** of the statement F5 would run |
 | **Ctrl-C** | cancel the running statement |
 
 Statements run one after another. If one fails, the rest are skipped. The
 results pane shows the last query result, or the messages of all statements.
+
+**Explain plan (Ctrl-F5).** sqlcli runs `EXPLAIN PLAN FOR` the statement under
+the cursor (or the one statement of the marked block), then
+`SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY('plan_table',null,'all'))`, and shows
+the plan as text in the results pane (`── Execution plan ──`), with the plan
+hash, the operations, predicates and column projection. The statement itself
+doesn't run. **o** switches to the plan rows as a grid and back. PL/SQL
+blocks and SQL\*Plus commands can't be explained. The key can be changed
+(`explain` in `[keys]`).
 
 ### How statements are separated
 
@@ -1097,6 +1107,7 @@ changed.
 | `results` | `f3` | show / hide the results panel |
 | `sql` | `f4` | show / hide the SQL panel |
 | `run` | `f5`, `ctrl+enter`, `alt+enter` | run the statement at the cursor (or the block) |
+| `explain` | `ctrl+f5` | explain plan of the statement at the cursor |
 | `history` | `f6` | SQL history |
 | `run_all` | `f7` | run the whole SQL panel |
 | `rollback` | `f8` | rollback |
@@ -1133,6 +1144,7 @@ changed.
 | F4 | show / hide SQL panel |
 | F5 | run block or statement under cursor |
 | F7 | run whole buffer |
+| Ctrl-F5 | explain plan of the statement under cursor |
 | F6 | history browser |
 | F10 / ^K E | sessions: load / save / delete |
 | Ctrl-S | save the open tabs as a session |

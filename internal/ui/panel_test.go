@@ -153,3 +153,33 @@ func TestConfiguredKeys(t *testing.T) {
 		t.Fatal("F1 should not open the help any more")
 	}
 }
+
+func TestExplainRefusals(t *testing.T) {
+	m := mouseModel()
+	m.focus = focusEditor
+	for text, want := range map[string]string{
+		"-- just a comment":   "in a comment",
+		"begin null; end;\n/": "works on SQL statements",
+		"desc emp":            "works on SQL statements",
+		"select 1 from dual;\nselect 2 from dual;": "",
+	} {
+		m.ed.SetText(text)
+		m.ed.SetCursor(0, 0)
+		m.status = ""
+		if want == "" { // a block of two statements
+			m.ed.SetBlock(0, 0, 1, 19)
+			want = "holds 2 statements"
+		}
+		press(m, key(tea.KeyF5, tea.ModCtrl))
+		if !strings.Contains(m.status, want) || m.explaining {
+			t.Errorf("%q: status %q, want %q", text, m.status, want)
+		}
+		m.ed.ClearBlock()
+	}
+	// a SELECT is sent (here: not connected)
+	m.ed.SetText("select * from emp;")
+	press(m, key(tea.KeyF5, tea.ModCtrl))
+	if !strings.HasPrefix(m.status, "Not connected") {
+		t.Fatalf("select: %q", m.status)
+	}
+}

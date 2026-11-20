@@ -98,6 +98,7 @@ type tab struct {
 	spool        *spooler       // SPOOL file of this tab
 	pendingRow   int            // row to select once enough rows are fetched
 	runOnConnect bool           // run the SQL panel's text once the tab is connected (tree s / e)
+	explaining   bool           // the running script is an explain plan (Ctrl-F5)
 	hasPending   bool
 
 	// last statement run, shown at the bottom of the SQL panel
@@ -584,6 +585,41 @@ func (m *Model) runSteps(steps []script.Step) tea.Cmd {
 	})
 }
 
+// explainQuery shows the plan that EXPLAIN PLAN just wrote.
+const explainQuery = "SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY('plan_table',null,'all'))"
+
+// explain runs EXPLAIN PLAN FOR the statement F5 would run (or the one
+// statement of the marked block) and shows its plan from DBMS_XPLAN.
+func (m *Model) explain() tea.Cmd {
+	if m.running {
+		m.setStatus("A statement is already running (Ctrl-C cancels)", true)
+		return nil
+	}
+	if !m.ed.HasBlock() {
+		if _, _, ok := db.RunCursor(m.ed.Text(), m.ed.CursorRow(), m.ed.CursorCol()); !ok {
+			m.setStatus("The cursor is in a comment: nothing to explain", true)
+			return nil
+		}
+	}
+	stmts := m.currentStatements()
+	switch {
+	case len(stmts) == 0:
+		m.setStatus("Nothing to explain", true)
+		return nil
+	case len(stmts) > 1:
+		m.setStatus(fmt.Sprintf("The block holds %d statements: explain plan works on one", len(stmts)), true)
+		return nil
+	}
+	st := db.Normalize(stmts[0])
+	if kw := db.FirstKeyword(st); db.IsLineCommand(st) || kw == "BEGIN" || kw == "DECLARE" {
+		m.setStatus("Explain plan works on SQL statements (SELECT, INSERT, UPDATE, DELETE, MERGE ...)", true)
+		return nil
+	}
+	cmd := m.execute([]string{"explain plan for " + st, explainQuery})
+	m.explaining = cmd != nil
+	return cmd
+}
+
 // currentStatements returns what F5 executes: the statements of the marked
 // block, or else the single statement under the cursor.
 func (m *Model) currentStatements() []string {
@@ -979,6 +1015,19 @@ func (m *Model) execDone(msg execDoneMsg) (cmd tea.Cmd) {
 	}
 	m.res.set(msg.last, msg.messages, msg.output, errText)
 	m.res.compile = msg.compile
+	if m.explaining { // show the plan as text: the grid would cut its long lines
+		m.explaining = false
+		if r := msg.last; msg.err == nil && r != nil && r.IsQuery && len(r.Columns) == 1 {
+			for _, row := range r.Rows {
+				if row[0] != db.Null {
+					m.res.plan = append(m.res.plan, row[0])
+				} else {
+					m.res.plan = append(m.res.plan, "")
+				}
+			}
+			m.res.textMode = true
+		}
+	}
 	m.res.textMode = m.res.textMode || len(msg.compile) > 0
 	if len(msg.compile) > 0 && msg.err == nil {
 		m.setStatus(msg.compile[0], true)
@@ -1174,6 +1223,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			}
 		}
 		return m.execute(m.currentStatements())
+	case "ctrl+f5": // explain plan of the statement at the cursor
+		return m.explain()
 	case "f7":
 		return m.execute(db.SplitStatements(m.ed.Text()))
 	case "f6":
@@ -2497,6 +2548,7 @@ const helpText = `
  F5          run statement at cursor       ^Y                     delete line
              (or the marked block)         ^W / ^O                delete word right / left
  F7          run whole buffer as script    ^J                     delete to end of line
+ Ctrl-F5     explain plan (DBMS_XPLAN)
  F6          SQL history (SQLite)          ^_ / ^^                undo / redo
  F8 / F9     rollback / commit             ^K B / ^K K            mark block begin / end
  F10, ^K E   sessions (load / save)        ^K C / ^K M / ^K Y     copy / move / delete block
@@ -3911,7 +3963,7 @@ func (m *Model) keyHints() [][2]string {
 	}
 	return [][2]string{{m.keyLabel("help"), "help"}, {m.keyLabel("connections"), "conns"}, {m.keyLabel("results"), "results"},
 		{m.keyLabel("sql"), "sql"}, {m.keyLabel("run"), "run"}, {m.keyLabel("history"), "history"}, {m.keyLabel("run_all"), "run all"},
-		{m.keyLabel("rollback"), "rollback"}, {m.keyLabel("commit"), "commit"}, {m.keyLabel("sessions"), "sessions"}, {"^K D/I", "save/load sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
+		{m.keyLabel("rollback"), "rollback"}, {m.keyLabel("commit"), "commit"}, {m.keyLabel("sessions"), "sessions"}, {m.keyLabel("explain"), "plan"}, {"^K D/I", "save/load sql"}, {"^K O/N/P/Q", "tabs"}, {"^K X", "quit"}}
 }
 
 // ---- editing cells of the results grid (u) ----

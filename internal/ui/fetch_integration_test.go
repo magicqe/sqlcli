@@ -823,3 +823,36 @@ func TestUIInsertDeleteRows(t *testing.T) {
 		t.Fatalf("rollback: db %q grid %v status %q", count(), m.res.res.Rows, m.status)
 	}
 }
+
+func TestUIExplainPlan(t *testing.T) {
+	m := newTestModel(t, false)
+	m.ed.SetText("select 1 from dual;\n\nselect * from dual where dummy = 'X';")
+	m.ed.SetCursor(2, 5)
+	m.focus = focusEditor
+	press(m, key(tea.KeyF5, tea.ModCtrl))
+	if m.running || m.explaining || len(m.res.plan) < 5 || !m.res.showText() {
+		t.Fatalf("plan: %q status %q err %q", m.res.plan, m.status, m.res.err)
+	}
+	plan := strings.Join(m.res.plan, "\n")
+	for _, want := range []string{"Plan hash value", "TABLE ACCESS FULL", "DUAL", "Predicate Information", `"DUMMY"='X'`, "Column Projection"} {
+		if !strings.Contains(plan, want) {
+			t.Fatalf("plan lacks %q:\n%s", want, plan)
+		}
+	}
+	if s := screen(m); !strings.Contains(s, "Execution plan") || !strings.Contains(s, "Plan hash value") {
+		t.Fatalf("screen:\n%s", s)
+	}
+	// o shows the plan rows as a grid; a normal run clears the plan
+	m.focus = focusResults
+	press(m, key('o'))
+	if m.res.showText() || m.res.res.Columns[0] != "PLAN_TABLE_OUTPUT" {
+		t.Fatalf("o: %v", m.res.showText())
+	}
+	run(m, "select 1 from dual")
+	if len(m.res.plan) != 0 || m.res.showText() {
+		t.Fatal("a normal run should show the grid without a plan")
+	}
+	if m.conn.InTransaction() {
+		t.Fatal("explain plan should not leave a transaction open")
+	}
+}

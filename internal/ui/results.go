@@ -20,6 +20,7 @@ type resultView struct {
 	err      string
 	output   []string // DBMS_OUTPUT lines
 	compile  []string // compilation errors of created PL/SQL objects
+	plan     []string // execution plan (Ctrl-F5), shown as text
 
 	textMode bool // show the text view (always when there is no grid)
 
@@ -52,7 +53,7 @@ func (r *resultView) set(res *db.Result, messages, output []string, err string) 
 	r.edits = nil
 	r.textTop, r.textLeft = 0, 0
 	r.rangeOn, r.blockOn, r.blockAllCols, r.blockSticky = false, false, false, false
-	r.compile = nil
+	r.compile, r.plan = nil, nil
 	r.widths = nil
 	r.textMode = !r.hasGrid()
 	if !r.hasGrid() {
@@ -88,7 +89,7 @@ func (r *resultView) dataRows() int { return max(r.h-2, 1) } // minus header + s
 func (r *resultView) hasGrid() bool { return r.err == "" && r.res != nil && r.res.IsQuery }
 
 // canToggle reports whether 'o' can switch between grid and DBMS_OUTPUT.
-func (r *resultView) canToggle() bool { return r.hasGrid() && len(r.output) > 0 }
+func (r *resultView) canToggle() bool { return r.hasGrid() && (len(r.output) > 0 || len(r.plan) > 0) }
 
 // showText reports whether the text view is shown instead of the grid.
 func (r *resultView) showText() bool { return r.textMode || !r.hasGrid() }
@@ -180,6 +181,10 @@ func (r *resultView) textLines() []string {
 		for _, l := range strings.Split(r.err, "\n") {
 			lines = append(lines, errStyle.Render(l))
 		}
+	}
+	if len(r.plan) > 0 {
+		lines = append(lines, sepStyle.Render("── Execution plan (DBMS_XPLAN.DISPLAY, 'all') ──"))
+		lines = append(lines, r.plan...)
 	}
 	if len(r.compile) > 0 {
 		lines = append(lines, errStyle.Render("── Compilation errors ──"))

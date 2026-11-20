@@ -49,6 +49,7 @@
   results = "f3"                            # show / hide the results panel
   sql = "f4"                                # show / hide the SQL panel
   run = ["f5", "ctrl+enter", "alt+enter"]   # run the statement at the cursor (or the block)
+  explain = "ctrl+f5"                       # explain plan of the statement at the cursor
   history = "f6"                            # SQL history
   run_all = "f7"                            # run the whole SQL panel
   rollback = "f8"                           # rollback
