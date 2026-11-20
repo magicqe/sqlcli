@@ -170,7 +170,7 @@ func TestExplainRefusals(t *testing.T) {
 			m.ed.SetBlock(0, 0, 1, 19)
 			want = "holds 2 statements"
 		}
-		press(m, key(tea.KeyF5, tea.ModCtrl))
+		press(m, key(tea.KeyF5, tea.ModShift))
 		if !strings.Contains(m.status, want) || m.explaining {
 			t.Errorf("%q: status %q, want %q", text, m.status, want)
 		}
@@ -178,7 +178,7 @@ func TestExplainRefusals(t *testing.T) {
 	}
 	// a SELECT is sent (here: not connected)
 	m.ed.SetText("select * from emp;")
-	press(m, key(tea.KeyF5, tea.ModCtrl))
+	press(m, key(tea.KeyF5, tea.ModShift))
 	if !strings.HasPrefix(m.status, "Not connected") {
 		t.Fatalf("select: %q", m.status)
 	}

@@ -98,7 +98,7 @@ type tab struct {
 	spool        *spooler       // SPOOL file of this tab
 	pendingRow   int            // row to select once enough rows are fetched
 	runOnConnect bool           // run the SQL panel's text once the tab is connected (tree s / e)
-	explaining   bool           // the running script is an explain plan (Ctrl-F5)
+	explaining   bool           // the running script is an explain plan (Shift-F5)
 	hasPending   bool
 
 	// last statement run, shown at the bottom of the SQL panel
@@ -1223,7 +1223,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			}
 		}
 		return m.execute(m.currentStatements())
-	case "ctrl+f5": // explain plan of the statement at the cursor
+	case "shift+f5": // explain plan of the statement at the cursor
 		return m.explain()
 	case "f7":
 		return m.execute(db.SplitStatements(m.ed.Text()))
@@ -2548,7 +2548,7 @@ const helpText = `
  F5          run statement at cursor       ^Y                     delete line
              (or the marked block)         ^W / ^O                delete word right / left
  F7          run whole buffer as script    ^J                     delete to end of line
- Ctrl-F5     explain plan (DBMS_XPLAN)
+ Shift-F5    explain plan (DBMS_XPLAN)
  F6          SQL history (SQLite)          ^_ / ^^                undo / redo
  F8 / F9     rollback / commit             ^K B / ^K K            mark block begin / end
  F10, ^K E   sessions (load / save)        ^K C / ^K M / ^K Y     copy / move / delete block

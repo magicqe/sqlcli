@@ -20,7 +20,7 @@ type resultView struct {
 	err      string
 	output   []string // DBMS_OUTPUT lines
 	compile  []string // compilation errors of created PL/SQL objects
-	plan     []string // execution plan (Ctrl-F5), shown as text
+	plan     []string // execution plan (Shift-F5), shown as text
 
 	textMode bool // show the text view (always when there is no grid)
 

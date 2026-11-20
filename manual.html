@@ -574,11 +574,11 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
         <tbody>
           <tr><td><kbd>F5</kbd></td><td class="wrap-ok">The <strong>marked block</strong>, or else the <strong>one statement the cursor is in</strong>. Ctrl-Enter and Alt-Enter also work if your terminal sends them.</td></tr>
           <tr><td><kbd>F7</kbd></td><td>The <strong>whole buffer</strong> as a script</td></tr>
-          <tr><td><kbd>Ctrl-F5</kbd></td><td>The <strong>execution plan</strong> of the statement F5 would run</td></tr>
+          <tr><td><kbd>Shift-F5</kbd></td><td>The <strong>execution plan</strong> of the statement F5 would run</td></tr>
           <tr><td><kbd>Ctrl-C</kbd></td><td>Cancels the running statement</td></tr>
         </tbody>
       </table></div>
-      <p><strong>Explain plan (<kbd>Ctrl-F5</kbd>).</strong> sqlcli runs <code>EXPLAIN PLAN FOR</code> the statement under the cursor (or the one statement of the marked block), then <code>SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY('plan_table',null,'all'))</code>, and shows the plan as text in the results pane (<code>── Execution plan ──</code>), with the plan hash, the operations, predicates and column projection. The statement itself doesn't run. <kbd>o</kbd> switches to the plan rows as a grid and back. PL/SQL blocks and SQL*Plus commands can't be explained. The key can be changed (<code>explain</code> in <code>[keys]</code>).</p>
+      <p><strong>Explain plan (<kbd>Shift-F5</kbd>).</strong> sqlcli runs <code>EXPLAIN PLAN FOR</code> the statement under the cursor (or the one statement of the marked block), then <code>SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY('plan_table',null,'all'))</code>, and shows the plan as text in the results pane (<code>── Execution plan ──</code>), with the plan hash, the operations, predicates and column projection. The statement itself doesn't run. <kbd>o</kbd> switches to the plan rows as a grid and back. PL/SQL blocks and SQL*Plus commands can't be explained. The key can be changed (<code>explain</code> in <code>[keys]</code>).</p>
       <p>Statements run one after another. If one fails, the rest are skipped. The results pane shows the last query result, or the messages of all statements.</p>
 
       <h3>How statements are separated</h3>
@@ -902,7 +902,7 @@ second line</pre>
           <tr><td><code>results</code></td><td><code>f3</code></td><td>show / hide the results panel</td></tr>
           <tr><td><code>sql</code></td><td><code>f4</code></td><td>show / hide the SQL panel</td></tr>
           <tr><td><code>run</code></td><td><code>f5</code>, <code>ctrl+enter</code>, <code>alt+enter</code></td><td>run the statement at the cursor (or the block)</td></tr>
-          <tr><td><code>explain</code></td><td><code>ctrl+f5</code></td><td>explain plan of the statement at the cursor</td></tr>
+          <tr><td><code>explain</code></td><td><code>shift+f5</code></td><td>explain plan of the statement at the cursor</td></tr>
           <tr><td><code>history</code></td><td><code>f6</code></td><td>SQL history</td></tr>
           <tr><td><code>run_all</code></td><td><code>f7</code></td><td>run the whole SQL panel</td></tr>
           <tr><td><code>rollback</code></td><td><code>f8</code></td><td>rollback</td></tr>
@@ -952,7 +952,7 @@ second line</pre>
           <tr><td><kbd>F4</kbd></td><td>Show / hide SQL panel</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F5</kbd></td><td>Run block or statement under cursor</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F7</kbd></td><td>Run whole buffer</td><td><span class="grp">Global</span></td></tr>
-          <tr><td><kbd>Ctrl-F5</kbd></td><td>Explain plan of the statement under cursor</td><td><span class="grp">Global</span></td></tr>
+          <tr><td><kbd>Shift-F5</kbd></td><td>Explain plan of the statement under cursor</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F6</kbd></td><td>History browser</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>F10</kbd> / <kbd>^K</kbd> <kbd>E</kbd></td><td>Sessions: load / save / delete</td><td><span class="grp">Global</span></td></tr>
           <tr><td><kbd>Ctrl-S</kbd></td><td>Save the open tabs as a session</td><td><span class="grp">Global</span></td></tr>

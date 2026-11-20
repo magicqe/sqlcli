@@ -30,7 +30,7 @@ var KeyActions = []KeyAction{
 	{"results", []string{"f3"}, "show / hide the results panel"},
 	{"sql", []string{"f4"}, "show / hide the SQL panel"},
 	{"run", []string{"f5", "ctrl+enter", "alt+enter"}, "run the statement at the cursor (or the block)"},
-	{"explain", []string{"ctrl+f5"}, "explain plan of the statement at the cursor"},
+	{"explain", []string{"shift+f5"}, "explain plan of the statement at the cursor"},
 	{"history", []string{"f6"}, "SQL history"},
 	{"run_all", []string{"f7"}, "run the whole SQL panel"},
 	{"rollback", []string{"f8"}, "rollback"},

@@ -829,7 +829,7 @@ func TestUIExplainPlan(t *testing.T) {
 	m.ed.SetText("select 1 from dual;\n\nselect * from dual where dummy = 'X';")
 	m.ed.SetCursor(2, 5)
 	m.focus = focusEditor
-	press(m, key(tea.KeyF5, tea.ModCtrl))
+	press(m, key(tea.KeyF5, tea.ModShift))
 	if m.running || m.explaining || len(m.res.plan) < 5 || !m.res.showText() {
 		t.Fatalf("plan: %q status %q err %q", m.res.plan, m.status, m.res.err)
 	}
