@@ -680,7 +680,7 @@ end;
           <tr><td><kbd>i</kbd> / <kbd>d</kbd></td><td>Insert a new row / delete the current row</td></tr>
           <tr><td><kbd>Enter</kbd></td><td class="wrap-ok">Show the selected row as a record (see <a href="#record">Record view</a>)</td></tr>
           <tr><td><kbd>o</kbd></td><td class="wrap-ok">Switch between the grid and DBMS_OUTPUT (when a query produced both)</td></tr>
-          <tr><td><kbd>e</kbd></td><td class="wrap-ok">Export the result to a .csv, .tsv, .json, .xlsx or .xls file (see <a href="#export">Exporting</a>)</td></tr>
+          <tr><td><kbd>e</kbd></td><td class="wrap-ok">Export the result to a .csv, .tsv, .json, .xlsx, .xls or .sql (INSERT statements) file (see <a href="#export">Exporting</a>)</td></tr>
           <tr><td><kbd>Esc</kbd> <kbd>Tab</kbd></td><td>Back to the editor</td></tr>
         </tbody>
       </table></div>
@@ -731,6 +731,7 @@ end;
           <tr><td><code>.tsv</code></td><td class="wrap-ok">Tab-separated, header row</td></tr>
           <tr><td><code>.json</code></td><td class="wrap-ok">An array of objects, one per row, keys in column order</td></tr>
           <tr><td><code>.xlsx</code></td><td class="wrap-ok">Excel workbook (sheet <code>Result</code>), up to 1,048,575 rows</td></tr>
+          <tr><td><code>.sql</code></td><td class="wrap-ok"><strong>INSERT statements</strong>, one per row — only for a query of <strong>one table</strong> (see below)</td></tr>
           <tr><td><code>.xls</code></td><td class="wrap-ok">Excel 2003 XML spreadsheet — opens in Excel (which may warn that the content is XML) and LibreOffice; up to 65,535 rows</td></tr>
         </tbody>
       </table></div>
@@ -738,6 +739,7 @@ end;
         <li><strong>All rows are exported</strong>, not only those on screen. If the query has more rows on the server, sqlcli fetches them first (<code>Fetching all rows for export… N</code>); <kbd>Ctrl-C</kbd> stops that and cancels the export.</li>
         <li>NULL is an empty field in CSV/TSV and <code>null</code> in JSON. <code>NUMBER</code> columns are JSON numbers, written exactly as Oracle returned them; everything else is a string, dates as <code>YYYY-MM-DD HH:MI:SS</code>.</li>
         <li>Duplicate column names (<code>select a.id, b.id …</code>) become <code>ID</code> and <code>ID_2</code> in JSON.</li>
+        <li><strong>INSERT statements</strong> (<code>.sql</code>) need a result that comes from one table (<code>select … from emp …</code>, no joins). sqlcli reads the table's columns and writes <code>INSERT INTO EMP (ID, NAME, …) VALUES (…);</code> for each row, with only the result columns that are columns of the table (<code>ROWID</code> and expressions are left out). Values are Oracle literals by column type: numbers as they are, <code>TO_DATE(…)</code> / <code>TO_TIMESTAMP(…)</code> for dates and timestamps, <code>HEXTORAW('…')</code> for RAW, long CLOBs as <code>TO_CLOB('…') || …</code> pieces, strings quoted (<code>'O''Brien'</code>), NULL as <code>NULL</code>. BLOB, BFILE, LONG RAW and object columns can't be written as literals and are left out (a comment in the file names them). The file starts with <code>SET DEFINE OFF;</code>, so <code>&amp;</code> in values isn't taken as a substitution variable, and has no <code>COMMIT</code>. It runs as it is in sqlcli (<kbd>F7</kbd>, <code>@file</code>) or SQL*Plus.</li>
         <li>In <strong>Excel</strong> files the header row is bold and frozen, with an autofilter. <code>NUMBER</code> columns are numeric cells (values with more than 15 digits, which Excel can't keep exactly, stay text), <code>DATE</code> and <code>TIMESTAMP</code> columns date cells shown as <code>yyyy-mm-dd hh:mm:ss</code>, NULL an empty cell.</li>
         <li>An existing file is only replaced after you confirm. The file is written under a temporary name first, so a failed export never leaves half a file.</li>
       </ul>

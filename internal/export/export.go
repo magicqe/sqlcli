@@ -24,6 +24,7 @@ const (
 	JSON
 	XLSX
 	XLS
+	SQL // INSERT statements (WriteInsertsFile; needs the table)
 )
 
 // FormatFor picks the format from a file name's extension.
@@ -39,8 +40,10 @@ func FormatFor(path string) (Format, error) {
 		return XLSX, nil
 	case ".xls":
 		return XLS, nil
+	case ".sql":
+		return SQL, nil
 	}
-	return 0, fmt.Errorf("unknown file type %q: use .csv, .tsv, .json, .xlsx or .xls", filepath.Ext(path))
+	return 0, fmt.Errorf("unknown file type %q: use .csv, .tsv, .json, .xlsx, .xls or .sql", filepath.Ext(path))
 }
 
 // Write writes columns and rows to w. NULL (db.Null) becomes an empty
@@ -57,6 +60,8 @@ func Write(w io.Writer, f Format, cols, types []string, rows [][]string) error {
 		err = writeXLSX(bw, cols, types, rows)
 	case XLS:
 		err = writeXLS(bw, cols, types, rows)
+	case SQL:
+		err = fmt.Errorf("INSERT statements need the table: use WriteInsertsFile")
 	}
 	if err != nil {
 		return err

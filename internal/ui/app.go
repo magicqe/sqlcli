@@ -2573,7 +2573,7 @@ const helpText = `
  Ctrl-C      stop fetching                 Shift-↑↓←→, wheel      scroll a long record / long values
  Enter       show row as record (also a double click on the row)
  o           grid / DBMS_OUTPUT
- e           export to .csv/.tsv/.json/.xlsx/.xls
+ e           export to .csv/.tsv/.json/.xlsx/.xls, or .sql = INSERT statements (one-table query)
  c / C       copy the cell / the row to the clipboard
  Shift-↑↓    select whole rows; Shift-←→ a block of cells; c / C copy (tab-separated / with header)
  v / Space   selection mode: plain arrows extend the selection (when the terminal keeps Shift-arrows)
@@ -2676,14 +2676,25 @@ func (m *Model) askExport() tea.Cmd {
 	if def == "" {
 		def = "result.csv"
 	}
-	m.askFile("Export to (.csv, .tsv, .json, .xlsx or .xls):", def, func(v string) tea.Cmd {
+	m.askFile("Export to (.csv, .tsv, .json, .xlsx, .xls or .sql = INSERT statements):", def, func(v string) tea.Cmd {
 		path := expandHome(strings.TrimSpace(v))
 		if path == "" {
 			return nil
 		}
-		if _, err := export.FormatFor(path); err != nil {
+		f, err := export.FormatFor(path)
+		if err != nil {
 			m.setStatus(err.Error(), true)
 			return nil
+		}
+		if f == export.SQL { // INSERT statements need the one table the query reads
+			if _, _, err := resultTable(m.res.res); err != nil {
+				m.setStatus("INSERT export: the query must read one table ("+err.Error()+")", true)
+				return nil
+			}
+			if m.conn == nil {
+				m.setStatus("INSERT export: not connected (the table's columns are needed)", true)
+				return nil
+			}
 		}
 		m.lastExport = strings.TrimSpace(v)
 		if _, err := os.Stat(path); err == nil {
@@ -2717,7 +2728,17 @@ func (m *Model) export(path string) tea.Cmd {
 	cols, types, rows := r.Columns, r.Types, r.Rows
 	m.running, m.exporting = true, true
 	m.runStart = time.Now()
-	id := m.id
+	id, conn := m.id, m.conn
+	if f, _ := export.FormatFor(path); f == export.SQL {
+		table, _, _ := resultTable(r)
+		return tea.Batch(tick(), func() tea.Msg {
+			ct, err := conn.ColumnTypes(context.Background(), table.Owner, table.Name)
+			if err == nil {
+				err = export.WriteInsertsFile(path, export.InsertTable{Owner: table.Owner, Name: table.Name, ColTypes: ct}, cols, rows)
+			}
+			return exportDoneMsg{tab: id, path: path, rows: len(rows), err: err}
+		})
+	}
 	return tea.Batch(tick(), func() tea.Msg {
 		err := export.WriteFile(path, cols, types, rows)
 		return exportDoneMsg{tab: id, path: path, rows: len(rows), err: err}

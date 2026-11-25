@@ -34,7 +34,7 @@ in a searchable SQLite history.
   `DEFINE` / `&variables`, `ACCEPT`, `PROMPT`, `@file` / `START`, `SPOOL`, …
 - **Results** – fetch on scroll (`End` fetches all), record view, `DBMS_OUTPUT`,
   compile errors, cell / row / block selection copied to the clipboard,
-  export to **CSV, TSV, JSON, XLSX and XLS**.
+  export to **CSV, TSV, JSON, XLSX, XLS** and **SQL INSERT statements**.
 - **Editing data** – edit cells (`u`), insert (`i`) and delete (`d`) rows by
   ROWID in the tab's transaction (`F9` commit, `F8` rollback); CLOB values in a
   full-screen text editor.

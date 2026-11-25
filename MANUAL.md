@@ -718,7 +718,7 @@ to focus it, or press F3 twice.
 | i / d | insert a new row / delete the current row |
 | Enter | show the selected row as a record ([Record view](#record-view)) |
 | o | switch between the grid and DBMS_OUTPUT (when a query produced both) |
-| e | export the result to a .csv, .tsv, .json, .xlsx or .xls file ([Exporting](#exporting)) |
+| e | export the result to a .csv, .tsv, .json, .xlsx, .xls or .sql (INSERT statements) file ([Exporting](#exporting)) |
 | c | copy the cell under the cell cursor to the clipboard (the value as it is; NULL copies as empty) |
 | C | copy the current row: one `COLUMN: value` line per column |
 | Shift-↑ ↓ ← →, Shift-PgUp / PgDn / Home / End | **select rows** (Shift-↑↓: whole rows) **or a block of cells** (Shift-←→); c then copies it, C copies it with the column names (see below) |
@@ -863,6 +863,7 @@ extension picks the format:
 | `.json` | an array of objects, one per row, keys in column order |
 | `.xlsx` | Excel workbook (sheet `Result`), up to 1,048,575 rows |
 | `.xls` | Excel 2003 XML spreadsheet — opens in Excel (which may warn that the content is XML) and LibreOffice; up to 65,535 rows |
+| `.sql` | **INSERT statements**, one per row — only for a query of **one table** (see below) |
 
 * **All rows are exported**, not only those on screen: if the query has
   more rows on the server, sqlcli fetches them first (`Fetching all rows for
@@ -872,6 +873,18 @@ extension picks the format:
   string, dates as `YYYY-MM-DD HH:MI:SS`.
 * Duplicate column names (`select a.id, b.id ...`) become `ID` and `ID_2`
   in JSON.
+* **INSERT statements** (`.sql`) need a result that comes from one table
+  (`select … from emp …`, no joins). sqlcli reads the table's columns and
+  writes `INSERT INTO EMP (ID, NAME, …) VALUES (…);` for each row, with only
+  the result columns that are columns of the table (`ROWID` and expressions
+  are left out). Values are Oracle literals by column type: numbers as they
+  are, `TO_DATE(…)` / `TO_TIMESTAMP(…)` for dates and timestamps,
+  `HEXTORAW('…')` for RAW, long CLOBs as `TO_CLOB('…') || …` pieces, strings
+  quoted (`'O''Brien'`), NULL as `NULL`. BLOB, BFILE, LONG RAW and object
+  columns can't be written as literals and are left out (a comment in the
+  file names them). The file starts with `SET DEFINE OFF;`, so `&` in values
+  isn't taken as a substitution variable, and has no `COMMIT`. It runs as it
+  is in sqlcli (F7, `@file`) or SQL\*Plus.
 * In **Excel** files the header row is bold and frozen, with an autofilter.
   `NUMBER` columns are numeric cells (values with more than 15 digits, which
   Excel can't keep exactly, stay text), `DATE` and `TIMESTAMP` columns date
@@ -1155,7 +1168,7 @@ changed.
 | ^K N / ^K P, Ctrl-PgDn / Ctrl-PgUp | next / previous tab |
 | Alt-1 … Alt-9 | go to tab |
 | ^K Q | close tab (last tab: quit) |
-| e (results pane) | export result to .csv / .tsv / .json / .xlsx / .xls |
+| e (results pane) | export result to .csv / .tsv / .json / .xlsx / .xls / .sql |
 
 ### Editor
 

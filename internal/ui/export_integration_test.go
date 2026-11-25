@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"os"
@@ -88,7 +89,7 @@ func TestUIExport(t *testing.T) {
 	// bad extension
 	press(m, key('e'))
 	answer(m, filepath.Join(dir, "out.xml"))
-	if !m.statusErr || !strings.Contains(m.status, "use .csv, .tsv, .json, .xlsx or .xls") {
+	if !m.statusErr || !strings.Contains(m.status, "use .csv, .tsv, .json, .xlsx, .xls or .sql") {
 		t.Fatalf("status: %q", m.status)
 	}
 
@@ -106,5 +107,65 @@ func TestUIExport(t *testing.T) {
 	b, _ = os.ReadFile(filepath.Join(dir, "out.xls"))
 	if strings.Count(string(b), "<Row>") != 2501 || !strings.Contains(string(b), `<Data ss:Type="Number">2500</Data>`) {
 		t.Fatalf(".xls content: %d rows", strings.Count(string(b), "<Row>"))
+	}
+}
+
+func TestUIExportInserts(t *testing.T) {
+	m := newTestModel(t, false)
+	ctx := context.Background()
+	defer m.conn.Execute(ctx, "drop table sqlcli_test_insexp purge", 1)
+	m.conn.Execute(ctx, "drop table sqlcli_test_insexp purge", 1)
+	run(m, "create table sqlcli_test_insexp (id number(10,2), name varchar2(100), born date, at timestamp(6), doc clob, bin raw(16))")
+	run(m, `insert into sqlcli_test_insexp values (1.5, 'O''Brien & co'||chr(10)||'line 2', date '1999-12-31', timestamp '2026-01-02 03:04:05.123456', rpad('x', 5000, 'yz'), hextoraw('0A0B'))`)
+	run(m, "insert into sqlcli_test_insexp (id) values (-2)")
+	press(m, key(tea.KeyF9))
+	snapshot := func() string {
+		r, err := m.conn.Execute(ctx, `select id || '|' || name || '|' || to_char(born, 'YYYY-MM-DD HH24:MI:SS') || '|' ||
+			to_char(at, 'YYYY-MM-DD HH24:MI:SS.FF6') || '|' || dbms_lob.getlength(doc) || '|' || dbms_lob.substr(doc, 20, 4980) || '|' || rawtohex(bin)
+			from sqlcli_test_insexp order by id`, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, row := range r.Rows {
+			out = append(out, row[0])
+		}
+		return strings.Join(out, "\n")
+	}
+	before := snapshot()
+
+	dir := t.TempDir()
+	run(m, "select rowid, t.* from sqlcli_test_insexp t order by id")
+	m.focus = focusResults
+	press(m, key('e'))
+	answer(m, filepath.Join(dir, "rows.sql"))
+	if m.statusErr || !strings.Contains(m.status, "Exported 2 row(s)") {
+		t.Fatalf("export: %q", m.status)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "rows.sql"))
+	if !strings.Contains(string(b), "INSERT INTO SQLCLI_TEST_INSEXP (ID, NAME, BORN, AT, DOC, BIN)") || strings.Contains(string(b), "ROWID") {
+		t.Fatalf("file:\n%s", b)
+	}
+
+	// run the file back into the empty table: the rows come back the same
+	run(m, "delete from sqlcli_test_insexp")
+	m.ed.SetText(string(b))
+	m.focus = focusEditor
+	press(m, key(tea.KeyF7))
+	if m.res.err != "" {
+		t.Fatalf("running the export: %s", m.res.err)
+	}
+	if after := snapshot(); after != before {
+		t.Fatalf("rows differ:\nbefore %s\nafter  %s", before, after)
+	}
+	press(m, key(tea.KeyF9)) // keep the rows for the join below
+
+	// a join can't be exported as INSERTs
+	run(m, "select t.id, d.dummy from sqlcli_test_insexp t join dual d on 1 = 1")
+	m.focus = focusResults
+	press(m, key('e'))
+	answer(m, filepath.Join(dir, "join.sql"))
+	if !m.statusErr || !strings.Contains(m.status, "must read one table") {
+		t.Fatalf("join: %q", m.status)
 	}
 }
