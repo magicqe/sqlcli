@@ -22,7 +22,7 @@ All notable changes to sqlcli. The format follows
 - **SQL\*Plus commands**: `DESC`, `EXEC`, `SHOW ERRORS` / `SHOW USER`, `SET SERVEROUTPUT`, `DEFINE` / `&variables`, `ACCEPT`, `PROMPT`, `@` / `@@` / `START`, `SPOOL`, `REM` and others.
 - **Object tree** below the connections:
   - Shows every object type of the schema, Java sources included.
-  - Name filter (`/`), `x` removes the filter, `c` collapses the tree.
+  - Name filter (`/`), `x` removes the filter, `C` collapses the tree, `c` compiles the selected object.
   - `Ctrl-D` opens the DDL in a new tab.
   - `s` opens `select *` in a new tab; `e` opens an editable `select rowid, …` in a new tab.
 - **Panels**

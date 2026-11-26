@@ -2579,8 +2579,8 @@ const helpText = `
  v / Space   selection mode: plain arrows extend the selection (when the terminal keeps Shift-arrows)
 
  OBJECT TREE (below the connections)  Enter/→ open · ← close · i insert name · d DESC · s select * (new tab) · e edit rows (new tab) · r reload
-                                      / or f filter by name (* = any text) · x remove filter · c collapse all
-                                      C compile the object (ALTER ... COMPILE; errors in the results)
+                                      / or f filter by name (* = any text) · x remove filter · C collapse all
+                                      c compile the object (ALTER ... COMPILE; errors in the results)
                                       Ctrl-D DDL in a new tab (package: spec and body)
  TABS (each tab has its own editor, results and Oracle session)
  ^K O        new tab on the same connection      ^K N / ^K P   next / previous tab
@@ -3961,8 +3961,8 @@ func (m *Model) keyHints() [][2]string {
 		return [][2]string{{"Enter", "connect"}, {"a", "add"}, {"e", "edit"}, {"v", "view"}, {"d", "delete"},
 			{"Tab", "tree"}, {"Esc", "editor"}, {m.keyLabel("connections"), "hide"}, {m.keyLabel("help"), "help"}}
 	case focusTree:
-		return [][2]string{{"Enter", "open"}, {"←", "close"}, {"/", "filter"}, {"x", "no filter"}, {"c", "collapse"}, {"i", "insert name"}, {"d", "desc"}, {"s", "select"}, {"e", "edit rows"},
-			{"^D", "ddl"}, {"C", "compile"}, {"r", "reload"}, {"Tab", "results"}, {"Esc", "editor"}, {m.keyLabel("help"), "help"}}
+		return [][2]string{{"Enter", "open"}, {"←", "close"}, {"/", "filter"}, {"x", "no filter"}, {"C", "collapse"}, {"i", "insert name"}, {"d", "desc"}, {"s", "select"}, {"e", "edit rows"},
+			{"^D", "ddl"}, {"c", "compile"}, {"r", "reload"}, {"Tab", "results"}, {"Esc", "editor"}, {m.keyLabel("help"), "help"}}
 	case focusResults:
 		if m.res.showText() {
 			h := [][2]string{{"↑↓ PgUp PgDn", "scroll"}, {"←→", "sideways"}}

@@ -132,7 +132,7 @@ func TestPanelKeyHints(t *testing.T) {
 	m.res.set(&db.Result{IsQuery: true, Columns: []string{"N"}, Rows: [][]string{{"1"}}}, nil, nil, "") // a grid
 	for f, want := range map[focus]string{
 		focusConns:   "Enter connect  a add  e edit  v view  d delete",
-		focusTree:    "Enter open  ← close  / filter  x no filter  c collapse  i insert name  d desc  s select  e edit rows  ^D ddl",
+		focusTree:    "Enter open  ← close  / filter  x no filter  C collapse  i insert name  d desc  s select  e edit rows  ^D ddl  c compile",
 		focusResults: "Enter record  u edit  i insert  d delete  e export",
 		focusEditor:  "F1 help  F2 conns  F3 results",
 	} {
@@ -236,11 +236,11 @@ func TestObjectTreeClearFilterAndCollapse(t *testing.T) {
 		t.Fatalf("x without a filter: %q", m.status)
 	}
 
-	// c collapses everything and selects the group of the selection
+	// C collapses everything and selects the group of the selection
 	tr.groups[0].open = true                // Tables
 	tr.groups[1].open = true                // Packages
 	tr.selectNode(tr.groups[2].children[0]) // EMP_SEQ again (opening groups moved it)
-	press(m, key('c'))
+	press(m, key('C'))
 	nodes, _ := tr.visible()
 	if len(nodes) != len(tr.groups) {
 		t.Fatalf("c: %d visible nodes, want %d groups", len(nodes), len(tr.groups))
@@ -248,7 +248,7 @@ func TestObjectTreeClearFilterAndCollapse(t *testing.T) {
 	if n := tr.selected(); n == nil || n.label != "Sequences" {
 		t.Fatalf("c should select the selection's group: %+v", n)
 	}
-	if s := ansi.Strip(m.bottomLine()); !strings.Contains(s, "x no filter") || !strings.Contains(s, "c collapse") {
+	if s := ansi.Strip(m.bottomLine()); !strings.Contains(s, "x no filter") || !strings.Contains(s, "C collapse") {
 		t.Fatalf("hint: %q", s)
 	}
 }
@@ -279,7 +279,7 @@ func TestTreeSelectAndEditOpenTabs(t *testing.T) {
 	}
 	m.tab = m.tabs[0]
 	m.focus = focusTree
-	press(m, key('c'))
+	press(m, key('C'))
 	tr.selectNode(tr.groups[1]) // Packages
 	press(m, key(tea.KeyEnter))
 	press(m, key(tea.KeyDown)) // TESTPKG

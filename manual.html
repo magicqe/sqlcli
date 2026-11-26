@@ -419,10 +419,10 @@ sqlcli -s "daily reports"   <span class="c"># start with a saved session (all it
           <tr><td><kbd>e</kbd></td><td class="wrap-ok">Open a <strong>new SQL tab</strong> to edit the table's rows: <code>select rowid, col1, col2, … from table</code>, run at once; the result can be edited with <kbd>u</kbd>, <kbd>i</kbd> and <kbd>d</kbd></td></tr>
           <tr><td><kbd>/</kbd> or <kbd>f</kbd></td><td><strong>Filter</strong> the objects by name (see below)</td></tr>
           <tr><td><kbd>x</kbd></td><td>Remove the filter (the selected object stays selected)</td></tr>
-          <tr><td><kbd>c</kbd></td><td>Collapse the whole tree (groups and objects); the selection moves to its group</td></tr>
+          <tr><td><kbd>C</kbd> (Shift-c)</td><td>Collapse the whole tree (groups and objects); the selection moves to its group</td></tr>
           <tr><td><kbd>r</kbd></td><td>Reload the tree</td></tr>
           <tr><td><kbd>Ctrl-D</kbd></td><td class="wrap-ok">Open the object's <strong>DDL</strong> in a new SQL tab (see below)</td></tr>
-          <tr><td><kbd>C</kbd> (Shift-c)</td><td class="wrap-ok"><strong>Compile</strong> the object: <code>ALTER … COMPILE</code> for packages (spec and body), types, procedures, functions, triggers, views, materialized views, synonyms and Java sources (<code>ALTER JAVA CLASS … RESOLVE</code> for classes). The results pane says whether it compiled cleanly and lists the compilation errors (<code>LINE/COL message</code>, per spec and body); the tree is reloaded so <code>✗</code> marks follow. Compiling is DDL, so with an open transaction sqlcli asks first (it would be committed)</td></tr>
+          <tr><td><kbd>c</kbd></td><td class="wrap-ok"><strong>Compile</strong> the object: <code>ALTER … COMPILE</code> for packages (spec and body), types, procedures, functions, triggers, views, materialized views, synonyms and Java sources (<code>ALTER JAVA CLASS … RESOLVE</code> for classes). The results pane says whether it compiled cleanly and lists the compilation errors (<code>LINE/COL message</code>, per spec and body); the tree is reloaded so <code>✗</code> marks follow. Compiling is DDL, so with an open transaction sqlcli asks first (it would be committed)</td></tr>
           <tr><td><kbd>Esc</kbd></td><td>Back to the editor</td></tr>
         </tbody>
       </table></div>

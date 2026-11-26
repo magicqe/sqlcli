@@ -881,7 +881,7 @@ func TestUITreeCompile(t *testing.T) {
 	}
 	m.focus = focusTree
 	tr.selectNode(pkg)
-	press(m, key('C'))
+	press(m, key('c'))
 	if m.running || !m.statusErr || !strings.Contains(m.status, "compiled with errors") {
 		t.Fatalf("compile with errors: %q", m.status)
 	}
@@ -905,7 +905,7 @@ func TestUITreeCompile(t *testing.T) {
 			}
 		}
 	}
-	press(m, key('C'))
+	press(m, key('c'))
 	if m.statusErr || !strings.Contains(m.status, "PACKAGE SQLCLI_TEST_CMP compiled.") || len(m.res.compile) != 0 {
 		t.Fatalf("clean compile: %q %q", m.status, m.res.compile)
 	}
@@ -925,7 +925,7 @@ func TestUITreeCompile(t *testing.T) {
 		}
 	}
 	m.focus = focusTree
-	press(m, key('C'))
+	press(m, key('c'))
 	if m.mode != modePrompt || !strings.Contains(m.prompt.label, "commits the open transaction") {
 		t.Fatalf("tx question: mode %v %q", m.mode, m.prompt.label)
 	}
@@ -942,7 +942,7 @@ func TestUITreeCompile(t *testing.T) {
 			tr.selectNode(g.children[0])
 		}
 	}
-	press(m, key('C'))
+	press(m, key('c'))
 	if !strings.Contains(m.status, "can't be compiled") {
 		t.Fatalf("table: %q", m.status)
 	}

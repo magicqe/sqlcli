@@ -417,7 +417,7 @@ func (m *Model) updateTree(key string) tea.Cmd {
 		t.setFilter("")
 		t.selectNode(sel)
 		m.setStatus("Object filter removed", false)
-	case "c": // collapse the whole tree
+	case "C": // collapse the whole tree
 		group := n
 		for group != nil && group.parent != nil {
 			group = group.parent
@@ -433,7 +433,7 @@ func (m *Model) updateTree(key string) tea.Cmd {
 	case "r":
 		m.setStatus("Reloading the object tree...", false)
 		return m.loadTree(true)
-	case "C": // compile the object (ALTER ... COMPILE)
+	case "c": // compile the object (ALTER ... COMPILE)
 		return m.compileObject(treeObject(n))
 	case "ctrl+d": // DDL of the object in a new tab
 		obj := treeObject(n)
@@ -753,7 +753,7 @@ func editTableSQL(table string, cols []string) string {
 	return b.String()
 }
 
-// ---- C: compile an object ----
+// ---- c: compile an object ----
 
 // compileObject recompiles the object and shows the result and any
 // compilation errors in the results pane. Compiling is DDL: an open
@@ -761,10 +761,10 @@ func editTableSQL(table string, cols []string) string {
 func (m *Model) compileObject(obj *treeNode) tea.Cmd {
 	switch {
 	case obj == nil:
-		m.setStatus("C compiles an object: select one", true)
+		m.setStatus("c compiles an object: select one", true)
 		return nil
 	case !db.CanCompile(obj.objType):
-		m.setStatus(fmt.Sprintf("A %s can't be compiled (C compiles packages, procedures, functions, triggers, views, types, Java ...)", strings.ToLower(obj.objType)), true)
+		m.setStatus(fmt.Sprintf("A %s can't be compiled (c compiles packages, procedures, functions, triggers, views, types, Java ...)", strings.ToLower(obj.objType)), true)
 		return nil
 	case m.conn == nil:
 		m.setStatus("Not connected", true)

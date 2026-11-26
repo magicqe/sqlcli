@@ -309,10 +309,10 @@ connection, and is loaded again after `CREATE`, `DROP`, `ALTER` or `RENAME`.
 | e | open a **new SQL tab** to edit the table's rows: `select rowid, col1, col2, … from table`, run at once; the result can be edited with u, i and d |
 | / or f | **filter** the objects by name (see below) |
 | x | remove the filter (the selected object stays selected) |
-| c | collapse the whole tree (groups and objects); the selection moves to its group |
+| C (Shift-c) | collapse the whole tree (groups and objects); the selection moves to its group |
 | r | reload the tree |
 | Ctrl-D | open the object's **DDL** in a new SQL tab (see below) |
-| C (Shift-c) | **compile** the object: `ALTER … COMPILE` for packages (spec and body), types, procedures, functions, triggers, views, materialized views, synonyms and Java sources (`ALTER JAVA CLASS … RESOLVE` for classes). The results pane says whether it compiled cleanly and lists the compilation errors (`LINE/COL message`, per spec and body); the tree is reloaded so `✗` marks follow. Compiling is DDL, so with an open transaction sqlcli asks first (it would be committed) |
+| c | **compile** the object: `ALTER … COMPILE` for packages (spec and body), types, procedures, functions, triggers, views, materialized views, synonyms and Java sources (`ALTER JAVA CLASS … RESOLVE` for classes). The results pane says whether it compiled cleanly and lists the compilation errors (`LINE/COL message`, per spec and body); the tree is reloaded so `✗` marks follow. Compiling is DDL, so with an open transaction sqlcli asks first (it would be committed) |
 | Esc | back to the editor |
 
 A click selects, a double-click opens, the mouse wheel scrolls.
