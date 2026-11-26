@@ -478,3 +478,82 @@ func (c *Conn) DeleteRow(ctx context.Context, owner, table, rowid string) error 
 	}
 	return nil
 }
+
+// compileStmts maps an object type to its ALTER ... COMPILE statement and
+// the USER_ERRORS types that hold its errors.
+var compileStmts = map[string]struct {
+	stmt  string
+	kinds []string
+}{
+	"PACKAGE":           {"alter package %s compile", []string{"PACKAGE", "PACKAGE BODY"}},
+	"TYPE":              {"alter type %s compile", []string{"TYPE", "TYPE BODY"}},
+	"PROCEDURE":         {"alter procedure %s compile", []string{"PROCEDURE"}},
+	"FUNCTION":          {"alter function %s compile", []string{"FUNCTION"}},
+	"TRIGGER":           {"alter trigger %s compile", []string{"TRIGGER"}},
+	"VIEW":              {"alter view %s compile", []string{"VIEW"}},
+	"MATERIALIZED VIEW": {"alter materialized view %s compile", []string{"MATERIALIZED VIEW"}},
+	"SYNONYM":           {"alter synonym %s compile", nil},
+	"JAVA SOURCE":       {"alter java source %s compile", []string{"JAVA SOURCE", "JAVA CLASS"}},
+	"JAVA CLASS":        {"alter java class %s resolve", []string{"JAVA CLASS"}},
+}
+
+// CanCompile reports whether Compile handles an object type.
+func CanCompile(objType string) bool { _, ok := compileStmts[objType]; return ok }
+
+// Compile recompiles an object of the current schema (ALTER ... COMPILE)
+// and returns a Result whose Message says whether it is valid and whose
+// Errors list the compilation errors. Like any DDL it commits an open
+// transaction.
+func (c *Conn) Compile(ctx context.Context, objType, name string) (*Result, error) {
+	cs, ok := compileStmts[objType]
+	if !ok {
+		return nil, fmt.Errorf("a %s can't be compiled", strings.ToLower(objType))
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed || c.sc == nil {
+		return nil, sql.ErrConnDone
+	}
+	if c.ReadOnly {
+		return nil, fmt.Errorf("connection %q is read-only", c.Name)
+	}
+	start := time.Now()
+	var ex execer = c.sc
+	if c.tx != nil {
+		ex = c.tx
+	}
+	_, err := ex.ExecContext(ctx, fmt.Sprintf(cs.stmt, quoteName(name)))
+	if err != nil && !strings.Contains(err.Error(), "ORA-24344") { // 24344: compiled with errors
+		return nil, err
+	}
+	res := &Result{Duration: time.Since(start)}
+	for _, k := range cs.kinds {
+		errs := c.compileErrors(ex, k, "", name)
+		if len(errs) > 0 && len(cs.kinds) > 1 {
+			res.Errors = append(res.Errors, k+":")
+		}
+		res.Errors = append(res.Errors, errs...)
+	}
+	if len(cs.kinds) > 0 {
+		c.lastObj = [3]string{cs.kinds[0], "", name} // for SHOW ERRORS
+	}
+	status := ""
+	if rows, err := queryRows(ctx, ex, `select status from user_objects
+		where object_name = :1 and object_type = :2`, name, objType); err == nil && len(rows) > 0 {
+		status = rows[0][0]
+	}
+	switch {
+	case len(res.Errors) > 0:
+		res.Message = fmt.Sprintf("%s %s compiled with errors.", objType, name)
+	case status == "INVALID":
+		res.Message = fmt.Sprintf("%s %s compiled but is still INVALID.", objType, name)
+	default:
+		res.Message = fmt.Sprintf("%s %s compiled.", objType, name)
+	}
+	if c.tx != nil { // the DDL committed the open transaction
+		_ = c.tx.Commit()
+		c.tx = nil
+		res.Message += " (open transaction was committed by DDL)"
+	}
+	return res, nil
+}

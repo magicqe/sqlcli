@@ -856,3 +856,94 @@ func TestUIExplainPlan(t *testing.T) {
 		t.Fatal("explain plan should not leave a transaction open")
 	}
 }
+
+func TestUITreeCompile(t *testing.T) {
+	m := newTestModel(t, false)
+	ctx := context.Background()
+	defer m.conn.Execute(ctx, "drop package sqlcli_test_cmp", 1)
+	m.ed.SetText("create or replace package sqlcli_test_cmp as\n  function f return number;\nend;\n/\n" +
+		"create or replace package body sqlcli_test_cmp as\n  function f return number is begin return no_such_thing; end;\nend;\n/")
+	m.focus = focusEditor
+	press(m, key(tea.KeyF7))
+	drain(m, m.loadTree(true))
+	tr := m.tree()
+	var pkg *treeNode
+	for _, g := range tr.groups {
+		for _, n := range g.children {
+			if n.objType == "PACKAGE" && n.name == "SQLCLI_TEST_CMP" {
+				pkg = n
+				g.open = true
+			}
+		}
+	}
+	if pkg == nil {
+		t.Fatal("package not in the tree")
+	}
+	m.focus = focusTree
+	tr.selectNode(pkg)
+	press(m, key('C'))
+	if m.running || !m.statusErr || !strings.Contains(m.status, "compiled with errors") {
+		t.Fatalf("compile with errors: %q", m.status)
+	}
+	if s := strings.Join(m.res.compile, "\n"); !strings.Contains(s, "PACKAGE BODY:") || !strings.Contains(s, "NO_SUCH_THING") {
+		t.Fatalf("errors: %q", m.res.compile)
+	}
+
+	// fixed body: compiles clean, the tree no longer marks it invalid
+	_, err := m.conn.Execute(ctx, "create or replace package body sqlcli_test_cmp as\n  function f return number is begin return 1; end;\nend;", 1)
+	if err != nil {
+		t.Fatal(db.CleanError(err))
+	}
+	m.focus = focusTree
+	drain(m, m.loadTree(true))
+	tr = m.tree()
+	for _, g := range tr.groups {
+		for _, n := range g.children {
+			if n.name == "SQLCLI_TEST_CMP" {
+				g.open = true
+				tr.selectNode(n)
+			}
+		}
+	}
+	press(m, key('C'))
+	if m.statusErr || !strings.Contains(m.status, "PACKAGE SQLCLI_TEST_CMP compiled.") || len(m.res.compile) != 0 {
+		t.Fatalf("clean compile: %q %q", m.status, m.res.compile)
+	}
+
+	// with an open transaction it asks first
+	run(m, "create global temporary table sqlcli_test_cmp_tx (x number) on commit preserve rows")
+	defer m.conn.Execute(ctx, "drop table sqlcli_test_cmp_tx purge", 1)
+	run(m, "insert into sqlcli_test_cmp_tx values (1)")
+	drain(m, m.loadTree(true)) // the CREATE reloaded the tree: select the package again
+	tr = m.tree()
+	for _, g := range tr.groups {
+		for _, n := range g.children {
+			if n.name == "SQLCLI_TEST_CMP" {
+				g.open = true
+				tr.selectNode(n)
+			}
+		}
+	}
+	m.focus = focusTree
+	press(m, key('C'))
+	if m.mode != modePrompt || !strings.Contains(m.prompt.label, "commits the open transaction") {
+		t.Fatalf("tx question: mode %v %q", m.mode, m.prompt.label)
+	}
+	answer(m, "n")
+	if !m.conn.InTransaction() || m.status != "Not compiled" {
+		t.Fatalf("declined: tx %v %q", m.conn.InTransaction(), m.status)
+	}
+	m.conn.Rollback()
+
+	// a table can't be compiled
+	for _, g := range tr.groups {
+		if g.objType == "TABLE" && len(g.children) > 0 {
+			g.open = true
+			tr.selectNode(g.children[0])
+		}
+	}
+	press(m, key('C'))
+	if !strings.Contains(m.status, "can't be compiled") {
+		t.Fatalf("table: %q", m.status)
+	}
+}

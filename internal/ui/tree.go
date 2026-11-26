@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -432,6 +433,8 @@ func (m *Model) updateTree(key string) tea.Cmd {
 	case "r":
 		m.setStatus("Reloading the object tree...", false)
 		return m.loadTree(true)
+	case "C": // compile the object (ALTER ... COMPILE)
+		return m.compileObject(treeObject(n))
 	case "ctrl+d": // DDL of the object in a new tab
 		obj := treeObject(n)
 		if obj == nil {
@@ -748,4 +751,58 @@ func editTableSQL(table string, cols []string) string {
 	}
 	b.WriteString("\n  from " + quoteIdent(table) + ";")
 	return b.String()
+}
+
+// ---- C: compile an object ----
+
+// compileObject recompiles the object and shows the result and any
+// compilation errors in the results pane. Compiling is DDL: an open
+// transaction would be committed, so it asks first.
+func (m *Model) compileObject(obj *treeNode) tea.Cmd {
+	switch {
+	case obj == nil:
+		m.setStatus("C compiles an object: select one", true)
+		return nil
+	case !db.CanCompile(obj.objType):
+		m.setStatus(fmt.Sprintf("A %s can't be compiled (C compiles packages, procedures, functions, triggers, views, types, Java ...)", strings.ToLower(obj.objType)), true)
+		return nil
+	case m.conn == nil:
+		m.setStatus("Not connected", true)
+		return nil
+	case m.running:
+		m.setStatus("Wait for the running statement (Ctrl-C cancels it)", true)
+		return nil
+	}
+	run := func() tea.Cmd {
+		conn, id, typ, name := m.conn, m.id, obj.objType, obj.name
+		m.running = true
+		m.runStart = time.Now()
+		m.setStatus(fmt.Sprintf("Compiling %s %s...", strings.ToLower(typ), name), false)
+		return tea.Batch(tick(), func() tea.Msg {
+			t0 := time.Now()
+			res, err := conn.Compile(context.Background(), typ, name)
+			msg := execDoneMsg{tab: id, ddl: true, err: err, elapsed: time.Since(t0)}
+			if res != nil {
+				msg.messages = []string{res.Message}
+				if len(res.Errors) > 0 {
+					msg.compile = append(msg.compile, res.Message)
+					for _, e := range res.Errors {
+						msg.compile = append(msg.compile, "  "+e)
+					}
+				}
+			}
+			return msg
+		})
+	}
+	if m.conn.InTransaction() {
+		m.ask("Compiling is DDL and commits the open transaction. Compile? (y/N)", "", false, func(v string) tea.Cmd {
+			if strings.EqualFold(strings.TrimSpace(v), "y") {
+				return run()
+			}
+			m.setStatus("Not compiled", false)
+			return nil
+		})
+		return nil
+	}
+	return run()
 }
