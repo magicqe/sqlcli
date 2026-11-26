@@ -873,8 +873,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onTab(msg.tab, func() tea.Cmd { return m.fetchDone(msg) })
 
 	case treeObjectsMsg:
-		m.treeObjectsLoaded(msg)
-		return m, nil
+		return m, m.treeObjectsLoaded(msg)
 
 	case treeChildrenMsg:
 		m.treeChildrenLoaded(msg)

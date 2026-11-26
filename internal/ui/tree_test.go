@@ -316,3 +316,37 @@ func TestObjectTreeAllTypes(t *testing.T) {
 		t.Fatal("Ctrl-D on a Java source should read its DDL")
 	}
 }
+
+func TestTreeReloadKeepsOpenNodes(t *testing.T) {
+	m := treeModel(t)
+	m.focus = focusTree
+	tr := m.tree()
+	tables, pkgs := tr.groups[0], tr.groups[1]
+	tables.open, pkgs.open = true, true
+	emp := tables.children[0]
+	emp.open, emp.loaded = true, true
+	emp.children = []*treeNode{{label: "ID", objType: "COLUMN", parent: emp}}
+	tr.selectNode(emp.children[0]) // a column of EMP
+	m.loadTree(true)               // e.g. after a DDL; the command itself isn't run here
+	if s := screen(m); strings.Contains(s, "loading") || !strings.Contains(s, "EMP") {
+		t.Fatalf("the old tree should stay on screen while loading:\n%s", s)
+	}
+	_, cmd := m.Update(treeObjectsMsg{conn: "ora", objs: []db.SchemaObject{
+		{Type: "TABLE", Name: "DEPT", Valid: true}, {Type: "TABLE", Name: "EMP", Valid: true},
+		{Type: "PACKAGE", Name: "TESTPKG", Valid: true}, {Type: "SEQUENCE", Name: "EMP_SEQ", Valid: true},
+	}})
+	tr = m.tree()
+	if !tr.groups[0].open || !tr.groups[1].open || tr.groups[2].open {
+		t.Fatalf("groups: %v %v %v", tr.groups[0].open, tr.groups[1].open, tr.groups[2].open)
+	}
+	newEmp := tr.groups[0].children[1]
+	if newEmp.name != "EMP" || !newEmp.open || !newEmp.loading || cmd == nil {
+		t.Fatalf("EMP should be open again and reload its columns: %+v", newEmp)
+	}
+	if n := tr.selected(); n != newEmp {
+		t.Fatalf("selected %+v, want EMP", n)
+	}
+	if !strings.Contains(screen(m), "▾ Tables") {
+		t.Fatalf("screen:\n%s", screen(m))
+	}
+}

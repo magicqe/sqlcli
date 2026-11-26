@@ -888,6 +888,11 @@ func TestUITreeCompile(t *testing.T) {
 	if s := strings.Join(m.res.compile, "\n"); !strings.Contains(s, "PACKAGE BODY:") || !strings.Contains(s, "NO_SUCH_THING") {
 		t.Fatalf("errors: %q", m.res.compile)
 	}
+	// compiling reloads the tree but keeps it open on the package
+	tr = m.tree()
+	if n := tr.selected(); n == nil || n.name != "SQLCLI_TEST_CMP" || !n.parent.open {
+		t.Fatalf("after compile the tree should stay on the package: %+v", n)
+	}
 
 	// fixed body: compiles clean, the tree no longer marks it invalid
 	_, err := m.conn.Execute(ctx, "create or replace package body sqlcli_test_cmp as\n  function f return number is begin return 1; end;\nend;", 1)

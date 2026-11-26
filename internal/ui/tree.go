@@ -78,6 +78,41 @@ type objTree struct {
 	top     int
 	filter  string         // object name filter ("" = all objects)
 	match   *regexp.Regexp // the compiled filter
+	restore *treeState     // what was open and selected before a reload
+}
+
+// treeState is what a reload keeps: the open groups and objects and the
+// selected node.
+type treeState struct {
+	groups  map[string]bool // object types of open groups
+	objects map[string]bool // type + "\x00" + name of open objects
+	selTyp  string          // the selected group's type, or the selected object's
+	selName string          // the selected object ("" for a group)
+}
+
+func objKey(typ, name string) string { return typ + "\x00" + name }
+
+// state records what is open and selected.
+func (t *objTree) state() *treeState {
+	st := &treeState{groups: map[string]bool{}, objects: map[string]bool{}}
+	for _, g := range t.groups {
+		if g.open {
+			st.groups[g.objType] = true
+		}
+		for _, n := range g.children {
+			if n.open {
+				st.objects[objKey(n.objType, n.name)] = true
+			}
+		}
+	}
+	if n := t.selected(); n != nil {
+		if obj := treeObject(n); obj != nil { // an object, or the object of a column / member
+			st.selTyp, st.selName = obj.objType, obj.name
+		} else {
+			st.selTyp = n.objType
+		}
+	}
+	return st
 }
 
 // setFilter sets the object name filter: a case-insensitive part of the
@@ -202,6 +237,11 @@ func (m *Model) loadTree(reload bool) tea.Cmd {
 		t = &objTree{}
 		if old != nil {
 			t.sel, t.top, t.filter, t.match = old.sel, old.top, old.filter, old.match
+			t.groups = old.groups // shown until the new objects arrive
+			t.restore = old.restore
+			if old.groups != nil {
+				t.restore = old.state()
+			}
 		}
 		m.trees[name] = t
 	}
@@ -213,15 +253,15 @@ func (m *Model) loadTree(reload bool) tea.Cmd {
 	}
 }
 
-func (m *Model) treeObjectsLoaded(msg treeObjectsMsg) {
+func (m *Model) treeObjectsLoaded(msg treeObjectsMsg) tea.Cmd {
 	t := m.trees[msg.conn]
 	if t == nil {
-		return
+		return nil
 	}
 	t.loading = false
 	if msg.err != nil {
 		t.err = db.CleanError(msg.err)
-		return
+		return nil
 	}
 	byType := map[string][]db.SchemaObject{}
 	for _, o := range msg.objs {
@@ -257,8 +297,44 @@ func (m *Model) treeObjectsLoaded(msg treeObjectsMsg) {
 		}
 		t.groups = append(t.groups, gn)
 	}
+	cmd := m.restoreTree(t, msg.conn)
 	nodes, _ := t.visible()
 	t.sel = min(t.sel, max(len(nodes)-1, 0))
+	return cmd
+}
+
+// restoreTree reopens, after a reload, the groups and objects that were
+// open and selects the node that was selected. Open objects load their
+// columns / members again when the tree belongs to the active connection.
+func (m *Model) restoreTree(t *objTree, conn string) tea.Cmd {
+	st := t.restore
+	t.restore = nil
+	if st == nil {
+		return nil
+	}
+	var cmds []tea.Cmd
+	var sel *treeNode
+	for _, g := range t.groups {
+		if st.groups[g.objType] {
+			g.open = true
+		}
+		if st.selName == "" && g.objType == st.selTyp {
+			sel = g
+		}
+		for _, n := range g.children {
+			if n.objType == st.selTyp && n.name == st.selName && st.selName != "" {
+				sel = n
+			}
+			if st.objects[objKey(n.objType, n.name)] && n.expandable() && m.conn != nil && m.conn.Name == conn {
+				n.open = true
+				cmds = append(cmds, m.loadChildren(n))
+			}
+		}
+	}
+	if sel != nil {
+		t.selectNode(sel)
+	}
+	return tea.Batch(cmds...)
 }
 
 // loadChildren loads the columns of a table/view or the members of a package.

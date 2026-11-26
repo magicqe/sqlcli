@@ -295,7 +295,8 @@ bodies are part of their package or type; LOBs and partitions are not shown.
 Tables and views open to their columns with types (`ID  NUMBER(5) NOT
 NULL`), packages to their functions and procedures. Invalid objects are
 marked `✗`. The tree loads when a tab connects, follows the active tab's
-connection, and is loaded again after `CREATE`, `DROP`, `ALTER` or `RENAME`.
+connection, and is loaded again after `CREATE`, `DROP`, `ALTER` or `RENAME`
+(and after compiling with c), keeping open groups and objects and the selection.
 
 | Key | Action |
 |---|---|
